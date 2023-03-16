@@ -1,0 +1,6 @@
+cifar-100/model/
+cifar-100/figure/
+cifar-100/log/
+cifar-100/new_model/
+cifar-100/__pycache__/
+cifar-100/runs/
