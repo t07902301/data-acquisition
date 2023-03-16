@@ -1,0 +1,98 @@
+device: 'cuda:1'
+clf : 'SVM'
+clf_args:
+  hidden_layer_size: [200,100,50]
+  max_iter: 500
+  k-fold: 2
+  kernel: 'linear'
+num_workers: 1
+hparams: 
+    superclass: 20
+    subclass: 100
+    arch: 'resnet18'
+    arch_type: 'cifar_resnet'
+    batch_size: 
+      20-class: 512
+      10-class: 256
+      3-class: 64
+      3-class-mini: 64
+      3-class-mini-small: 64
+    optimizer: 
+      type: 'sgd'
+      momentum: 0.9
+      weight_decay: 5.0E-4
+    training: 
+      epochs: 35
+      lr: 0.5
+      lr_scheduler: 
+          type: 'cyclic'
+          lr_peak_epoch: 5    
+      # optimizer:  
+    tuning:
+      epochs: 15
+      lr: 0.1
+      lr_scheduler: 
+          type: 'cyclic'
+          lr_peak_epoch: 5  
+          # type: 'ReduceLROnPlateau'
+          # patience: 3
+    # 'epochs': 20, 'lr': 0.5,
+    # 'lr_scheduler':{'type': 'step_lr', 'step_size': 7,'gamma':0.5},   
+data: 
+  std_real: [68.209,65.431,70.459]
+  mean_real: [129.377,124.106,112.478]
+  mean: [125.307, 122.961, 113.8575]
+  std: [51.5865, 50.847, 51.255]
+  ds_root: '/home/yiwei/data/'
+  ratio: 
+    3-class-mini-small:
+      train_size : 0.3
+      val_size : 0.2
+      market_size : 0.5
+      remove_rate: 0.75
+    3-class-mini:
+      train_size : 0.55
+      val_size : 0.2
+      market_size : 0.25
+      remove_rate: 0.75
+    non-mini:
+      train_size : 0.4
+      val_size : 0.2
+      market_size : 0.4
+      remove_rate: 0.75            
+  acquired_num_per_class: 
+    non-mini: [75,100,200,300,400]
+    mini: [50,75,100,125,150,175,200,225,250]
+    # mini: [225,250]
+  selected_labels:
+    10-class: [54, 62, 70, 82, 92, 8, 13, 48, 58, 90, 3, 42, 43, 88, 97, 5, 20, 25, 84, 94, 22, 39, 40, 86, 87, 6, 7, 14, 18, 24, 2, 11, 35, 46, 98, 23, 33, 49, 60, 71, 4, 30, 55, 72, 95, 0, 51, 53, 57, 83]
+    3-class: [0, 51, 53, 57, 83, 9, 10, 16, 28, 61, 4, 30, 55, 72, 95]
+    20-class: []
+    3-class-mini: [30, 4, 9, 10, 0, 51] # 3-class + 2 subcls
+    3-class-mini-small: [30, 4, 9, 10, 0, 51] # 3-class + 2 subcls
+  label_map:
+    10-class:
+      2: 0
+      18: 1
+      8: 2
+      6: 3
+      5: 4
+      7: 5
+      14: 6
+      10: 7
+      0: 8
+      4: 9
+    3-class:
+      4: 0
+      3: 1
+      0: 2
+    3-class-mini:
+      4: 0
+      3: 1
+      0: 2
+    3-class-mini-small:
+      4: 0
+      3: 1
+      0: 2
+    20-class: None  
+  remove_fine_labels: [4, 73, 54, 10, 51, 40, 84, 18, 3, 12, 33, 38, 64, 45, 2, 44, 80, 96, 13, 81]
