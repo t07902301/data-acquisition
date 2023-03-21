@@ -4,47 +4,51 @@ from utils.Config import *
 from utils.acquistion import apply_CLF,get_CLF
 from utils.model import *
 from abc import abstractmethod
-
 class test_subet_setter():
-    def __init__(self, method:str, aux:list) -> None:
-        self.method = method
-        self.auxiliary = aux
+    def __init__(self) -> None:
+        pass
+    @abstractmethod
     def get_subset_loders(self):
-        if self.method == 'threshold':
-            return self.threshold()
-        else:
-            return self.misclassification()
-    def read_dataset_info(self, info:dict):
-        self.ds_info = info
-    def threshold(self):
+        pass
+class threshold_test_subet_setter(test_subet_setter):
+    def __init__(self, thresholds: list) -> None:
+        self.thresholds = thresholds
+    def get_subset_loders(self, data_info):
         subset_loader = []
-        for threshold in self.auxiliary:
-            dv_selected_indices = self.ds_info['dv']<threshold
-            test_selected = torch.utils.data.Subset( self.ds_info['dataset'],np.arange(len(self.ds_info['dataset']))[dv_selected_indices])
-            remained_test = torch.utils.data.Subset(self.ds_info['dataset'],np.arange(len(self.ds_info['dataset']))[~dv_selected_indices])
-            test_selected_loader = torch.utils.data.DataLoader(test_selected, batch_size=self.ds_info['batch_size'], num_workers=config['num_workers'])
-            remained_test_loader = torch.utils.data.DataLoader(remained_test, batch_size=self.ds_info['batch_size'], num_workers=config['num_workers'])
+        for threshold in self.thresholds:
+            dv_selected_indices = data_info['dv']<threshold
+            test_selected = torch.utils.data.Subset(data_info['dataset'],np.arange(len(data_info['dataset']))[dv_selected_indices])
+            remained_test = torch.utils.data.Subset(data_info['dataset'],np.arange(len(data_info['dataset']))[~dv_selected_indices])
+            test_selected_loader = torch.utils.data.DataLoader(test_selected, batch_size=data_info['batch_size'], num_workers=config['num_workers'])
+            remained_test_loader = torch.utils.data.DataLoader(remained_test, batch_size=data_info['batch_size'], num_workers=config['num_workers'])
             test_loader = {
                 'new_model':test_selected_loader,
                 'old_model': remained_test_loader
             }   
             subset_loader.append(test_loader)
-            # assert len(test_selected)+len(remained_test) == len(self.ds_info['dataset'])
+            # assert len(test_selected)+len(remained_test) == len(data_info['dataset'])
         return subset_loader
-    def misclassification(self):
-        incorr_cls_indices = (self.ds_info['gt'] != self.ds_info['pred'])
-        corr_cls_indices = (self.ds_info['gt'] == self.ds_info['pred'])
-        incorr_cls_set = torch.utils.data.Subset( self.ds_info['dataset'],np.arange(len(self.ds_info['dataset']))[incorr_cls_indices])
-        corr_cls_set = torch.utils.data.Subset( self.ds_info['dataset'],np.arange(len(self.ds_info['dataset']))[corr_cls_indices])
-        corr_cls_loader = torch.utils.data.DataLoader(corr_cls_set, batch_size=self.ds_info['batch_size'], num_workers=config['num_workers'])
-        incorr_cls_loader = torch.utils.data.DataLoader(incorr_cls_set, batch_size=self.ds_info['batch_size'], num_workers=config['num_workers'])
+class misclassification_test_subet_setter(test_subet_setter):
+    def __init__(self) -> None:
+        pass
+    def get_subset_loders(self,data_info):
+        incorr_cls_indices = (data_info['gt'] != data_info['pred'])
+        corr_cls_indices = (data_info['gt'] == data_info['pred'])
+        incorr_cls_set = torch.utils.data.Subset( data_info['dataset'],np.arange(len(data_info['dataset']))[incorr_cls_indices])
+        corr_cls_set = torch.utils.data.Subset( data_info['dataset'],np.arange(len(data_info['dataset']))[corr_cls_indices])
+        corr_cls_loader = torch.utils.data.DataLoader(corr_cls_set, batch_size=data_info['batch_size'], num_workers=config['num_workers'])
+        incorr_cls_loader = torch.utils.data.DataLoader(incorr_cls_set, batch_size=data_info['batch_size'], num_workers=config['num_workers'])
         test_loader = {
             'new_model':incorr_cls_loader,
             'old_model': corr_cls_loader
         }   
         subset_loader = [test_loader]
         return subset_loader
-
+def subset_setter_factory(method,thresholds):
+    if method == 'mis':
+        return misclassification_test_subet_setter()
+    else:
+        return threshold_test_subet_setter(thresholds)
 class plotter():
     def __init__(self, select_method, plot_methods, plot_data_numbers, model_config) -> None:
         self.select_method = select_method
@@ -83,6 +87,8 @@ class plotter():
             ylabel = 'decision value'
         elif self.select_method == 'total':
             ylabel = 'model accuracy change'
+        else:
+            ylabel = 'market average dv'
         for m_idx,method in enumerate(self.plot_methods): 
             method_result = value_list[:,m_idx,:] #(e,m,img_num) e:epochs,m:methods
             method_avg = np.round(np.mean(method_result,axis=0),decimals=3) #(e,img_num)
@@ -140,12 +146,12 @@ class benchmark_checker(dv_checker):
         self.datasplits = datasplits       
     def run(self,acquisition_config):
         data_info = apply_CLF(self.clf, self.datasplits.loader['market'], self.clip_processor, self.base_model)
-        return np.round(np.mean(data_info['dv']),decimals=3)       
+        return (data_info['dv']<0).sum()/len(data_info['dv'])     
     
 class test_subset_checker(checker):
-    def __init__(self, model_config: NewModelConfig, subset_method:str, threshold_list:list) -> None:
+    def __init__(self, model_config: NewModelConfig, threshold_list:list, method) -> None:
         super().__init__(model_config)
-        self.test_subset = test_subet_setter(subset_method,threshold_list)
+        self.test_subset = subset_setter_factory(method,threshold_list)
     def setup(self, old_model_config, datasplits):
         self.base_model = load_model(old_model_config.path)
         clf,clip_processor,_ = get_CLF(self.base_model,datasplits.loader)
@@ -155,14 +161,13 @@ class test_subset_checker(checker):
         test_info['loader'] = datasplits.loader['test']
         self.test_info = test_info
         self.base_acc = (test_info['gt']==test_info['pred']).mean()*100    
+        self.test_loaders = self.test_subset.get_subset_loders(self.test_info)
 
     def run(self, acquistion_config):
         self.model_config.set_path(acquistion_config=acquistion_config)
-        self.test_subset.read_dataset_info(self.test_info)
-        test_loaders = self.test_subset.get_subset_loders()
         new_model = load_model(self.model_config.path)
         acc_change = []
-        for loader in test_loaders:
+        for loader in self.test_loaders:
             gt,pred,_  = evaluate_model(loader['new_model'],new_model)
             new_correct = (gt==pred)
             gt,pred,_  = evaluate_model(loader['old_model'], self.base_model)
@@ -188,7 +193,7 @@ class test_set_checker(checker):
         acc = (gt==pred).mean()*100
         return acc - self.base_acc
 
-def checker_factory(check_method,model_config):
+def checker_factory(check_method,model_config, threshold_list):
     if check_method == 'dv':
         checker_product = dv_checker(model_config)
     elif check_method == 'total':
@@ -196,5 +201,5 @@ def checker_factory(check_method,model_config):
     elif check_method == 'bm':
         checker_product = benchmark_checker(model_config)
     else:
-        checker_product = test_subet_setter(model_config) 
+        checker_product = test_subset_checker(model_config, threshold_list, check_method) 
     return checker_product
