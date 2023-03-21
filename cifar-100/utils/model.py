@@ -2,13 +2,11 @@ import sys
 sys.path.append('..')
 import failure_directions.src.model_utils as model_utils
 import failure_directions.src.trainer as trainer_utils
-import torch
 from torch.cuda.amp import autocast
 import torch.nn as nn
-from utils import config
+from utils import *
 hparams = config['hparams']
 device = config['device']
-torch.cuda.set_device(device)
 
 def build_model(num_class,  use_pretrained=False):
     build_fn = model_utils.BUILD_FUNCTIONS[hparams['arch_type']]
@@ -53,7 +51,12 @@ def tune(base_model,train_loader,val_loader, weights=None,log_model=False,model_
     best_model = trainer.fit(base_model, train_loader, val_loader)
     return best_model # check point during refinig
     # return base_model
-   
+def get_new_model(new_model_config, train_loader, val_loader, old_model=None):
+    if new_model_config.setter=='refine':
+        new_model = tune(old_model,train_loader,val_loader) # tune
+    else:
+        new_model = train_model(train_loader,val_loader,num_class=new_model_config.class_number) # retrain 
+    return new_model
 def load_model(path,use_pretrained=False):
     build_fn = model_utils.BUILD_FUNCTIONS[hparams['arch_type']]
     out = torch.load(path,map_location=device)

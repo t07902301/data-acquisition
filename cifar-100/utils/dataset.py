@@ -1,10 +1,9 @@
 # import sys
 # sys.path.append('..')
-import torch
 import torchvision.transforms as transforms
-import numpy as np
 import utils.cifar as cifar
-from utils import config
+from utils import *
+from utils.Config import ModelConfig, AcquistionConfig
 data_config = config['data']
 max_subclass_num = config['hparams']['subclass']
 base_transform = transforms.Compose([
@@ -15,26 +14,114 @@ train_transform = transforms.Compose([
     transforms.RandomHorizontalFlip(),
     base_transform
 ])
-# from dataclasses import dataclass,fields
-# @dataclass
-# class Dataset():
-#     def __init__(self,dataset:dict) -> None:
-#         self.train:cifar.data.Dataset = dataset['train']
-#         self.val:cifar.data.Dataset = dataset['val']
-#         self.market: cifar.data.Dataset = dataset['market']
-#         self.test: cifar.data.Dataset = dataset['test']
-#         self.market_aug: cifar.data.Dataset = dataset['market_aug']
-#         self.train_aug:cifar.data.Dataset = dataset['train_aug']
-#         # self.split_names = ['train', 'train_aug', 'val', 'market', 'market_aug', 'test']
+from dataclasses import dataclass,fields
+@dataclass
+class DataSplits():
+    dataset: dict
+    loader: dict
+    def __init__(self,ds_root,select_fine_labels,model_dir) -> None:
+        self.dataset = self.create_dataset_split(ds_root,select_fine_labels,model_dir)
+    def create_dataset_split(self, ds_root,select_fine_labels,model_dir):
+        # When all classes are used, only work on removal
+        # When some classes are neglected, test set and the big train set will be shrank.
+        train_ds,aug_train_ds,test_ds = get_raw_ds(ds_root)
+        ratio = data_config['ratio']['non-mini'] if 'mini' not in model_dir else data_config['ratio'][model_dir]
+        train_size = ratio["train_size"]
+        val_size = ratio["val_size"]
+        market_size = ratio["market_size"]
+        remove_rate = ratio['remove_rate']
 
-def get_dataloader(ds, batch_size):
-    # field_items = fields(ds)
-    loader = {
-        k: torch.utils.data.DataLoader(ds[k], batch_size=batch_size, 
-                                    shuffle=(k=='train'), drop_last=(k=='train'),num_workers=config['num_workers'])
-        for k in ds.keys()
-    }
-    return loader
+        if len(select_fine_labels)>0:
+            train_ds = get_subset_by_labels(train_ds,select_fine_labels)
+            test_ds = get_subset_by_labels(test_ds,select_fine_labels)
+            aug_train_ds = get_subset_by_labels(aug_train_ds,select_fine_labels)
+
+        label_summary = [i for i in range(max_subclass_num)] if len(select_fine_labels)==0 else select_fine_labels
+
+        train_fine_labels = get_ds_labels(train_ds)
+        train_indices,val_market_indices = split_dataset(train_fine_labels, label_summary, train_size/(train_size+val_size+market_size))
+
+        val_market_set = torch.utils.data.Subset(train_ds,val_market_indices)
+        aug_val_market_set = torch.utils.data.Subset(aug_train_ds,val_market_indices)
+        clip_train_ds_split = torch.utils.data.Subset(train_ds,train_indices)
+        aug_train_ds_split = torch.utils.data.Subset(aug_train_ds,train_indices)
+
+        val_mar_fine_labels = get_ds_labels(val_market_set)
+        val_indices,market_indices = split_dataset(val_mar_fine_labels,label_summary,val_size/(val_size+market_size))
+
+        val_ds = torch.utils.data.Subset(val_market_set,val_indices)
+        market_ds = torch.utils.data.Subset(val_market_set,market_indices)
+        aug_market_ds = torch.utils.data.Subset(aug_val_market_set,market_indices)
+
+        split_train_fine_labels = get_ds_labels(aug_train_ds_split)
+        _, left_indices = split_dataset(split_train_fine_labels,data_config['remove_fine_labels'],remove_rate)
+        left_clip_train = torch.utils.data.Subset(clip_train_ds_split,left_indices)
+        left_aug_train = torch.utils.data.Subset(aug_train_ds_split,left_indices)
+
+        ds = {}
+        ds['train'] =  left_aug_train
+        ds['val'] =  val_ds
+        ds['market'] =  market_ds
+        ds['train_clip'] = left_clip_train
+        ds['market_aug'] =  aug_market_ds
+        ds['test'] = test_ds
+        return ds
+    def modify_coarse_label(self, label_map):
+        for split in self.dataset.keys():
+            self.dataset[split] = cifar.ModifiedDataset(dataset=self.dataset[split],coarse_label_transform=label_map) 
+        # for split,infos in ds.items():
+        #     data_list = []
+        #     coarse_labels = []
+        #     fine_labels = []
+        #     for info in infos:
+        #         data_list.append(info[0])
+        #         coarse_labels.append(label_map[info[1]])
+        #         fine_labels.append(info[2])
+        #     if (split=='train') or (split=='market_aug'):
+        #         ds[split] = cifar.ModifiedDataset(dataset=data_list,coarse_labels=coarse_labels,fine_labels=fine_labels,transform=train_transform)
+        #     else:
+        #         ds[split] = cifar.ModifiedDataset(dataset=data_list,coarse_labels=coarse_labels,fine_labels=fine_labels,transform=base_transform)
+    def expand(self, split_name, new_data, batch_size, acquisition_config: AcquistionConfig):
+        '''
+        dataset (dict) is mutable, pass by reference
+        '''
+        original_split_len = len(self.dataset[split_name])
+        self.dataset[split_name] = torch.utils.data.ConcatDataset([self.dataset[split_name],new_data])
+        assert len(self.dataset[split_name]) == original_split_len + len(new_data), "size error with new {} in {}".format(split_name, acquisition_config.get_info)  
+        self.update_dataloader(split_name, batch_size) 
+
+    def reduce(self, split_name, remove_data_indices, batch_size, acquisition_config: AcquistionConfig):
+        '''
+        dataset (dict) is mutable, pass by reference
+        '''
+        original_split_len = len(self.dataset[split_name])
+        left_market_mask = complimentary_mask(mask_length=original_split_len,active_spot=remove_data_indices)
+        self.dataset[split_name] = torch.utils.data.Subset(self.dataset[split_name],np.arange(original_split_len)[left_market_mask])
+        assert len(self.dataset[split_name]) == original_split_len - len(remove_data_indices), "size error with {} in {}".format(split_name, acquisition_config.get_info)
+        self.update_dataloader(split_name, batch_size) 
+
+    def get_dataloader(self, batch_size):
+        self.loader = {
+            k: torch.utils.data.DataLoader(self.dataset[k], batch_size=batch_size, 
+                                        shuffle=(k=='train'), drop_last=(k=='train'),num_workers=config['num_workers'],generator=generator)
+            for k in self.dataset.keys()
+        }
+    def update_dataloader(self, split_name, batch_size):
+        self.loader[split_name] = torch.utils.data.DataLoader(self.dataset[split_name], batch_size=batch_size, 
+                                        shuffle=(split_name=='train'), drop_last=(split_name=='train'),num_workers=config['num_workers'],generator=generator)
+    def update_dataset(self, split_name, updated_data, batch_size):
+        self.dataset[split_name] = updated_data
+        self.update_dataloader(split_name,batch_size)
+    def use_new_data(self, new_data, new_model_config:ModelConfig, acquisition_config:AcquistionConfig):
+        '''
+        new data to be added to train set or not, and update loader automatically
+        '''
+        assert len(new_data) == acquisition_config.get_new_data_size(new_model_config.class_number), 'size error with new data'
+
+        if new_model_config.pure:
+            self.update_dataset('train', new_data, new_model_config.batch_size)
+        else:
+            self.expand('train', new_data, new_model_config.batch_size, acquisition_config)
 def get_vis_transform(std,mean):
     # For visualization
     INV_NORM = transforms.Compose([ transforms.Normalize(mean = [ 0., 0., 0. ],
@@ -71,78 +158,6 @@ def get_ds_labels(ds,use_fine_label=True):
     #     return np.array([info[1] for info in ds])
     return np.array(labels)
     
-def modify_coarse_label(ds, label_map):
-    for split in ds.keys():
-        ds[split] = cifar.IterModifiedDataset(dataset=ds[split],coarse_label_transform=label_map) 
-    # for split,infos in ds.items():
-    #     data_list = []
-    #     coarse_labels = []
-    #     fine_labels = []
-    #     for info in infos:
-    #         data_list.append(info[0])
-    #         coarse_labels.append(label_map[info[1]])
-    #         fine_labels.append(info[2])
-    #     if (split=='train') or (split=='market_aug'):
-    #         ds[split] = cifar.ModifiedDataset(dataset=data_list,coarse_labels=coarse_labels,fine_labels=fine_labels,transform=train_transform)
-    #     else:
-    #         ds[split] = cifar.ModifiedDataset(dataset=data_list,coarse_labels=coarse_labels,fine_labels=fine_labels,transform=base_transform)
-
-def update_market(dataset, remove_data_indices):
-    '''
-    dataset (dict) is mutable, pass by reference
-    '''
-    org_market_ds_len = len(dataset['market'])
-    left_market_mask = complimentary_mask(mask_length=org_market_ds_len,active_spot=remove_data_indices)
-    dataset['market'] = torch.utils.data.Subset(dataset['market'],np.arange(org_market_ds_len)[left_market_mask])
-    dataset['market_aug'] = torch.utils.data.Subset(dataset['market_aug'],np.arange(org_market_ds_len)[left_market_mask])
-    # return dataset
-    #   
-def create_dataset_split(ds_root,select_fine_labels,model_dir):
-    # When all classes are used, only work on removal
-    # When some classes are neglected, test set and the big train set will be shrank.
-    train_ds,aug_train_ds,test_ds = get_raw_ds(ds_root)
-    ratio = data_config['ratio']['non-mini'] if 'mini' not in model_dir else data_config['ratio'][model_dir]
-    train_size = ratio["train_size"]
-    val_size = ratio["val_size"]
-    market_size = ratio["market_size"]
-    remove_rate = ratio['remove_rate']
-
-    if len(select_fine_labels)>0:
-        train_ds = get_subset_by_labels(train_ds,select_fine_labels)
-        test_ds = get_subset_by_labels(test_ds,select_fine_labels)
-        aug_train_ds = get_subset_by_labels(aug_train_ds,select_fine_labels)
-
-    label_summary = [i for i in range(max_subclass_num)] if len(select_fine_labels)==0 else select_fine_labels
-
-    train_fine_labels = get_ds_labels(train_ds)
-    train_indices,val_market_indices = split_dataset(train_fine_labels, label_summary, train_size/(train_size+val_size+market_size))
-
-    val_market_set = torch.utils.data.Subset(train_ds,val_market_indices)
-    aug_val_market_set = torch.utils.data.Subset(aug_train_ds,val_market_indices)
-    clip_train_ds_split = torch.utils.data.Subset(train_ds,train_indices)
-    aug_train_ds_split = torch.utils.data.Subset(aug_train_ds,train_indices)
-
-    val_mar_fine_labels = get_ds_labels(val_market_set)
-    val_indices,market_indices = split_dataset(val_mar_fine_labels,label_summary,val_size/(val_size+market_size))
-
-    val_ds = torch.utils.data.Subset(val_market_set,val_indices)
-    market_ds = torch.utils.data.Subset(val_market_set,market_indices)
-    aug_market_ds = torch.utils.data.Subset(aug_val_market_set,market_indices)
-
-    split_train_fine_labels = get_ds_labels(aug_train_ds_split)
-    _, left_indices = split_dataset(split_train_fine_labels,data_config['remove_fine_labels'],remove_rate)
-    left_clip_train = torch.utils.data.Subset(clip_train_ds_split,left_indices)
-    left_aug_train = torch.utils.data.Subset(aug_train_ds_split,left_indices)
-
-    ds = {}
-    ds['train'] =  left_aug_train
-    ds['val'] =  val_ds
-    ds['market'] =  market_ds
-    ds['train_clip'] = left_clip_train
-    ds['market_aug'] =  aug_market_ds
-    ds['test'] = test_ds
-    return ds
-
 def sample_indices(indices,ratio):
     return np.random.choice(indices,int(ratio*len(indices)),replace=False)
 def complimentary_mask(mask_length,active_spot):
@@ -181,7 +196,7 @@ def split_dataset(labels, label_summary, ratio=0 ):
     assert len(p1_indices) + len(p2_indices) == ds_length
     # return torch.tensor(p1_indices), torch.tensor(p2_indices)
     return p1_indices,p2_indices
-def minority_in_ds(ds):
+def count_minority(ds):
     '''
     return #minority in ds
     '''
