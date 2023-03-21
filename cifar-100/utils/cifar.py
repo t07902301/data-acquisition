@@ -191,40 +191,29 @@ class CIFAR100(CIFAR10):
         ['test', 'f0ef6b0ae62326f3e7ffdfab6717acfc'],
     ]
 
-class IterModifiedDataset(data.Dataset):
+class ModifiedDataset(data.Dataset):
     def __init__(self, dataset, coarse_label_transform=None):
         super().__init__()
         self.dataset = dataset
         # self.transform = transform
         self.coarse_label_transform = coarse_label_transform
-    def __iter__(self):
-        worker_info = data.get_worker_info()
-        data_size = len(self.dataset)
-        iter_dataset = []
-        for idx in range(data_size):
-            img, coarse_label, fine_label = self.dataset[idx]
-            if self.coarse_label_transform is not None:
-                coarse_label = self.coarse_label_transform[coarse_label]            
-            iter_dataset.append((img, coarse_label, fine_label))
-        if worker_info is not None:  # in one worker process, split workload
-            per_worker = int(math.ceil(data_size/ float(worker_info.num_workers)))
-            worker_id = worker_info.id
-            iter_start = 0 + worker_id * per_worker
-            iter_end = min(iter_start + per_worker, self.end)
-            return iter(iter_dataset[iter_start:iter_end])
-        else:
-            return iter(iter_dataset)
     # def __iter__(self):
-    #     worker_info = data.get_worker_info()
-    #     data_size = len(self.dataset)
-    #     if worker_info is not None:  # in one worker process, split workload
-    #         per_worker = int(math.ceil(data_size/ float(worker_info.num_workers)))
-    #         worker_id = worker_info.id
-    #         iter_start = 0 + worker_id * per_worker
-    #         iter_end = min(iter_start + per_worker, self.end)
-    #         return iter(self.dataset[iter_start:iter_end])
-    #     else:
-    #         return iter(self.dataset)
+        # worker_info = data.get_worker_info()
+        # data_size = len(self.dataset)
+        # iter_dataset = []
+        # for idx in range(data_size):
+        #     img, coarse_label, fine_label = self.dataset[idx]
+        #     if self.coarse_label_transform is not None:
+        #         coarse_label = self.coarse_label_transform[coarse_label]            
+        #     iter_dataset.append((img, coarse_label, fine_label))
+        # if worker_info is not None:  # in one worker process, split workload
+        #     per_worker = int(math.ceil(data_size/ float(worker_info.num_workers)))
+        #     worker_id = worker_info.id
+        #     iter_start = 0 + worker_id * per_worker
+        #     iter_end = min(iter_start + per_worker, self.end)
+        #     return iter(iter_dataset[iter_start:iter_end])
+        # else:
+        #     return iter(iter_dataset)
     def __len__(self):
         return len(self.dataset)
     def __getitem__(self, index):
@@ -265,6 +254,6 @@ class IterModifiedDataset(data.Dataset):
 #     def __len__(self):
 #         return len(self.indices)
 
-    def set_transform(self, new_transform):
-        self.transform = new_transform
+    # def set_transform(self, new_transform):
+    #     self.transform = new_transform
 
