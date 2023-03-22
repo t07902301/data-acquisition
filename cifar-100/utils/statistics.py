@@ -26,6 +26,7 @@ class threshold_test_subet_setter(test_subet_setter):
                 'old_model': remained_test_loader
             }   
             subset_loader.append(test_loader)
+            print('in {}, subset size: {}'.format(threshold, len(test_selected)))
             # assert len(test_selected)+len(remained_test) == len(data_info['dataset'])
         return subset_loader
 class misclassification_test_subet_setter(test_subet_setter):
@@ -103,8 +104,10 @@ class plotter():
     def plot_data(self,acc_list,threshold_list):
         if self.select_method == 'threshold':
             self.threshold_plot(threshold_list, acc_list)
-        else: 
+        elif self.select_method != 'bm': 
             self.other_plot(acc_list)
+        else:
+            print(acc_list)
         print('save to', self.fig_name)        
 
 
@@ -146,8 +149,8 @@ class benchmark_checker(dv_checker):
         self.datasplits = datasplits       
     def run(self,acquisition_config):
         data_info = apply_CLF(self.clf, self.datasplits.loader['market'], self.clip_processor, self.base_model)
-        return (data_info['dv']<0).sum()/len(data_info['dv'])     
-    
+        # return (data_info['dv']<0).sum()/len(data_info['dv'])     
+        return np.std(data_info['dv']), np.mean(data_info['dv'])
 class test_subset_checker(checker):
     def __init__(self, model_config: NewModelConfig, threshold_list:list, method) -> None:
         super().__init__(model_config)
