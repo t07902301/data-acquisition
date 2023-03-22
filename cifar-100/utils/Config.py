@@ -77,7 +77,6 @@ class SequentialAcConfig(AcquistionConfig):
     def __init__(self, model_cnt, sequential_rounds:int) -> None:
         super().__init__(model_cnt)
         self.sequential_rounds = sequential_rounds
-        self.round_data_per_class = self.new_data_number_per_class  // self.sequential_rounds
         self.round_acquire_method = 'dv'
         self.current_round = 0
     def set_round(self, round):
@@ -85,7 +84,10 @@ class SequentialAcConfig(AcquistionConfig):
     def get_new_data_size(self, class_number):
         return class_number*self.round_data_per_class*self.sequential_rounds
     def get_info(self):
-        return self.method + ' ' + str(self.new_data_number_per_class) + ' ' + str(self.model_cnt) + str(self.current_round) 
+        return self.method + ' ' + str(self.new_data_number_per_class) + str(self.round_data_per_class) + ' ' + str(self.model_cnt) + ' ' + str(self.current_round) 
+    def set_items(self, method, new_data_number):
+        super().set_items(method, new_data_number)
+        self.round_data_per_class = self.new_data_number_per_class  // self.sequential_rounds
 
 def AcquistionConfigFactory(method, model_cnt, sequential_rounds):
     if method == 'non_seq':
