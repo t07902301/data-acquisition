@@ -34,10 +34,10 @@ def run(ds:DataSplits, old_model_config, new_model_config, acquisition_config:Ac
 def main(epochs, new_model_setter='retrain', pure=False, model_dir ='', methods='', seq_rounds=1):
     print('Use pure: ',pure)
     percent_list = []
-    method_list = ['dv','sm','conf','mix'] if methods=='non_seq' else [methods]
     # method_list =['conf']
     # new_img_num_list = [50]
     batch_size, select_fine_labels, label_map, new_img_num_list, superclass_num = parse_config(model_dir, pure)
+    method_list = ['dv','sm','conf','mix'] if methods=='non_seq' else [methods]
 
     for epo in range(epochs):
 
