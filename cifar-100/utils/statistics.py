@@ -1,9 +1,11 @@
 import matplotlib.pyplot as plt
-from utils import *
+from utils import config
 from utils.Config import *
-from utils.acquistion import apply_CLF,get_CLF
+from utils.log import *
+from utils.acquistion import apply_CLF,get_CLF, get_class_info
 from utils.model import *
 from abc import abstractmethod
+import numpy as np
 class test_subet_setter():
     def __init__(self) -> None:
         pass
@@ -11,24 +13,26 @@ class test_subet_setter():
     def get_subset_loders(self):
         pass
 class threshold_test_subet_setter(test_subet_setter):
-    def __init__(self, thresholds: list) -> None:
-        self.thresholds = thresholds
-    def get_subset_loders(self, data_info):
-        subset_loader = []
-        for threshold in self.thresholds:
-            dv_selected_indices = data_info['dv']<threshold
-            test_selected = torch.utils.data.Subset(data_info['dataset'],np.arange(len(data_info['dataset']))[dv_selected_indices])
-            remained_test = torch.utils.data.Subset(data_info['dataset'],np.arange(len(data_info['dataset']))[~dv_selected_indices])
-            test_selected_loader = torch.utils.data.DataLoader(test_selected, batch_size=data_info['batch_size'], num_workers=config['num_workers'])
-            remained_test_loader = torch.utils.data.DataLoader(remained_test, batch_size=data_info['batch_size'], num_workers=config['num_workers'])
-            test_loader = {
-                'new_model':test_selected_loader,
-                'old_model': remained_test_loader
-            }   
-            subset_loader.append(test_loader)
-            print('in {}, subset size: {}'.format(threshold, len(test_selected)))
-            # assert len(test_selected)+len(remained_test) == len(data_info['dataset'])
-        return subset_loader
+    def __init__(self) -> None:
+        pass
+    def get_subset_loders(self, data_info, threshold):
+        n_class = len(threshold)
+        selected_indices_total = []
+        for c in range(n_class):
+            cls_indices, cls_mask, cls_dv = get_class_info(c, data_info['gt'], data_info['dv'])
+            dv_selected_indices = (cls_dv<=threshold[c])
+            selected_indices_total.append(dv_selected_indices)
+        selected_indices_total = np.concatenate(selected_indices_total)
+        test_selected = torch.utils.data.Subset(data_info['dataset'],np.arange(len(data_info['dataset']))[selected_indices_total])
+        remained_test = torch.utils.data.Subset(data_info['dataset'],np.arange(len(data_info['dataset']))[~selected_indices_total])
+        test_selected_loader = torch.utils.data.DataLoader(test_selected, batch_size=data_info['batch_size'], num_workers=config['num_workers'])
+        remained_test_loader = torch.utils.data.DataLoader(remained_test, batch_size=data_info['batch_size'], num_workers=config['num_workers'])
+        test_loader = {
+            'new_model':test_selected_loader,
+            'old_model': remained_test_loader
+        }   
+        print('selected test images:', len(test_selected))
+        return test_loader
 class misclassification_test_subet_setter(test_subet_setter):
     def __init__(self) -> None:
         pass
@@ -58,7 +62,7 @@ class plotter():
         pure_name = '-pure' if model_config.pure else ''
         self.fig_name = 'figure/{}{}-{}.png'.format(model_config.model_dir,pure_name,self.select_method)
 
-    def threshold_plot(self, threshold_list, acc_list, ):
+    def threshold_plot(self, threshold_list, acc_list ):
         fig, axs = plt.subplots(2,2, sharey=True, sharex=True)
         axs = axs.flatten()
         for threshold_idx,threshold in enumerate(threshold_list):
@@ -101,33 +105,49 @@ class plotter():
         plt.savefig(self.fig_name)
         plt.clf()    
 
+    def simple_threshold_plot(self,acc_list):
+        for m_idx,method in enumerate(self.plot_methods): 
+            method_result = acc_list[:,:,m_idx] #(e,img_num,m) e:epochs,m:methods
+            method_avg = np.round(np.mean(method_result,axis=0),decimals=3) #(e,img_num)
+            plt.plot(self.plot_data_numbers,method_avg,label=method)
+        plt.xticks(self.plot_data_numbers,self.plot_data_numbers)
+        plt.xlabel('#new images for each superclass')
+        plt.ylabel('model accuracy change')
+        plt.legend(fontsize='small')
+        plt.savefig(self.fig_name)
+        plt.clf()   
     def plot_data(self,acc_list,threshold_list):
+        # if self.select_method == 'threshold':
+        #     self.threshold_plot(threshold_list, acc_list)
+        # elif self.select_method != 'bm': 
+        #     self.other_plot(acc_list)
+        # else:
+        #     print(acc_list)
+        if isinstance(acc_list,list):
+            acc_list = np.array(acc_list)
         if self.select_method == 'threshold':
-            self.threshold_plot(threshold_list, acc_list)
-        elif self.select_method != 'bm': 
-            self.other_plot(acc_list)
+            self.simple_threshold_plot(acc_list)
         else:
-            print(acc_list)
+            self.other_plot(acc_list)
         print('save to', self.fig_name)        
-
-
 
 class checker():
     def __init__(self,model_config:NewModelConfig) -> None:
         self.model_config = model_config
     @abstractmethod
-    def run(self):
+    def run(self,acquisition_config:AcquistionConfig):
         pass
     @abstractmethod
-    def setup(self):
+    def setup(self, old_model_config:OldModelConfig, data_splits):
         pass
 class dv_checker(checker):
     def __init__(self, model_config: NewModelConfig) -> None:
         super().__init__(model_config)
+        # checker.__init__(self, model_config) # TODO: a problem in the constructor of multi-inheritence MRO
         self.log_config = LogConfig(batch_size=model_config.batch_size,class_number=model_config.class_number,model_dir=model_config.model_dir,pure=model_config.pure,setter=model_config.setter)
     def load_log(self):
         data = torch.load(self.log_config.path)
-        print('load from {}'.format(self.log_config.path))
+        print('load DV from {}'.format(self.log_config.path))
         return data
     def setup(self, old_model_config, datasplits):
         self.base_model = load_model(old_model_config.path)
@@ -140,37 +160,43 @@ class dv_checker(checker):
         loader = torch.utils.data.DataLoader(data, batch_size=self.model_config.batch_size, shuffle=True,drop_last=True)
         data_info = apply_CLF(self.clf, loader, self.clip_processor, self.base_model)
         return np.round(np.mean(data_info['dv']),decimals=3)
-
 class benchmark_checker(dv_checker):
     def __init__(self, model_config: NewModelConfig) -> None:
         super().__init__(model_config)
     def setup(self, old_model_config, datasplits):
         super().setup(old_model_config, datasplits)
         self.datasplits = datasplits       
-    def run(self,acquisition_config):
+    def run(self):
         data_info = apply_CLF(self.clf, self.datasplits.loader['market'], self.clip_processor, self.base_model)
         # return (data_info['dv']<0).sum()/len(data_info['dv'])     
         return np.std(data_info['dv']), np.mean(data_info['dv'])
 class test_subset_checker(checker):
-    def __init__(self, model_config: NewModelConfig, threshold_list:list, method) -> None:
+    def __init__(self, model_config: NewModelConfig, threshold_collection) -> None:
         super().__init__(model_config)
-        self.test_subset = subset_setter_factory(method,threshold_list)
+        self.threshold_collection = threshold_collection
     def setup(self, old_model_config, datasplits):
         self.base_model = load_model(old_model_config.path)
+        # state = np.random.get_state()
         clf,clip_processor,_ = get_CLF(self.base_model,datasplits.loader)
-        test_info = apply_CLF(clf,datasplits.loader['test'],clip_processor,self.base_model)
+        test_info = apply_CLF(clf,datasplits.loader['test'],clip_processor)
         test_info['batch_size'] = old_model_config.batch_size
         test_info['dataset'] = datasplits.dataset['test']
         test_info['loader'] = datasplits.loader['test']
         self.test_info = test_info
-        self.base_acc = (test_info['gt']==test_info['pred']).mean()*100    
-        self.test_loaders = self.test_subset.get_subset_loders(self.test_info)
-
-    def run(self, acquistion_config):
+        gt, pred, _ = evaluate_model( datasplits.loader['test'], self.base_model)
+        self.base_acc = (gt == pred).mean()*100   
+        # np.random.set_state(state) 
+    def set_test_loader(self,loader):
+        self.test_info['loader'] = loader
+    def run(self, acquistion_config:AcquistionConfig):
         self.model_config.set_path(acquistion_config=acquistion_config)
+        return self.target_test(self.test_info['loader'])
+
+    def iter_test(self):
         new_model = load_model(self.model_config.path)
         acc_change = []
-        for loader in self.test_loaders:
+        for threshold in self.threshold_collection:
+            loader = threshold_test_subet_setter().get_subset_loders(self.test_info,threshold)
             gt,pred,_  = evaluate_model(loader['new_model'],new_model)
             new_correct = (gt==pred)
             gt,pred,_  = evaluate_model(loader['old_model'], self.base_model)
@@ -179,7 +205,16 @@ class test_subset_checker(checker):
             assert total_correct.size == self.test_info['gt'].size
             acc_change.append(total_correct.mean()*100-self.base_acc)        
         return acc_change
-    
+    def target_test(self, loader):
+        new_model = load_model(self.model_config.path)
+        gt,pred,_  = evaluate_model(loader['new_model'],new_model)
+        new_correct = (gt==pred)
+        gt,pred,_  = evaluate_model(loader['old_model'], self.base_model)
+        old_correct = (gt==pred)
+        total_correct = np.concatenate((old_correct,new_correct))
+        assert total_correct.size == self.test_info['gt'].size   
+        return total_correct.mean()*100-self.base_acc 
+
 class test_set_checker(checker):
     def __init__(self, model_config: NewModelConfig) -> None:
         super().__init__(model_config)
@@ -196,7 +231,7 @@ class test_set_checker(checker):
         acc = (gt==pred).mean()*100
         return acc - self.base_acc
 
-def checker_factory(check_method,model_config, threshold_list):
+def checker_factory(check_method,model_config, threshold_collection):
     if check_method == 'dv':
         checker_product = dv_checker(model_config)
     elif check_method == 'total':
@@ -204,5 +239,27 @@ def checker_factory(check_method,model_config, threshold_list):
     elif check_method == 'bm':
         checker_product = benchmark_checker(model_config)
     else:
-        checker_product = test_subset_checker(model_config, threshold_list, check_method) 
+        checker_product = test_subset_checker(model_config, threshold_collection) 
     return checker_product
+
+def get_threshold_collection(data_number_list, acquisition_config:AcquistionConfig, model_config:NewModelConfig, old_model_config:OldModelConfig, data_splits, model_cnt):
+    idx_log_config = LogConfig(batch_size=model_config.batch_size,class_number=model_config.class_number,model_dir=model_config.model_dir,pure=model_config.pure,setter=model_config.setter,model_cnt=model_cnt)
+    idx_log_config.root = os.path.join(idx_log_config.root, 'indices')
+    base_model = load_model(old_model_config.path)
+
+    threshold_dict = {}
+    for data_number in data_number_list:
+        data_splits.get_dataloader(model_config.batch_size)
+        clf,clip_processor,_ = get_CLF(base_model,data_splits.loader)
+        market_info = apply_CLF(clf,data_splits.loader['market'],clip_processor)
+        acquisition_config.set_items('dv', data_number)
+        idx_log_config.set_path(acquisition_config)
+        indices = load_log(idx_log_config.path)
+        max_dv = [np.max(market_info['dv'][indices[c]]) for c in range(model_config.class_number)]
+        threshold_dict[data_number] = max_dv
+    # print(threshold_dict)
+    return threshold_dict
+
+
+
+
