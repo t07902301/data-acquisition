@@ -2,8 +2,11 @@
 # sys.path.append('..')
 import torchvision.transforms as transforms
 import utils.cifar as cifar
-from utils import *
+from utils import config
 from utils.Config import ModelConfig, AcquistionConfig
+import torch
+import numpy as np
+from utils.env import generator, data_split_env
 data_config = config['data']
 max_subclass_num = config['hparams']['subclass']
 base_transform = transforms.Compose([
@@ -116,7 +119,7 @@ class DataSplits():
         '''
         new data to be added to train set or not, and update loader automatically
         '''
-        assert len(new_data) == acquisition_config.get_new_data_size(new_model_config.class_number), 'size error with new data'
+        assert len(new_data) == acquisition_config.get_new_data_size(new_model_config.class_number), 'size error - new data: {}, required new data: {} under {}'.format(len(new_data), acquisition_config.get_new_data_size(new_model_config.class_number), acquisition_config.get_info())
 
         if new_model_config.pure:
             self.update_dataset('train', new_data, new_model_config.batch_size)
@@ -207,3 +210,14 @@ def count_minority(ds):
         if ds[index][2] in minority_labels:
             cnt += 1
     return cnt
+
+def get_data_splits_list(epochs, select_fine_labels, model_dir, label_map):
+    data_split_env()
+    ds_list = []
+    for epo in range(epochs):
+        ds = DataSplits(data_config['ds_root'],select_fine_labels,model_dir)
+        if select_fine_labels!=[]:
+            ds.modify_coarse_label(label_map)
+        ds_list.append(ds)
+    return ds_list
+
