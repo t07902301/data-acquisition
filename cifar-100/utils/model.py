@@ -2,12 +2,15 @@ import sys
 sys.path.append('..')
 import failure_directions.src.model_utils as model_utils
 import failure_directions.src.trainer as trainer_utils
+import torch
 from torch.cuda.amp import autocast
 import torch.nn as nn
-from utils import *
+from utils.env import model_env
+from utils import config
+model_env()
 hparams = config['hparams']
 device = config['device']
-
+torch.cuda.set_device(device)
 def build_model(num_class,  use_pretrained=False):
     build_fn = model_utils.BUILD_FUNCTIONS[hparams['arch_type']]
     model = build_fn(hparams['arch'], num_class,use_pretrained)
@@ -72,3 +75,5 @@ def save_model(model, path):
         'state_dict': model.state_dict(),
     }, path)
     print('model saved to {}'.format(path))
+
+
