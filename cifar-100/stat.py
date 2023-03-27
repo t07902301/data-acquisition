@@ -1,8 +1,7 @@
 from utils.strategy import *
 from utils.statistics import *
 
-def run(acquisition_config:AcquistionConfig, methods, new_img_num_list, product:checker_factory):
-
+def run(acquisition_config:AcquistionConfig, methods, new_img_num_list, product:checker):
     result_list = []
     for method in methods:
         print('In method', method)
@@ -14,6 +13,20 @@ def run(acquisition_config:AcquistionConfig, methods, new_img_num_list, product:
         result_list.append(result_method)
     return result_list
 
+def threshold_run(acquisition_config:AcquistionConfig, methods, new_img_num_list, product:test_subset_checker):
+    result_list = []
+    for n_img in new_img_num_list:
+        result_img = []
+        threshold = product.threshold_collection[n_img]
+        loader = threshold_test_subet_setter().get_subset_loders(product.test_info,threshold)
+        product.set_test_loader(loader)
+        for method in methods:
+            acquisition_config.set_items(method,n_img)
+            check_result = product.run(acquisition_config)
+            result_img.append(check_result)
+        result_list.append(result_img)
+    return result_list
+
 def main(epochs, new_model_setter='retrain', pure=False, model_dir ='', check_method='threshold'):
     print('Use pure: ',pure)
     batch_size, select_fine_labels, label_map, new_img_num_list, superclass_num = parse_config(model_dir, pure)
@@ -21,34 +34,38 @@ def main(epochs, new_model_setter='retrain', pure=False, model_dir ='', check_me
     results = []
     method_list = ['dv','sm','conf','mix','seq','seq_clf']
     method_labels = ['greedy decision value','random sampling','model confidence','greedy+sampling', 'sequential', 'sequential with only SVM updates']
-    # method_list, new_img_num_list = ['dv'], [50,100]
-    # method_labels = ['dv']
-    # threshold_list = [-0.75,-0.5,-0.25,0]
-    threshold_list = [-0.5, -0.4, -0.3]
+    # method_labels, method_list, new_img_num_list = ['dv', 'sm', 'conf'], ['dv', 'sm', 'conf'], [25,50,75,100]
+    # new_img_num_list,method_list = [150, 200], ['dv','sm']
+    # threshold_collection = [-0.75,-0.5,-0.25,0]
+    # threshold_collection = [-0.75,-0.5,-0.25,0, -0.5, -0.4, -0.3]
 
+    ds_list = get_data_splits_list(epochs, select_fine_labels, model_dir, label_map)
     for epo in range(epochs):
 
         print('in epoch {}'.format(epo))
 
-        ds = DataSplits(data_config['ds_root'],select_fine_labels,model_dir)
-        if select_fine_labels!=[]:
-            ds.modify_coarse_label(label_map)
-        
+        ds = ds_list[epo]
         ds.get_dataloader(batch_size)
-
+        
         old_model_config = OldModelConfig(batch_size,superclass_num,model_dir, epo)
-        new_model_config = NewModelConfig(batch_size,superclass_num,model_dir,pure, new_model_setter)
-        acquistion_config = AcquistionConfig(model_cnt=epo)
+        new_model_config = NewModelConfig(batch_size,superclass_num,model_dir, epo, pure, new_model_setter)
+        acquistion_config = AcquistionConfig()
 
-        product = checker_factory(check_method, new_model_config, threshold_list)
+        threshold_collection = get_threshold_collection(new_img_num_list, acquistion_config, new_model_config, old_model_config, ds, epo)
+        # threshold_collection = None
+        product = checker_factory(check_method, new_model_config, threshold_collection)
         product.setup(old_model_config, ds)
 
-        result_epoch = run(acquistion_config, method_list, new_img_num_list, product)
-        results.append(result_epoch)
+        if check_method =='threshold':
+            result_epoch = threshold_run(acquistion_config, method_list, new_img_num_list, product)
+        else:
+            result_epoch = run(acquistion_config, method_list, new_img_num_list, product)
 
-    results = np.array(results)
+        results.append(result_epoch)
+        # print(threshold_collection)
+
     result_plotter = plotter(check_method,method_labels,new_img_num_list, new_model_config)
-    result_plotter.plot_data(results, threshold_list)    
+    result_plotter.plot_data(results, threshold_collection)    
 import argparse
 if __name__ == '__main__':
 
@@ -56,7 +73,7 @@ if __name__ == '__main__':
     parser.add_argument('-e','--epochs',type=int,default=1)
     parser.add_argument('-p','--pure',type=bool,default=False)
     parser.add_argument('-d','--model_dir',type=str,default='')
-    parser.add_argument('-m','--check_methods',type=str)
+    parser.add_argument('-cm','--check_methods',type=str)
 
     args = parser.parse_args()
     # method, new_img_num, save_model
