@@ -1,7 +1,7 @@
 import sys
 sys.path.append('..')
 from failure_directions.src.wrappers import SVMFitter,CLIPProcessor
-from utils.model import evaluate_model, load_model
+from utils.model import evaluate_model
 from utils.Config import *
 from utils.env import clip_env
 import numpy as np
