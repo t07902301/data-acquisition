@@ -99,7 +99,7 @@ data:
       3: 1
       0: 2
     20-class: None  
-    20-class-mini: None
+    20-class-mini-small: None
   remove_fine_labels: [4, 73, 54, 10, 51, 40, 84, 18, 3, 12, 33, 38, 64, 45, 2, 44, 80, 96, 13, 81]
 # base_root: 'new_model/market_non_aug'
 base_root: 'new_model/distribution'

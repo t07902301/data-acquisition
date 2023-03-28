@@ -214,7 +214,7 @@ def get_data_splits_list(epochs, select_fine_labels, label_map, ratio):
     ds_list = []
     for epo in range(epochs):
         ds = DataSplits(data_config['ds_root'],select_fine_labels,ratio)
-        if select_fine_labels!=[]:
+        if select_fine_labels!=[] and (isinstance(label_map, dict)):
             ds.modify_coarse_label(label_map)
         ds_list.append(ds)
     return ds_list
