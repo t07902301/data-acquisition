@@ -34,7 +34,7 @@ def main(epochs, new_model_setter='retrain', pure=False, model_dir ='', strategy
     for epo in range(epochs):
         print('in epoch {}'.format(epo))
         ds = ds_list[epo]
-        old_model_config = OldModelConfig(batch_size,superclass_num,model_dir, epo, device_config)
+        old_model_config = OldModelConfig(batch_size,superclass_num,model_dir, device_config, epo)
         new_model_config = NewModelConfig(batch_size,superclass_num,model_dir, device_config, epo, pure, new_model_setter)
         acquire_instruction = AcquistionConfigFactory(strategy,seq_rounds)
         percent_epoch = run(ds,method_list, new_img_num_list, old_model_config,new_model_config, acquire_instruction)

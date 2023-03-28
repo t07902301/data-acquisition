@@ -27,7 +27,7 @@ def main(epochs,  model_dir ='', train_flag=False, device=0):
         print('in epoch {}'.format(epo))
         ds = ds_list[epo]
         ds.get_dataloader(batch_size)
-        old_model_config = OldModelConfig(batch_size,superclass_num,model_dir, epo, device_config)
+        old_model_config = OldModelConfig(batch_size,superclass_num,model_dir, device_config, epo)
         acc, clf_score = run(ds, old_model_config, train_flag)
         acc_list.append(acc)
         clf_score_list.append(clf_score['cv'])
