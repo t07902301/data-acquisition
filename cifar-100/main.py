@@ -21,13 +21,13 @@ def main(epochs, new_model_setter='retrain', pure=False, model_dir ='', strategy
     percent_list = []
     # method_list =['conf']
     # new_img_num_list = [50]
-    batch_size, select_fine_labels, label_map, new_img_num_list, superclass_num = parse_config(model_dir, pure)
+    batch_size, select_fine_labels, label_map, new_img_num_list, superclass_num, ratio = parse_config(model_dir, pure)
     method_list = ['dv','sm','conf','mix'] if strategy=='non_seq' else [strategy]
-    # method_list = ['sm','mix']
+    # method_list = ['dv']
     # method_list, new_img_num_list = ['dv','sm','conf'], [25,50,75]
     # new_img_num_list,method_list = [150], ['dv']
 
-    ds_list = get_data_splits_list(epochs, select_fine_labels, model_dir, label_map)
+    ds_list = get_data_splits_list(epochs, select_fine_labels, label_map, ratio)
 
     for epo in range(epochs):
         print('in epoch {}'.format(epo))
@@ -40,7 +40,7 @@ def main(epochs, new_model_setter='retrain', pure=False, model_dir ='', strategy
 
     percent_list = np.array(percent_list)
     print(np.round(np.mean(percent_list,axis=0),decimals=3))
-    print(data_config)
+    print_config(batch_size, select_fine_labels, label_map, new_img_num_list, superclass_num, ratio)
 
 import argparse
 if __name__ == '__main__':

@@ -29,8 +29,7 @@ def threshold_run(acquisition_config:AcquistionConfig, methods, new_img_num_list
 
 def main(epochs, new_model_setter='retrain', pure=False, model_dir ='', check_method='threshold'):
     print('Use pure: ',pure)
-    batch_size, select_fine_labels, label_map, new_img_num_list, superclass_num = parse_config(model_dir, pure)
-
+    batch_size, select_fine_labels, label_map, new_img_num_list, superclass_num, ratio = parse_config(model_dir, pure)
     results = []
     method_list = ['dv','sm','conf','mix','seq','seq_clf']
     method_labels = ['greedy decision value','random sampling','model confidence','greedy+sampling', 'sequential', 'sequential with only SVM updates']
@@ -38,12 +37,9 @@ def main(epochs, new_model_setter='retrain', pure=False, model_dir ='', check_me
     # new_img_num_list,method_list = [150, 200], ['dv','sm']
     # threshold_collection = [-0.75,-0.5,-0.25,0]
     # threshold_collection = [-0.75,-0.5,-0.25,0, -0.5, -0.4, -0.3]
-
-    ds_list = get_data_splits_list(epochs, select_fine_labels, model_dir, label_map)
+    ds_list = get_data_splits_list(epochs, select_fine_labels, label_map, ratio)
     for epo in range(epochs):
-
         print('in epoch {}'.format(epo))
-
         ds = ds_list[epo]
         ds.get_dataloader(batch_size)
         
@@ -63,9 +59,10 @@ def main(epochs, new_model_setter='retrain', pure=False, model_dir ='', check_me
 
         results.append(result_epoch)
         # print(threshold_collection)
-
     result_plotter = plotter(check_method,method_labels,new_img_num_list, new_model_config)
-    result_plotter.plot_data(results, threshold_collection)    
+    result_plotter.plot_data(results, threshold_collection)  
+    print_config(batch_size, select_fine_labels, label_map, new_img_num_list, superclass_num, ratio)
+
 import argparse
 if __name__ == '__main__':
 
@@ -73,7 +70,7 @@ if __name__ == '__main__':
     parser.add_argument('-e','--epochs',type=int,default=1)
     parser.add_argument('-p','--pure',type=bool,default=False)
     parser.add_argument('-d','--model_dir',type=str,default='')
-    parser.add_argument('-cm','--check_methods',type=str)
+    parser.add_argument('-m','--check_methods',type=str)
 
     args = parser.parse_args()
     # method, new_img_num, save_model
