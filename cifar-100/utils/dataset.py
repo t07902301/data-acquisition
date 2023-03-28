@@ -17,18 +17,16 @@ train_transform = transforms.Compose([
     transforms.RandomHorizontalFlip(),
     base_transform
 ])
-from dataclasses import dataclass,fields
-@dataclass
 class DataSplits():
     dataset: dict
     loader: dict
-    def __init__(self,ds_root,select_fine_labels,model_dir) -> None:
-        self.dataset = self.create_dataset_split(ds_root,select_fine_labels,model_dir)
-    def create_dataset_split(self, ds_root,select_fine_labels,model_dir):
+    def __init__(self,ds_root,select_fine_labels,ratio) -> None:
+        self.dataset = self.create_dataset_split(ds_root,select_fine_labels,ratio)
+    def create_dataset_split(self, ds_root,select_fine_labels,ratio):
         # When all classes are used, only work on removal
         # When some classes are neglected, test set and the big train set will be shrank.
         train_ds,aug_train_ds,test_ds = get_raw_ds(ds_root)
-        ratio = data_config['ratio']['non-mini'] if 'mini' not in model_dir else data_config['ratio'][model_dir]
+
         train_size = ratio["train_size"]
         val_size = ratio["val_size"]
         market_size = ratio["market_size"]
@@ -211,13 +209,12 @@ def count_minority(ds):
             cnt += 1
     return cnt
 
-def get_data_splits_list(epochs, select_fine_labels, model_dir, label_map):
+def get_data_splits_list(epochs, select_fine_labels, label_map, ratio):
     data_split_env()
     ds_list = []
     for epo in range(epochs):
-        ds = DataSplits(data_config['ds_root'],select_fine_labels,model_dir)
+        ds = DataSplits(data_config['ds_root'],select_fine_labels,ratio)
         if select_fine_labels!=[]:
             ds.modify_coarse_label(label_map)
         ds_list.append(ds)
     return ds_list
-
