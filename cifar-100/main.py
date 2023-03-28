@@ -16,8 +16,10 @@ def run(ds:DataSplits, methods_list, new_img_num_list, old_model_config:OldModel
 
     return percent_epoch
 
-def main(epochs, new_model_setter='retrain', pure=False, model_dir ='', strategy='', seq_rounds=1):
+def main(epochs, new_model_setter='retrain', pure=False, model_dir ='', strategy='', seq_rounds=1, device=0):
     print('Use pure: ',pure)
+    device_config = 'cuda:{}'.format(device)
+    torch.cuda.set_device(device_config)
     percent_list = []
     # method_list =['conf']
     # new_img_num_list = [50]
@@ -32,7 +34,7 @@ def main(epochs, new_model_setter='retrain', pure=False, model_dir ='', strategy
     for epo in range(epochs):
         print('in epoch {}'.format(epo))
         ds = ds_list[epo]
-        old_model_config = OldModelConfig(batch_size,superclass_num,model_dir, epo)
+        old_model_config = OldModelConfig(batch_size,superclass_num,model_dir, epo, device_config)
         new_model_config = NewModelConfig(batch_size,superclass_num,model_dir, epo, pure, new_model_setter)
         acquire_instruction = AcquistionConfigFactory(strategy,seq_rounds)
         percent_epoch = run(ds,method_list, new_img_num_list, old_model_config,new_model_config, acquire_instruction)
@@ -48,11 +50,12 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Process some integers.')
     parser.add_argument('-e','--epochs',type=int,default=1)
     parser.add_argument('-p','--pure',type=bool,default=False)
-    parser.add_argument('-d','--model_dir',type=str,default='')
+    parser.add_argument('-md','--model_dir',type=str,default='')
     parser.add_argument('-r','--rounds',type=int,default=2)
     parser.add_argument('-s','--strategy',type=str)
+    parser.add_argument('-d','--device',type=int,default=0)
 
     args = parser.parse_args()
     # method, new_img_num, save_model
-    main(args.epochs,pure=args.pure,model_dir=args.model_dir,seq_rounds=args.rounds,strategy=args.strategy)
+    main(args.epochs,pure=args.pure,model_dir=args.model_dir,seq_rounds=args.rounds,strategy=args.strategy,device=args.device)
     # print(args.method)

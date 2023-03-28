@@ -71,9 +71,10 @@ class ModelConfig():
             os.makedirs(dir)
 class OldModelConfig(ModelConfig):
     path: str
-    def __init__(self, batch_size, class_number, model_dir, model_cnt) -> None:
+    def __init__(self, batch_size, class_number, model_dir, model_cnt, device) -> None:
         super().__init__(batch_size, class_number, model_dir)
         self.path = os.path.join(self.root,'{}.pt'.format(model_cnt))
+        self.device = device
 class NewModelConfig(ModelConfig):
     def __init__(self, batch_size, class_number, model_dir, model_cnt, pure, setter) -> None:
         super().__init__(batch_size, class_number, model_dir)

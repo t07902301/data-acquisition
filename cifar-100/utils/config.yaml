@@ -1,4 +1,3 @@
-device: 'cuda:1'
 clf : 'SVM'
 clf_args:
   hidden_layer_size: [200,100,50]
@@ -17,6 +16,7 @@ hparams:
       3-class: 64
       3-class-mini: 64
       3-class-mini-small: 64
+      20-class-mini-small: 256
     optimizer: 
       type: 'sgd'
       momentum: 0.9
@@ -45,12 +45,12 @@ data:
   std: [51.5865, 50.847, 51.255]
   ds_root: '/home/yiwei/data/'
   ratio: 
-    3-class-mini-small:
+    mini-small:
       train_size : 0.3
       val_size : 0.2
       market_size : 0.5
       remove_rate: 0.75
-    3-class-mini:
+    mini:
       train_size : 0.55
       val_size : 0.2
       market_size : 0.25
@@ -73,6 +73,7 @@ data:
     20-class: []
     3-class-mini: [30, 4, 9, 10, 0, 51] # 3-class + 2 subcls
     3-class-mini-small: [30, 4, 9, 10, 0, 51] # 3-class + 2 subcls
+    20-class-mini-small: [30, 1, 62, 9, 0, 22, 5, 6, 42, 17, 23, 15, 34, 26, 11, 27, 36, 47, 8, 41, 4, 73, 54, 10, 51, 40, 84, 18, 3, 12, 33, 38, 64, 45, 2, 44, 80, 96, 13, 81]
   label_map:
     10-class:
       2: 0
@@ -98,6 +99,8 @@ data:
       3: 1
       0: 2
     20-class: None  
+    20-class-mini: None
   remove_fine_labels: [4, 73, 54, 10, 51, 40, 84, 18, 3, 12, 33, 38, 64, 45, 2, 44, 80, 96, 13, 81]
+# base_root: 'new_model/market_non_aug'
 base_root: 'new_model/distribution'
 # base_root: 'new_model'

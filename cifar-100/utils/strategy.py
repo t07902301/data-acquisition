@@ -37,7 +37,7 @@ class Greedy(NonSeqStrategy):
     def __init__(self, old_model_config, new_model_config) -> None:
         super().__init__(old_model_config, new_model_config)
     def get_new_data_indices(self, n_data, data_splits: DataSplits):
-        base_model = load_model(self.old_model_config.path)
+        base_model = load_model(self.old_model_config)
         clf,clip_processor,_ = get_CLF(base_model,data_splits.loader)
         market_info = apply_CLF(clf,data_splits.loader['market'],clip_processor)
         new_data_indices_total = []
@@ -65,7 +65,7 @@ class Confidence(NonSeqStrategy):
     def __init__(self, old_model_config, new_model_config) -> None:
         super().__init__(old_model_config, new_model_config)
     def get_new_data_indices(self, n_data, data_splits: DataSplits):
-        base_model = load_model(self.old_model_config.path)
+        base_model = load_model(self.old_model_config)
         market_gts, market_preds, market_confs = evaluate_model(data_splits.loader['market'], base_model)
         new_data_indices_total = []
         for c in range(self.new_model_config.class_number):   
@@ -80,7 +80,7 @@ class Mix(NonSeqStrategy):
     def __init__(self, old_model_config, new_model_config) -> None:
         super().__init__(old_model_config, new_model_config)
     def get_new_data_indices(self, n_data, data_splits: DataSplits):
-        base_model = load_model(self.old_model_config.path)
+        base_model = load_model(self.old_model_config)
         clf,clip_processor,_ = get_CLF(base_model,data_splits.loader)
         market_info = apply_CLF(clf,data_splits.loader['market'],clip_processor)
         new_data_indices_total = []
@@ -146,7 +146,7 @@ class Seq(Strategy):
         new_data_total_set = None
         rounds = acquire_instruction.sequential_rounds
 
-        model = load_model(self.old_model_config.path)
+        model = load_model(self.old_model_config)
 
         for round_i in range(rounds):
             acquire_instruction.set_round(round_i)

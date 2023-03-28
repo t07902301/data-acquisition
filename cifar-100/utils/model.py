@@ -7,10 +7,9 @@ from torch.cuda.amp import autocast
 import torch.nn as nn
 from utils.env import model_env
 from utils import config
+from utils.Config import OldModelConfig
 model_env()
 hparams = config['hparams']
-device = config['device']
-torch.cuda.set_device(device)
 def build_model(num_class,  use_pretrained=False):
     build_fn = model_utils.BUILD_FUNCTIONS[hparams['arch_type']]
     model = build_fn(hparams['arch'], num_class,use_pretrained)
@@ -60,13 +59,13 @@ def get_new_model(new_model_config, train_loader, val_loader, old_model=None):
     else:
         new_model = train_model(train_loader,val_loader,num_class=new_model_config.class_number) # retrain 
     return new_model
-def load_model(path,use_pretrained=False):
+def load_model(model_config:OldModelConfig,use_pretrained=False):
     build_fn = model_utils.BUILD_FUNCTIONS[hparams['arch_type']]
-    out = torch.load(path,map_location=device)
+    out = torch.load(model_config.path,map_location=model_config.device)
     model = build_fn(**out['build_params'],use_pretrained=use_pretrained) #test model or fine-tune model not feature extraction
     model.load_state_dict(out['state_dict'])
     model = model.cuda()
-    print('load model from {}'.format(path))
+    print('load model from {}'.format(model_config.path))
     # print(out['run_metadata'])
     return model
 def save_model(model, path):
