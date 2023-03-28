@@ -18,17 +18,12 @@ def run(ds:DataSplits, model_config:OldModelConfig, train_flag:bool):
     return base_acc,clf_score
 
 def main(epochs,  model_dir ='', train_flag=False):
-    batch_size, select_fine_labels, label_map, new_img_num_list, superclass_num = parse_config(model_dir, False)
-
+    batch_size, select_fine_labels, label_map, new_img_num_list, superclass_num, ratio = parse_config(model_dir, pure=False)
+    ds_list = get_data_splits_list(epochs, select_fine_labels, label_map, ratio)
     acc_list, clf_score_list = [], []
-
     for epo in range(epochs):
-
         print('in epoch {}'.format(epo))
-
-        ds = DataSplits(data_config['ds_root'],select_fine_labels,model_dir)
-        if select_fine_labels!=[]:
-            ds.modify_coarse_label(label_map)
+        ds = ds_list[epo]
         ds.get_dataloader(batch_size)
         old_model_config = OldModelConfig(batch_size,superclass_num,model_dir, epo)
         acc, clf_score = run(ds, old_model_config, train_flag)
@@ -36,7 +31,7 @@ def main(epochs,  model_dir ='', train_flag=False):
         clf_score_list.append(clf_score['cv'])
 
     print(np.mean(acc_list), np.mean(clf_score_list))
-    print(data_config)
+    print_config(batch_size, select_fine_labels, label_map, new_img_num_list, superclass_num, ratio)
 
 import argparse
 if __name__ == '__main__':
