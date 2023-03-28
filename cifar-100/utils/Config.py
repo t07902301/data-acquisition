@@ -1,6 +1,7 @@
 import os
 from utils import config
 from abc import abstractmethod
+import re
 
 class AcquistionConfig():
     method: str
@@ -106,4 +107,18 @@ def parse_config(model_dir, pure:bool):
     acquired_num_per_class = data_config['acquired_num_per_class'][pure_name]
     img_per_cls_list = acquired_num_per_class['mini'] if 'mini' in model_dir else acquired_num_per_class['non-mini']
     superclass_num = int(model_dir.split('-')[0])
-    return batch_size, select_fine_labels, label_map, img_per_cls_list, superclass_num
+    ratio_symbol = re.sub("\d+-class-?", '', model_dir)
+    ratio_key = 'non-mini' if ratio_symbol == '' else ratio_symbol
+    ratio = data_config['ratio'][ratio_key]
+    return batch_size, select_fine_labels, label_map, img_per_cls_list, superclass_num, ratio
+
+def print_config(batch_size, select_fine_labels, label_map, img_per_cls_list, superclass_num, ratio):
+    output = {
+        'batch_size': batch_size,
+        'select_fine_labels': select_fine_labels,
+        'label_map': label_map,
+        'n_data_per_cls': img_per_cls_list,
+        'superclass_num': superclass_num,
+        'ratio': ratio
+    }
+    print(output)
