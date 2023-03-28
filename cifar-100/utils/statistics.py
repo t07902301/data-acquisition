@@ -150,7 +150,7 @@ class dv_checker(checker):
         print('load DV from {}'.format(self.log_config.path))
         return data
     def setup(self, old_model_config, datasplits):
-        self.base_model = load_model(old_model_config.path)
+        self.base_model = load_model(old_model_config)
         clf,clip_processor,_ = get_CLF(self.base_model,datasplits.loader)
         self.clf = clf
         self.clip_processor = clip_processor   
@@ -175,7 +175,7 @@ class test_subset_checker(checker):
         super().__init__(model_config)
         self.threshold_collection = threshold_collection
     def setup(self, old_model_config, datasplits):
-        self.base_model = load_model(old_model_config.path)
+        self.base_model = load_model(old_model_config)
         # state = np.random.get_state()
         clf,clip_processor,_ = get_CLF(self.base_model,datasplits.loader)
         test_info = apply_CLF(clf,datasplits.loader['test'],clip_processor)
@@ -193,7 +193,7 @@ class test_subset_checker(checker):
         return self.target_test(self.test_info['loader'])
 
     def iter_test(self):
-        new_model = load_model(self.model_config.path)
+        new_model = load_model(self.model_config)
         acc_change = []
         for threshold in self.threshold_collection:
             loader = threshold_test_subet_setter().get_subset_loders(self.test_info,threshold)
@@ -206,7 +206,7 @@ class test_subset_checker(checker):
             acc_change.append(total_correct.mean()*100-self.base_acc)        
         return acc_change
     def target_test(self, loader):
-        new_model = load_model(self.model_config.path)
+        new_model = load_model(self.model_config)
         gt,pred,_  = evaluate_model(loader['new_model'],new_model)
         new_correct = (gt==pred)
         gt,pred,_  = evaluate_model(loader['old_model'], self.base_model)
@@ -219,14 +219,14 @@ class test_set_checker(checker):
     def __init__(self, model_config: NewModelConfig) -> None:
         super().__init__(model_config)
     def setup(self, old_model_config, datasplits):
-        self.base_model = load_model(old_model_config.path)
+        self.base_model = load_model(old_model_config)
         self.test_loader = datasplits.loader['test']
         gt, pred, _ = evaluate_model(self.test_loader,self.base_model)
         self.base_acc = (gt==pred).mean()*100
 
     def run(self, acquisition_config):
         self.model_config.set_path(acquisition_config)
-        new_model = load_model(self.model_config.path)
+        new_model = load_model(self.model_config)
         gt, pred, _ = evaluate_model(self.test_loader,new_model)
         acc = (gt==pred).mean()*100
         return acc - self.base_acc
@@ -243,9 +243,9 @@ def checker_factory(check_method,model_config, threshold_collection):
     return checker_product
 
 def get_threshold_collection(data_number_list, acquisition_config:AcquistionConfig, model_config:NewModelConfig, old_model_config:OldModelConfig, data_splits, model_cnt):
-    idx_log_config = LogConfig(batch_size=model_config.batch_size,class_number=model_config.class_number,model_dir=model_config.model_dir,pure=model_config.pure,setter=model_config.setter,model_cnt=model_cnt)
+    idx_log_config = LogConfig(batch_size=model_config.batch_size,class_number=model_config.class_number,model_dir=model_config.model_dir,pure=model_config.pure,setter=model_config.setter,model_cnt=model_cnt, device=model_config.device)
     idx_log_config.root = os.path.join(idx_log_config.root, 'indices')
-    base_model = load_model(old_model_config.path)
+    base_model = load_model(old_model_config)
 
     threshold_dict = {}
     for data_number in data_number_list:
@@ -257,7 +257,6 @@ def get_threshold_collection(data_number_list, acquisition_config:AcquistionConf
         indices = load_log(idx_log_config.path)
         max_dv = [np.max(market_info['dv'][indices[c]]) for c in range(model_config.class_number)]
         threshold_dict[data_number] = max_dv
-    # print(threshold_dict)
     return threshold_dict
 
 

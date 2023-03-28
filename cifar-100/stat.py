@@ -27,8 +27,10 @@ def threshold_run(acquisition_config:AcquistionConfig, methods, new_img_num_list
         result_list.append(result_img)
     return result_list
 
-def main(epochs, new_model_setter='retrain', pure=False, model_dir ='', check_method='threshold'):
+def main(epochs, new_model_setter='retrain', pure=False, model_dir ='', check_method='threshold', device=0):
     print('Use pure: ',pure)
+    device_config = 'cuda:{}'.format(device)
+    torch.cuda.set_device(device_config)
     batch_size, select_fine_labels, label_map, new_img_num_list, superclass_num, ratio = parse_config(model_dir, pure)
     results = []
     method_list = ['dv','sm','conf','mix','seq','seq_clf']
@@ -43,8 +45,8 @@ def main(epochs, new_model_setter='retrain', pure=False, model_dir ='', check_me
         ds = ds_list[epo]
         ds.get_dataloader(batch_size)
         
-        old_model_config = OldModelConfig(batch_size,superclass_num,model_dir, epo)
-        new_model_config = NewModelConfig(batch_size,superclass_num,model_dir, epo, pure, new_model_setter)
+        old_model_config = OldModelConfig(batch_size,superclass_num,model_dir, device_config, epo)
+        new_model_config = NewModelConfig(batch_size,superclass_num,model_dir, device_config, epo, pure, new_model_setter)
         acquistion_config = AcquistionConfig()
 
         threshold_collection = get_threshold_collection(new_img_num_list, acquistion_config, new_model_config, old_model_config, ds, epo)
@@ -69,9 +71,10 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Process some integers.')
     parser.add_argument('-e','--epochs',type=int,default=1)
     parser.add_argument('-p','--pure',type=bool,default=False)
-    parser.add_argument('-d','--model_dir',type=str,default='')
+    parser.add_argument('-md','--model_dir',type=str,default='')
     parser.add_argument('-m','--check_methods',type=str)
+    parser.add_argument('-d','--device',type=int,default=0)
 
     args = parser.parse_args()
     # method, new_img_num, save_model
-    main(args.epochs,pure=args.pure,model_dir=args.model_dir, check_method=args.check_methods)
+    main(args.epochs,pure=args.pure,model_dir=args.model_dir, check_method=args.check_methods,device=args.device)

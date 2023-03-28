@@ -60,24 +60,24 @@ class ModelConfig():
     batch_size: int
     class_number: int
     model_dir: str
-    def __init__(self, batch_size, class_number, model_dir) -> None:
+    def __init__(self, batch_size, class_number, model_dir,device) -> None:
         self.batch_size = batch_size
         self.class_number = class_number
         self.model_dir = model_dir
         self.root = os.path.join(config['base_root'],model_dir,str(batch_size))
         self.check_dir(self.root)
+        self.device = device
     def check_dir(self, dir):
         if os.path.exists(dir) is False:
             os.makedirs(dir)
 class OldModelConfig(ModelConfig):
     path: str
-    def __init__(self, batch_size, class_number, model_dir, model_cnt, device) -> None:
-        super().__init__(batch_size, class_number, model_dir)
+    def __init__(self, batch_size, class_number, model_dir, device, model_cnt) -> None:
+        super().__init__(batch_size, class_number, model_dir, device)
         self.path = os.path.join(self.root,'{}.pt'.format(model_cnt))
-        self.device = device
 class NewModelConfig(ModelConfig):
-    def __init__(self, batch_size, class_number, model_dir, model_cnt, pure, setter) -> None:
-        super().__init__(batch_size, class_number, model_dir)
+    def __init__(self, batch_size, class_number, model_dir, device, model_cnt, pure, setter) -> None:
+        super().__init__(batch_size, class_number, model_dir, device)
         self.pure = pure
         self.setter = setter
         self.path = ''
@@ -91,8 +91,8 @@ class NewModelConfig(ModelConfig):
         self.check_dir(self.root)
 
 class LogConfig(NewModelConfig):
-    def __init__(self, batch_size, class_number, model_dir, model_cnt, pure, setter) -> None:
-        super().__init__(batch_size, class_number, model_dir, model_cnt, pure, setter)
+    def __init__(self, batch_size, class_number, model_dir, device, model_cnt, pure, setter) -> None:
+        super().__init__(batch_size, class_number, model_dir, device, model_cnt, pure, setter)
         self.set_log_root()
     def set_log_root(self):
         self.root = os.path.join(self.root,'log')
