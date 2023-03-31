@@ -17,6 +17,7 @@ hparams:
       3-class-mini: 64
       3-class-mini-small: 64
       20-class-mini-small: 256
+      10-class-mini-small: 128
     optimizer: 
       type: 'sgd'
       momentum: 0.9
@@ -41,7 +42,7 @@ hparams:
 data: 
   std_real: [68.209,65.431,70.459]
   mean_real: [129.377,124.106,112.478]
-  mean: [125.307, 122.961, 113.8575]
+  mean: [125.307, 122.961, 113.8575] #come from CIFAR-10
   std: [51.5865, 50.847, 51.255]
   ds_root: '/home/yiwei/data/'
   ratio: 
@@ -72,8 +73,8 @@ data:
     3-class: [0, 51, 53, 57, 83, 9, 10, 16, 28, 61, 4, 30, 55, 72, 95]
     20-class: []
     3-class-mini: [30, 4, 9, 10, 0, 51] # 3-class + 2 subcls
-    3-class-mini-small: [30, 4, 9, 10, 0, 51] # 3-class + 2 subcls
-    20-class-mini-small: [30, 1, 62, 9, 0, 22, 5, 6, 42, 17, 23, 15, 34, 26, 11, 27, 36, 47, 8, 41, 4, 73, 54, 10, 51, 40, 84, 18, 3, 12, 33, 38, 64, 45, 2, 44, 80, 96, 13, 81]
+    20-class-mini: [30, 4, 1, 73, 62, 54, 9, 10, 0, 51, 22, 40, 5, 84, 6, 18, 42, 3, 17, 12, 23, 33, 15, 38, 34, 64, 26, 45, 11, 2, 27, 44, 36, 80, 47, 96, 8, 13, 41, 81]
+    10-class-mini: [62, 54, 8, 13, 42, 3, 5, 84, 22, 40, 6, 18, 11, 2, 23, 33, 30, 4, 0, 51]
   label_map:
     10-class:
       2: 0
@@ -90,17 +91,7 @@ data:
       4: 0
       3: 1
       0: 2
-    3-class-mini:
-      4: 0
-      3: 1
-      0: 2
-    3-class-mini-small:
-      4: 0
-      3: 1
-      0: 2
     20-class: None  
-    20-class-mini-small: None
   remove_fine_labels: [4, 73, 54, 10, 51, 40, 84, 18, 3, 12, 33, 38, 64, 45, 2, 44, 80, 96, 13, 81]
-# base_root: 'new_model/market_non_aug'
 base_root: 'new_model/distribution'
 # base_root: 'new_model'
