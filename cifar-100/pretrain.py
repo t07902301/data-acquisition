@@ -19,6 +19,7 @@ def run(ds:DataSplits, model_config:OldModelConfig, train_flag:bool):
 
 def main(epochs,  model_dir ='', train_flag=False, device=0):
     batch_size, select_fine_labels, label_map, new_img_num_list, superclass_num, ratio = parse_config(model_dir, pure=False)
+    print_config(batch_size, select_fine_labels, label_map, new_img_num_list, superclass_num, ratio)
     ds_list = get_data_splits_list(epochs, select_fine_labels, label_map, ratio)
     device_config = 'cuda:{}'.format(device)
     torch.cuda.set_device(device_config)
@@ -31,10 +32,10 @@ def main(epochs,  model_dir ='', train_flag=False, device=0):
         acc, clf_score = run(ds, old_model_config, train_flag)
         acc_list.append(acc)
         clf_score_list.append(clf_score['cv'])
-
     print(np.mean(acc_list), np.mean(clf_score_list))
-    print_config(batch_size, select_fine_labels, label_map, new_img_num_list, superclass_num, ratio)
-
+    split_data = ds.dataset
+    for spit_name in split_data.keys():
+        print(spit_name, len(split_data[spit_name]))
 import argparse
 if __name__ == '__main__':
 
