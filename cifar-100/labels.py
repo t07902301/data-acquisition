@@ -25,7 +25,7 @@ mapping = {
 }
 
 # sp_label_list = list(mapping.keys())
-# # superclasses = ['flowers', 'vehicles 1', 'large carnivores', 'household furniture', 'household electrical devices', 'insects', 'people', 'large natural outdoor scenes', 'aquatic mammals', 'fruit and vegetables']
+# superclasses = ['flowers', 'vehicles 1', 'large carnivores', 'household furniture', 'household electrical devices', 'insects', 'people', 'large natural outdoor scenes', 'aquatic mammals', 'fruit and vegetables']
 # superclasses = ['fruit and vegetables', 'food containers', 'aquatic mammals']
 # sp_labels_map = {}
 # for sp_cls in superclasses:
@@ -50,25 +50,20 @@ mapping = {
 # # print([sp_label_list.index(label) for label in superclasses])
 # print(superclasses)
 
-# superclasses = list(mapping.keys())
-# remove_fine_labels = [4, 73, 54, 10, 51, 40, 84, 18, 3, 12, 33, 38, 64, 45, 2, 44, 80, 96, 13, 81]
-# selected_fine_labels = []
-# # from utils import config
-# sp_label_list = list(mapping.keys())
-# for sp_label in superclasses:
-#     for sb_label in mapping[sp_label]:
-#         idx = fine_labels.index(sb_label)
-#         if idx not in remove_fine_labels:
-#             selected_fine_labels.append(idx)
-#             break
-#     sp_label_idx = sp_label_list.index(sp_label)
-#     # selected_fine_labels.append(config['removed_subclass'][sp_label_idx])
-# selected_fine_labels += remove_fine_labels
-# assert len(selected_fine_labels) == 20*2
-# print(selected_fine_labels)
-
-import re
-txt = '20-classmini-big'
-print(re.sub("\d+-class-?", '', txt))
-
-        
+superclass_labels = list(mapping.keys())
+remove_fine_labels = [4, 73, 54, 10, 51, 40, 84, 18, 3, 12, 33, 38, 64, 45, 2, 44, 80, 96, 13, 81]
+remove_mapping = {0: 4, 1: 73, 2: 54, 3: 10, 4: 51, 5: 40, 6: 84, 7: 18, 8: 3, 9: 12, 10: 33, 11: 38, 12: 64, 13: 45, 14: 2, 15: 44, 16: 80, 17: 96, 18: 13, 19: 81} #(superclass_idx: subclass_idx)
+select_superclasses = superclass_labels
+# select_superclasses = ['flowers', 'vehicles 1', 'large carnivores', 'household furniture', 'household electrical devices', 'insects', 'people', 'large natural outdoor scenes', 'aquatic mammals', 'fruit and vegetables']
+# select_superclasses = ['fruit and vegetables', 'food containers', 'aquatic mammals']
+selected_fine_labels = []
+for sp_label in select_superclasses:
+    sp_idx = superclass_labels.index(sp_label)
+    for sb_label in mapping[sp_label]:
+        sb_idx = fine_labels.index(sb_label)
+        if sb_idx != remove_mapping[sp_idx]:
+            selected_fine_labels.append(sb_idx)
+            break
+    selected_fine_labels.append(remove_mapping[sp_idx])
+assert len(selected_fine_labels) == len(select_superclasses)*2, len(selected_fine_labels)
+print(selected_fine_labels)
