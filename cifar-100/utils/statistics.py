@@ -10,7 +10,10 @@ class test_subet_setter():
     def __init__(self) -> None:
         pass
     @abstractmethod
-    def get_subset_loders(self):
+    def get_subset_loders(self, data_info):
+        '''
+        data_info: dict of data, gt and pred labels, batch_size, and dv(if needed)
+        '''
         pass
 class threshold_test_subet_setter(test_subet_setter):
     def __init__(self) -> None:
@@ -59,8 +62,11 @@ class plotter():
         self.select_method = select_method
         self.plot_methods = plot_methods
         self.plot_data_numbers = plot_data_numbers
-        pure_name = '-pure' if model_config.pure else ''
-        self.fig_name = 'figure/{}{}-{}.png'.format(model_config.model_dir,pure_name,self.select_method)
+        pure_name = 'pure' if model_config.pure else ''
+        fig_root = 'figure/{}'.format(model_config.model_dir)
+        if os.path.exists(fig_root) is False:
+            os.makedirs(fig_root)
+        self.fig_name = os.path.join(fig_root, '{}-{}.png'.format(pure_name,self.select_method))
 
     def threshold_plot(self, threshold_list, acc_list ):
         fig, axs = plt.subplots(2,2, sharey=True, sharex=True)
@@ -139,6 +145,9 @@ class checker():
         pass
     @abstractmethod
     def setup(self, old_model_config:OldModelConfig, data_splits):
+        '''
+        Use the old model and data split to set up a checker (for each epoch)
+        '''
         pass
 class dv_checker(checker):
     def __init__(self, model_config: NewModelConfig) -> None:
@@ -192,6 +201,16 @@ class test_subset_checker(checker):
         self.model_config.set_path(acquistion_config=acquistion_config)
         return self.target_test(self.test_info['loader'])
 
+    def _target_test(self, loader):
+        new_model = load_model(self.model_config)
+        gt,pred,_  = evaluate_model(loader['new_model'],new_model)
+        new_correct = (gt==pred)
+        gt,pred,_  = evaluate_model(loader['old_model'], self.base_model)
+        old_correct = (gt==pred)
+        total_correct = np.concatenate((old_correct,new_correct))
+        assert total_correct.size == self.test_info['gt'].size   
+        return total_correct.mean()*100-self.base_acc 
+    
     def iter_test(self):
         new_model = load_model(self.model_config)
         acc_change = []
@@ -203,18 +222,12 @@ class test_subset_checker(checker):
             old_correct = (gt==pred)
             total_correct = np.concatenate((old_correct,new_correct))
             assert total_correct.size == self.test_info['gt'].size
-            acc_change.append(total_correct.mean()*100-self.base_acc)        
+            acc_change.append(total_correct.mean()*100-self.base_acc)
+            # gt,pred,_  = evaluate_model(loader['new_model'], self.base_model)
+            # old_correct = (gt==pred)        
+            # acc_change.append(new_correct.sum()-old_correct.sum())
         return acc_change
-    def target_test(self, loader):
-        new_model = load_model(self.model_config)
-        gt,pred,_  = evaluate_model(loader['new_model'],new_model)
-        new_correct = (gt==pred)
-        gt,pred,_  = evaluate_model(loader['old_model'], self.base_model)
-        old_correct = (gt==pred)
-        total_correct = np.concatenate((old_correct,new_correct))
-        assert total_correct.size == self.test_info['gt'].size   
-        return total_correct.mean()*100-self.base_acc 
-
+    
 class test_set_checker(checker):
     def __init__(self, model_config: NewModelConfig) -> None:
         super().__init__(model_config)
@@ -231,7 +244,7 @@ class test_set_checker(checker):
         acc = (gt==pred).mean()*100
         return acc - self.base_acc
 
-def checker_factory(check_method,model_config, threshold_collection):
+def checker_factory(check_method, model_config, threshold_collection):
     if check_method == 'dv':
         checker_product = dv_checker(model_config)
     elif check_method == 'total':
@@ -242,22 +255,41 @@ def checker_factory(check_method,model_config, threshold_collection):
         checker_product = test_subset_checker(model_config, threshold_collection) 
     return checker_product
 
-def get_threshold_collection(data_number_list, acquisition_config:AcquistionConfig, model_config:NewModelConfig, old_model_config:OldModelConfig, data_splits, model_cnt):
-    idx_log_config = LogConfig(batch_size=model_config.batch_size,class_number=model_config.class_number,model_dir=model_config.model_dir,pure=model_config.pure,setter=model_config.setter,model_cnt=model_cnt, device=model_config.device)
+def get_threshold_collection(data_number_list, acquisition_config:AcquistionConfig, model_config:NewModelConfig, old_model_config:OldModelConfig, data_splits):
+    '''
+    Use indices log and SVM to determine max decision values for each class.\n
+    old_model + data -> SVM \n
+    model_config + acquisition -> indices log 
+    '''
+    idx_log_config = LogConfig(batch_size=model_config.batch_size,class_number=model_config.class_number,model_dir=model_config.model_dir,pure=model_config.pure,setter=model_config.setter,model_cnt=model_config.model_cnt, device=model_config.device)
     idx_log_config.root = os.path.join(idx_log_config.root, 'indices')
     base_model = load_model(old_model_config)
-
     threshold_dict = {}
     for data_number in data_number_list:
         data_splits.get_dataloader(model_config.batch_size)
         clf,clip_processor,_ = get_CLF(base_model,data_splits.loader)
         market_info = apply_CLF(clf,data_splits.loader['market'],clip_processor)
+        train_info = apply_CLF(clf,data_splits.loader['train'],clip_processor)
         acquisition_config.set_items('dv', data_number)
         idx_log_config.set_path(acquisition_config)
-        indices = load_log(idx_log_config.path)
-        max_dv = [np.max(market_info['dv'][indices[c]]) for c in range(model_config.class_number)]
+        new_data_indices = load_log(idx_log_config.path)
+        # max_dv = get_max_dv(market_info, train_info, model_config.class_number, new_data_indices, pure)
+        max_dv = [np.max(market_info['dv'][new_data_indices[c]]) for c in range(model_config.class_number)]
         threshold_dict[data_number] = max_dv
     return threshold_dict
+
+def get_max_dv(market_info,train_info,n_cls,new_data_indices,pure):
+    return [np.max(market_info['dv'][new_data_indices[c]]) for c in range(n_cls)]
+ 
+    # if pure:
+    #     return [np.max(market_info['dv'][new_data_indices[c]]) for c in range(n_cls)]
+    # else:
+    #     max_dv = []
+    #     for c in range(n_cls):
+    #         cls_indices, cls_mask, cls_dv = get_class_info(c, train_info['gt'], train_info['dv'])
+    #         cls_dv = np.concatenate((cls_dv, market_info['dv'][new_data_indices[c]]))
+    #         max_dv.append(np.max(cls_dv))
+    #     return max_dv
 
 
 
