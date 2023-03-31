@@ -22,7 +22,7 @@ class DataSplits():
     loader: dict
     def __init__(self,ds_root,select_fine_labels,ratio) -> None:
         self.dataset = self.create_dataset_split(ds_root,select_fine_labels,ratio)
-    def create_dataset_split(self, ds_root,select_fine_labels,ratio):
+    def create_dataset_split(self, ds_root, select_fine_labels, ratio):
         # When all classes are used, only work on removal
         # When some classes are neglected, test set and the big train set will be shrank.
         train_ds,aug_train_ds,test_ds = get_raw_ds(ds_root)
@@ -123,6 +123,7 @@ class DataSplits():
             self.update_dataset('train', new_data, new_model_config.batch_size)
         else:
             self.expand('train', new_data, new_model_config.batch_size, acquisition_config)
+
 def get_vis_transform(std,mean):
     # For visualization
     INV_NORM = transforms.Compose([ transforms.Normalize(mean = [ 0., 0., 0. ],
@@ -138,7 +139,7 @@ def get_raw_ds(ds_root,target_transform=None):
     test_ds = cifar.CIFAR100(ds_root, train=False,transform=base_transform,coarse=True, target_transform=target_transform)
     return train_ds,aug_train_ds,test_ds
 
-def get_subset_by_labels(ds,subset_labels,use_fine_label=True):
+def get_subset_by_labels(ds, subset_labels, use_fine_label=True):
     select_indice = []
     ds_labels = get_ds_labels(ds,use_fine_label)
     for c in subset_labels:
@@ -149,9 +150,10 @@ def get_subset_by_labels(ds,subset_labels,use_fine_label=True):
 
 def get_ds_labels(ds,use_fine_label=True):
     ds_size = len(ds)
+    label_idx = 2 if use_fine_label else 1
     labels = []
     for idx in range(ds_size):
-        label = ds[idx][2] if use_fine_label else ds[idx][1]
+        label = ds[idx][label_idx]
         labels.append(label)
     # if use_fine_label:
     #     return np.array([info[2] for info in ds])
@@ -161,7 +163,8 @@ def get_ds_labels(ds,use_fine_label=True):
     
 def sample_indices(indices,ratio):
     return np.random.choice(indices,int(ratio*len(indices)),replace=False)
-def complimentary_mask(mask_length,active_spot):
+
+def complimentary_mask(mask_length, active_spot):
     '''
     get an aversion of the active mask
     '''
@@ -169,6 +172,7 @@ def complimentary_mask(mask_length,active_spot):
     active_mask[active_spot] = True
     advert_mask = ~active_mask 
     return advert_mask
+
 def split_dataset(labels, label_summary, ratio=0 ):
     '''Label-wise split a dataset into two parts. in Part I: take every split_amt data-point per class.
     in part II: the rest of data
@@ -197,6 +201,7 @@ def split_dataset(labels, label_summary, ratio=0 ):
     assert len(p1_indices) + len(p2_indices) == ds_length
     # return torch.tensor(p1_indices), torch.tensor(p2_indices)
     return p1_indices,p2_indices
+
 def count_minority(ds):
     '''
     return #minority in ds
