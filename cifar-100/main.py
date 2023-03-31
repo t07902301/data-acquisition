@@ -7,10 +7,10 @@ def run(ds:DataSplits, methods_list, new_img_num_list, old_model_config:OldModel
 
     percent_epoch = []
     for method in methods_list:
-        strategy = StrategyFactory(old_model_config, new_model_config, method)
+        strategy = StrategyFactory(method)
         for new_img_num in new_img_num_list:
             acquire_instruction.set_items(method,new_img_num)
-            strategy.operate(acquire_instruction, ds)
+            strategy.operate(acquire_instruction, ds, old_model_config, new_model_config)
             for split in ds.dataset.keys():
                 assert subset_length_record[split] == len(ds.dataset[split]), 'init {} is changed'.format(split)
 
@@ -18,15 +18,17 @@ def run(ds:DataSplits, methods_list, new_img_num_list, old_model_config:OldModel
 
 def main(epochs, new_model_setter='retrain', pure=False, model_dir ='', strategy='', seq_rounds=1, device=0):
     print('Use pure: ',pure)
+    batch_size, select_fine_labels, label_map, new_img_num_list, superclass_num, ratio = parse_config(model_dir, pure)
+    print_config(batch_size, select_fine_labels, label_map, new_img_num_list, superclass_num, ratio)
     device_config = 'cuda:{}'.format(device)
     torch.cuda.set_device(device_config)
     percent_list = []
     # method_list =['conf']
     # new_img_num_list = [50]
-    batch_size, select_fine_labels, label_map, new_img_num_list, superclass_num, ratio = parse_config(model_dir, pure)
+
     method_list = ['dv','sm','conf','mix'] if strategy=='non_seq' else [strategy]
     # method_list = ['dv']
-    # method_list, new_img_num_list = ['dv','sm','conf'], [25,50,75]
+    # method_list, new_img_num_list = ['dv','sm'], [150,200]
     # new_img_num_list,method_list = [150], ['dv']
 
     ds_list = get_data_splits_list(epochs, select_fine_labels, label_map, ratio)
@@ -42,7 +44,6 @@ def main(epochs, new_model_setter='retrain', pure=False, model_dir ='', strategy
 
     percent_list = np.array(percent_list)
     print(np.round(np.mean(percent_list,axis=0),decimals=3))
-    print_config(batch_size, select_fine_labels, label_map, new_img_num_list, superclass_num, ratio)
 
 import argparse
 if __name__ == '__main__':
