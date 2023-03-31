@@ -14,7 +14,7 @@ def get_loader_labels(dataloader):
 
 def get_class_info(cls_label, ds_labels, ds_dv=None):
     '''
-    get class information from a dataset
+    get class (cls_label) information from a dataset
     '''
     cls_mask = ds_labels==cls_label
     ds_indices = np.arange(len(ds_labels))
@@ -25,7 +25,7 @@ def get_class_info(cls_label, ds_labels, ds_dv=None):
 def sample_acquire(indices, sample_size):
     return np.random.choice(indices,sample_size,replace=False)
 
-def dummy_acquire(cls_gt, cls_pred,method,img_num):
+def dummy_acquire(cls_gt, cls_pred, method, img_num):
     if method == 'hard':
         result_mask = cls_gt != cls_pred
     else:
@@ -58,10 +58,10 @@ def get_top_values(sorted_indices, K=0, clf='SVM'):
     if clf == 'SVM':
         dv_indices = sorted_indices[:K]
     else:
-        dv_indices = sorted_indices[::-1][:K] # decision scores from model confidence is non-negative
+        dv_indices = sorted_indices[::-1][:K] # decision scores from clf confidence is non-negative
     return dv_indices
 
-def get_CLF(base_model,dataloaders, svm_fit_label= 'val'):
+def get_CLF(base_model, dataloaders, svm_fit_label= 'val'):
     clip_env()
     clip_processor = CLIPProcessor(ds_mean=config['data']['mean'], ds_std=config['data']['std'])
     clip_set_up = clip_processor.evaluate_clip_images(dataloaders['train_clip'])
