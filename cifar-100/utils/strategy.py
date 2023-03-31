@@ -100,7 +100,7 @@ class SeqCLF(Strategy):
     def __init__(self) -> None:
         super().__init__()
     def operate(self, acquire_instruction:SequentialAcConfig, data_splits: DataSplits, old_model_config: OldModelConfig, new_model_config:NewModelConfig):
-        self.sub_strategy = StrategyFactory(old_model_config, new_model_config, acquire_instruction.round_acquire_method)
+        self.sub_strategy = StrategyFactory(acquire_instruction.round_acquire_method)
         ds = deepcopy(data_splits)
         ds.get_dataloader(new_model_config.batch_size)
         org_val_ds = ds.dataset['val']
@@ -142,14 +142,14 @@ class Seq(Strategy):
     def __init__(self) -> None:
         super().__init__()
     def operate(self, acquire_instruction:SequentialAcConfig, data_splits: DataSplits, old_model_config: OldModelConfig, new_model_config:NewModelConfig):
-        self.sub_strategy = StrategyFactory(old_model_config, new_model_config, acquire_instruction.round_acquire_method)
+        self.sub_strategy = StrategyFactory(acquire_instruction.round_acquire_method)
         ds = deepcopy(data_splits)
         ds.get_dataloader(new_model_config.batch_size)
         pure = new_model_config.pure
         minority_cnt = 0
         new_data_total_set = None
         rounds = acquire_instruction.sequential_rounds
-
+        model = load_model(old_model_config)
         for round_i in range(rounds):
             acquire_instruction.set_round(round_i)
             new_data_round_indices,_ = self.sub_strategy.get_new_data_indices(acquire_instruction.round_data_per_class, ds, old_model_config)
