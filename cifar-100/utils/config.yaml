@@ -95,3 +95,14 @@ data:
   remove_fine_labels: [4, 73, 54, 10, 51, 40, 84, 18, 3, 12, 33, 38, 64, 45, 2, 44, 80, 96, 13, 81]
 base_root: 'new_model/distribution'
 # base_root: 'new_model'
+seq_rounds:
+  # 150: 2
+  # 200: 2
+
+  250: 4
+  300: 4
+  350: 4
+
+  # 250: 2
+  # 300: 2
+  # 350: 2
