@@ -58,7 +58,7 @@ def subset_setter_factory(method,thresholds):
     else:
         return threshold_test_subet_setter(thresholds)
 class plotter():
-    def __init__(self, select_method, plot_methods, plot_data_numbers, model_config) -> None:
+    def __init__(self, select_method, plot_methods, plot_data_numbers, model_config:NewModelConfig) -> None:
         self.select_method = select_method
         self.plot_methods = plot_methods
         self.plot_data_numbers = plot_data_numbers
@@ -66,7 +66,8 @@ class plotter():
         fig_root = 'figure/{}'.format(model_config.model_dir)
         if os.path.exists(fig_root) is False:
             os.makedirs(fig_root)
-        self.fig_name = os.path.join(fig_root, '{}-{}.png'.format(pure_name,self.select_method))
+        aug_name = '' if model_config.augment else '-na'
+        self.fig_name = os.path.join(fig_root, '{}-{}{}.png'.format(pure_name,self.select_method, aug_name))
 
     def threshold_plot(self, threshold_list, acc_list ):
         fig, axs = plt.subplots(2,2, sharey=True, sharex=True)
@@ -153,7 +154,7 @@ class dv_checker(checker):
     def __init__(self, model_config: NewModelConfig) -> None:
         super().__init__(model_config)
         # checker.__init__(self, model_config) # TODO: a problem in the constructor of multi-inheritence MRO
-        self.log_config = LogConfig(batch_size=model_config.batch_size,class_number=model_config.class_number,model_dir=model_config.model_dir,pure=model_config.pure,setter=model_config.setter)
+        self.log_config = get_log_config(model_config)
     def load_log(self):
         data = torch.load(self.log_config.path)
         print('load DV from {}'.format(self.log_config.path))
@@ -199,7 +200,7 @@ class test_subset_checker(checker):
         self.test_info['loader'] = loader
     def run(self, acquistion_config:AcquistionConfig):
         self.model_config.set_path(acquistion_config=acquistion_config)
-        return self.target_test(self.test_info['loader'])
+        return self._target_test(self.test_info['loader'])
 
     def _target_test(self, loader):
         new_model = load_model(self.model_config)
@@ -261,7 +262,7 @@ def get_threshold_collection(data_number_list, acquisition_config:AcquistionConf
     old_model + data -> SVM \n
     model_config + acquisition -> indices log 
     '''
-    idx_log_config = LogConfig(batch_size=model_config.batch_size,class_number=model_config.class_number,model_dir=model_config.model_dir,pure=model_config.pure,setter=model_config.setter,model_cnt=model_config.model_cnt, device=model_config.device)
+    idx_log_config = get_log_config(model_config)
     idx_log_config.root = os.path.join(idx_log_config.root, 'indices')
     base_model = load_model(old_model_config)
     threshold_dict = {}
