@@ -34,7 +34,7 @@ class NonSeqAcquistionConfig(AcquistionConfig):
         return 'acquisition method: {}, n_data_per_class:{}'.format(self.method, self.new_data_number_per_class)
 
 class SequentialAcConfig(AcquistionConfig):
-    def __init__(self, sequential_rounds:int) -> None:
+    def __init__(self, sequential_rounds:dict) -> None:
         super().__init__()
         self.sequential_rounds = sequential_rounds
         self.round_acquire_method = 'dv'
@@ -42,19 +42,18 @@ class SequentialAcConfig(AcquistionConfig):
     def set_round(self, round):
         self.current_round = round + 1
     def get_new_data_size(self, class_number):
-        return class_number*self.round_data_per_class*self.sequential_rounds
+        return class_number*self.round_data_per_class*self.sequential_rounds[self.new_data_number_per_class]
     def get_info(self):
         return 'acquisition method: {}, n_data_per_class:{} in round {}'.format(self.method, self.round_data_per_class, self.current_round)
-
     def set_items(self, method, new_data_number):
         super().set_items(method, new_data_number)
-        self.round_data_per_class = self.new_data_number_per_class  // self.sequential_rounds
+        self.round_data_per_class = self.new_data_number_per_class  // self.sequential_rounds[self.new_data_number_per_class]
 
-def AcquistionConfigFactory(method, sequential_rounds):
-    if method == 'non_seq':
+def AcquistionConfigFactory(strategy, sequential_rounds_config):
+    if strategy == 'non_seq':
         return NonSeqAcquistionConfig()
     else:
-        return SequentialAcConfig(sequential_rounds)
+        return SequentialAcConfig(sequential_rounds_config)
 
 class ModelConfig():
     batch_size: int
@@ -76,42 +75,64 @@ class OldModelConfig(ModelConfig):
         super().__init__(batch_size, class_number, model_dir, device)
         self.path = os.path.join(self.root,'{}.pt'.format(model_cnt))
 class NewModelConfig(ModelConfig):
-    def __init__(self, batch_size, class_number, model_dir, device, model_cnt, pure, setter) -> None:
+    path: str
+    def __init__(self, batch_size, class_number, model_dir, device, model_cnt, pure, setter, augment) -> None:
         super().__init__(batch_size, class_number, model_dir, device)
         self.pure = pure
         self.setter = setter
-        self.path = ''
         self.model_cnt = model_cnt
-        self.set_root(setter)
+        self.augment = augment
+        self.set_root()
+
     def set_path(self,acquistion_config:AcquistionConfig):
-        self.path = os.path.join(self.root, '{}_{}.pt'.format(acquistion_config.method, acquistion_config.new_data_number_per_class))
-    def set_root(self,setter):
+        if 'seq' in acquistion_config.method:
+            root = self.set_seq_root(self.root, acquistion_config)
+        else:
+            root = self.root
+        self.path = os.path.join(root, '{}_{}.pt'.format(acquistion_config.method, acquistion_config.new_data_number_per_class))
+    
+    def set_root(self):
         pure_name = 'pure' if self.pure else 'non-pure'
-        self.root = os.path.join(self.root,setter,pure_name, str(self.model_cnt)) 
+        aug_name = '' if self.augment else 'na'
+        self.root = os.path.join(self.root, self.setter, pure_name, str(self.model_cnt), aug_name) 
+        # self.root = os.path.join(self.root, self.setter, pure_name, str(self.model_cnt), aug_name, 'trial') 
+        # self.root = os.path.join(self.root, self.setter, pure_name, str(self.model_cnt), aug_name, 'trial_init') 
         self.check_dir(self.root)
 
+    def set_seq_root(self,root, acquistion_config:SequentialAcConfig):
+        root = os.path.join(root,'{}_rounds'.format(acquistion_config.sequential_rounds[acquistion_config.new_data_number_per_class]))
+        self.check_dir(root)
+        return root
+
 class LogConfig(NewModelConfig):
-    def __init__(self, batch_size, class_number, model_dir, device, model_cnt, pure, setter) -> None:
-        super().__init__(batch_size, class_number, model_dir, device, model_cnt, pure, setter)
+    def __init__(self, batch_size, class_number, model_dir, device, model_cnt, pure, setter, augment) -> None:
+        super().__init__(batch_size, class_number, model_dir, device, model_cnt, pure, setter, augment)
         self.set_log_root()
     def set_log_root(self):
         self.root = os.path.join(self.root,'log')
         self.check_dir(self.root)
+
+def str2bool(value):
+    if isinstance(value,bool):
+        return value
+    else:
+        return False if value=='0' else True
 
 def parse_config(model_dir, pure:bool):
     pure_name = 'pure' if pure else 'non-pure'
     hparams = config['hparams']
     batch_size = hparams['batch_size'][model_dir]
     data_config = config['data']
-    select_fine_labels = data_config['selected_labels'][model_dir]
-    label_map = data_config['label_map'][model_dir]   
+    select_fine_labels = data_config['selected_labels'][re.findall("\d+-class-?[mini]*",model_dir)[0]]
+    label_map = data_config['label_map'][re.findall("\d+-class",model_dir)[0]]
     acquired_num_per_class = data_config['acquired_num_per_class'][pure_name]
     img_per_cls_list = acquired_num_per_class['mini'] if 'mini' in model_dir else acquired_num_per_class['non-mini']
     superclass_num = int(model_dir.split('-')[0])
     ratio_symbol = re.sub("\d+-class-?", '', model_dir)
     ratio_key = 'non-mini' if ratio_symbol == '' else ratio_symbol
     ratio = data_config['ratio'][ratio_key]
-    return batch_size, select_fine_labels, label_map, img_per_cls_list, superclass_num, ratio
+    seq_rounds = config['seq_rounds']
+    return batch_size, select_fine_labels, label_map, img_per_cls_list, superclass_num, ratio, seq_rounds
 
 def print_config(batch_size, select_fine_labels, label_map, img_per_cls_list, superclass_num, ratio):
     output = {

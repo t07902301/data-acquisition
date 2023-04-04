@@ -28,13 +28,20 @@ class NonSeqStrategy(Strategy):
         ds = deepcopy(data_splits)
         ds.get_dataloader(new_model_config.batch_size)
         new_data_indices, raw_new_data_indices = self.get_new_data_indices(acquire_instruction.new_data_number_per_class, ds, old_model_config)
-        new_data_set = torch.utils.data.Subset(ds.dataset['market'],new_data_indices)
+        new_data_set = self.get_new_data(data_splits, new_data_indices, new_model_config.augment)
+
         ds.use_new_data(new_data_set, new_model_config, acquire_instruction)
         new_model = get_new_model(new_model_config, ds.loader['train'], ds.loader['val'])
         new_model_config.set_path(acquire_instruction)
         save_model(new_model,new_model_config.path)
-        # log_data(ds.dataset['train'], new_model_config, acquire_instruction)
+        # log_data(new_data_set, new_model_config, acquire_instruction)
         log_indices(raw_new_data_indices, new_model_config, acquire_instruction)
+
+    def get_new_data(self, data_splits: DataSplits, new_data_indices, augmentation):
+        if augmentation:
+            return torch.utils.data.Subset(data_splits.dataset['market_aug'],new_data_indices)
+        else:
+            return torch.utils.data.Subset(data_splits.dataset['market'],new_data_indices)
         
 class Greedy(NonSeqStrategy):
     def __init__(self) -> None:
@@ -106,30 +113,21 @@ class SeqCLF(Strategy):
         org_val_ds = ds.dataset['val']
         minority_cnt = 0
         new_data_total_set = None
-        # rounds = acquire_instruction.sequential_rounds + 1 #the first clf is for data selection
-        rounds = acquire_instruction.sequential_rounds
-
+        rounds = acquire_instruction.sequential_rounds[acquire_instruction.new_data_number_per_class]
         for round_i in range(rounds):
-
             acquire_instruction.set_round(round_i)
-
-            # assert len(ds.dataset['market'])==len(ds.dataset['market_aug']), "market set size not equal to aug market in round {}".format(round_i)
-
             new_data_round_indices,_ = self.sub_strategy.get_new_data_indices(acquire_instruction.round_data_per_class, ds, old_model_config)
-            new_data_round_set = torch.utils.data.Subset(ds.dataset['market_aug'],new_data_round_indices)
             new_data_round_set_no_aug = torch.utils.data.Subset(ds.dataset['market'],new_data_round_indices)
+            new_data_round_set = self.sub_strategy.get_new_data(ds, new_data_round_indices, new_model_config.augment)
 
             ds.reduce('market', new_data_round_indices, new_model_config.batch_size, acquire_instruction)
             ds.reduce('market_aug', new_data_round_indices, new_model_config.batch_size, acquire_instruction)
             ds.expand('val', new_data_round_set_no_aug, new_model_config.batch_size, acquire_instruction)
 
-            # new_data_total_set = new_data_round_set  if (new_data_total_set == None) else  torch.utils.data.ConcatDataset([new_data_total_set,new_data_round_set])
-            new_data_total_set = new_data_round_set_no_aug  if (new_data_total_set == None) else  torch.utils.data.ConcatDataset([new_data_total_set,new_data_round_set_no_aug])
+            new_data_total_set = new_data_round_set  if (new_data_total_set == None) else  torch.utils.data.ConcatDataset([new_data_total_set,new_data_round_set])
 
         ds.use_new_data(new_data_total_set, new_model_config, acquire_instruction)
 
-        log_data(ds.dataset['train'], new_model_config, acquire_instruction)
-    
         assert len(org_val_ds) == len(ds.dataset['val']) - acquire_instruction.get_new_data_size(new_model_config.class_number), "size error with original val"
 
         ds.update_dataset('val', org_val_ds, new_model_config.batch_size)
@@ -148,30 +146,28 @@ class Seq(Strategy):
         pure = new_model_config.pure
         minority_cnt = 0
         new_data_total_set = None
-        rounds = acquire_instruction.sequential_rounds
+        rounds = acquire_instruction.sequential_rounds[acquire_instruction.new_data_number_per_class]
         model = load_model(old_model_config)
         for round_i in range(rounds):
             acquire_instruction.set_round(round_i)
             new_data_round_indices,_ = self.sub_strategy.get_new_data_indices(acquire_instruction.round_data_per_class, ds, old_model_config)
-            new_data_round_set = torch.utils.data.Subset(ds.dataset['market_aug'],new_data_round_indices)
             new_data_round_set_no_aug = torch.utils.data.Subset(ds.dataset['market'],new_data_round_indices)
+            new_data_round_set = self.sub_strategy.get_new_data(ds, new_data_round_indices, new_model_config.augment)
 
             ds.reduce('market', new_data_round_indices, new_model_config.batch_size, acquire_instruction)
             ds.reduce('market_aug', new_data_round_indices, new_model_config.batch_size, acquire_instruction)
-            # ds.expand('train', new_data_round_set, new_model_config.batch_size, acquire_instruction)
-            ds.expand('train', new_data_round_set_no_aug, new_model_config.batch_size, acquire_instruction)
             ds.expand('train_clip', new_data_round_set_no_aug, new_model_config.batch_size, acquire_instruction)
+            ds.expand('train', new_data_round_set, new_model_config.batch_size, acquire_instruction)
 
             model = get_new_model(new_model_config, ds.loader['train'], ds.loader['val'], model)
-            # new_data_total_set = new_data_round_set  if (new_data_total_set == None) else torch.utils.data.ConcatDataset([new_data_total_set,new_data_round_set])
-            new_data_total_set = new_data_round_set_no_aug  if (new_data_total_set == None) else torch.utils.data.ConcatDataset([new_data_total_set,new_data_round_set_no_aug])
+            new_data_total_set = new_data_round_set  if (new_data_total_set == None) else torch.utils.data.ConcatDataset([new_data_total_set,new_data_round_set])
 
         assert len(new_data_total_set) == acquire_instruction.get_new_data_size(new_model_config.class_number), 'size error with new data'
         if pure:
             ds.update_dataset('train', new_data_total_set, new_model_config.batch_size)
             model = get_new_model(new_model_config, ds.loader['train'], ds.loader['val'], model)
 
-        log_data(ds.dataset['train'], new_model_config, acquire_instruction)
+        # log_data(ds.dataset['train'], new_model_config, acquire_instruction)
         new_model_config.set_path(acquire_instruction)
         save_model(model,new_model_config.path)
 
