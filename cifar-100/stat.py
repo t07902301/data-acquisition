@@ -27,18 +27,25 @@ def threshold_run(acquisition_config:AcquistionConfig, methods, new_img_num_list
         result_list.append(result_img)
     return result_list
 
-def main(epochs, new_model_setter='retrain', pure=False, model_dir ='', check_method='threshold', device=0):
+def main(epochs, new_model_setter='retrain', pure=False, model_dir ='', check_method='', device=0, augment=True):
     print('Use pure: ',pure)
+    print('Use augment: ',augment)
+
     device_config = 'cuda:{}'.format(device)
     torch.cuda.set_device(device_config)
-    batch_size, select_fine_labels, label_map, new_img_num_list, superclass_num, ratio = parse_config(model_dir, pure)
+    batch_size, select_fine_labels, label_map, new_img_num_list, superclass_num, ratio, seq_rounds_config = parse_config(model_dir, pure)
     results = []
     method_list = ['dv','sm','conf','mix','seq','seq_clf']
     method_labels = ['greedy decision value','random sampling','model confidence','greedy+sampling', 'sequential', 'sequential with only SVM updates']
     # method_labels, method_list, new_img_num_list = ['dv', 'sm', 'conf'], ['dv', 'sm', 'conf'], [25,50,75,100]
-    # new_img_num_list,method_list = [150, 200], ['dv','sm']
+    # new_img_num_list,method_list, method_labels = [150, 200], ['dv','sm'], ['dv','sm']
     # threshold_collection = [-0.75,-0.5,-0.25,0]
     # threshold_collection = [-0.75,-0.5,-0.25,0, -0.5, -0.4, -0.3]
+    # method_list = ['dv','sm','conf','mix', 'seq']
+    # method_labels = ['greedy decision value','random sampling','model confidence','greedy+sampling', 'seq']
+    # method_list, method_labels = ['seq_clf', 'seq'], ['seq_clf', 'seq']
+    # new_img_num_list = [150,200]
+
     ds_list = get_data_splits_list(epochs, select_fine_labels, label_map, ratio)
     for epo in range(epochs):
         print('in epoch {}'.format(epo))
@@ -46,35 +53,35 @@ def main(epochs, new_model_setter='retrain', pure=False, model_dir ='', check_me
         ds.get_dataloader(batch_size)
         
         old_model_config = OldModelConfig(batch_size,superclass_num,model_dir, device_config, epo)
-        new_model_config = NewModelConfig(batch_size,superclass_num,model_dir, device_config, epo, pure, new_model_setter)
-        acquistion_config = AcquistionConfig()
+        new_model_config = NewModelConfig(batch_size,superclass_num,model_dir, device_config, epo, pure, new_model_setter,augment)
+        acquire_instruction = AcquistionConfigFactory('seq',seq_rounds_config)
 
-        threshold_collection = get_threshold_collection(new_img_num_list, acquistion_config, new_model_config, old_model_config, ds, epo)
+        threshold_collection = get_threshold_collection(new_img_num_list, acquire_instruction, new_model_config, old_model_config, ds)
         # threshold_collection = None
         product = checker_factory(check_method, new_model_config, threshold_collection)
         product.setup(old_model_config, ds)
+        print(threshold_collection)
 
         if check_method =='threshold':
-            result_epoch = threshold_run(acquistion_config, method_list, new_img_num_list, product)
+            result_epoch = threshold_run(acquire_instruction, method_list, new_img_num_list, product)
         else:
-            result_epoch = run(acquistion_config, method_list, new_img_num_list, product)
-
+            result_epoch = run(acquire_instruction, method_list, new_img_num_list, product)
         results.append(result_epoch)
-        # print(threshold_collection)
+
     result_plotter = plotter(check_method,method_labels,new_img_num_list, new_model_config)
     result_plotter.plot_data(results, threshold_collection)  
     print_config(batch_size, select_fine_labels, label_map, new_img_num_list, superclass_num, ratio)
-
 import argparse
+
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='Process some integers.')
     parser.add_argument('-e','--epochs',type=int,default=1)
-    parser.add_argument('-p','--pure',type=bool,default=False)
+    parser.add_argument('-p','--pure',type=str2bool,default=True)
     parser.add_argument('-md','--model_dir',type=str,default='')
-    parser.add_argument('-m','--check_methods',type=str)
+    parser.add_argument('-m','--check_methods',type=str, default='threshold')
     parser.add_argument('-d','--device',type=int,default=0)
+    parser.add_argument('-a','--augment',type=str2bool, default=True)
 
     args = parser.parse_args()
-    # method, new_img_num, save_model
-    main(args.epochs,pure=args.pure,model_dir=args.model_dir, check_method=args.check_methods,device=args.device)
+    main(args.epochs,pure=args.pure,model_dir=args.model_dir, check_method=args.check_methods,device=args.device, augment=args.augment)
