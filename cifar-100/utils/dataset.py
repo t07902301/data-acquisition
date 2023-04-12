@@ -69,36 +69,21 @@ class DataSplits():
         return ds
     def modify_coarse_label(self, label_map):
         for split in self.dataset.keys():
-            self.dataset[split] = cifar.ModifiedDataset(dataset=self.dataset[split],coarse_label_transform=label_map) 
-        # for split,infos in ds.items():
-        #     data_list = []
-        #     coarse_labels = []
-        #     fine_labels = []
-        #     for info in infos:
-        #         data_list.append(info[0])
-        #         coarse_labels.append(label_map[info[1]])
-        #         fine_labels.append(info[2])
-        #     if (split=='train') or (split=='market_aug'):
-        #         ds[split] = cifar.ModifiedDataset(dataset=data_list,coarse_labels=coarse_labels,fine_labels=fine_labels,transform=train_transform)
-        #     else:
-        #         ds[split] = cifar.ModifiedDataset(dataset=data_list,coarse_labels=coarse_labels,fine_labels=fine_labels,transform=base_transform)
-    def expand(self, split_name, new_data, batch_size, acquisition_config: AcquistionConfig):
+            self.dataset[split] = cifar.ModifiedDataset(dataset=self.dataset[split],coarse_label_transform=label_map)
+    def expand(self, split_name, new_data, batch_size):
         '''
         dataset (dict) is mutable, pass by reference
         '''
-        original_split_len = len(self.dataset[split_name])
         self.dataset[split_name] = torch.utils.data.ConcatDataset([self.dataset[split_name],new_data])
-        assert len(self.dataset[split_name]) == original_split_len + len(new_data), "size error with new {} in {}".format(split_name, acquisition_config.get_info)  
         self.update_dataloader(split_name, batch_size) 
 
-    def reduce(self, split_name, remove_data_indices, batch_size, acquisition_config: AcquistionConfig):
+    def reduce(self, split_name, remove_data_indices, batch_size):
         '''
         dataset (dict) is mutable, pass by reference
         '''
         original_split_len = len(self.dataset[split_name])
         left_market_mask = complimentary_mask(mask_length=original_split_len,active_spot=remove_data_indices)
         self.dataset[split_name] = torch.utils.data.Subset(self.dataset[split_name],np.arange(original_split_len)[left_market_mask])
-        assert len(self.dataset[split_name]) == original_split_len - len(remove_data_indices), "size error with {} in {}".format(split_name, acquisition_config.get_info)
         self.update_dataloader(split_name, batch_size) 
 
     def get_dataloader(self, batch_size):
@@ -122,7 +107,7 @@ class DataSplits():
         if new_model_config.pure:
             self.update_dataset('train', new_data, new_model_config.batch_size)
         else:
-            self.expand('train', new_data, new_model_config.batch_size, acquisition_config)
+            self.expand('train', new_data, new_model_config.batch_size)
 
 def get_vis_transform(std,mean):
     # For visualization
@@ -178,7 +163,7 @@ def split_dataset(labels, label_summary, ratio=0 ):
     in part II: the rest of data
     
     Params: 
-           labels: numpy array of superclass/subclass labels
+           labels: numpy array of subclass labels
            label_summary: what labels has data split
            split_ratio: how much to split into PART 1 from the dataset 
     Return:
@@ -198,8 +183,6 @@ def split_dataset(labels, label_summary, ratio=0 ):
     p1_indices = np.concatenate(p1_indices)
     mask_p2 = complimentary_mask(mask_length=ds_length,active_spot=p1_indices)
     p2_indices = np.arange(ds_length)[mask_p2]
-    assert len(p1_indices) + len(p2_indices) == ds_length
-    # return torch.tensor(p1_indices), torch.tensor(p2_indices)
     return p1_indices,p2_indices
 
 def count_minority(ds):
