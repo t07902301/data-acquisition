@@ -12,15 +12,14 @@ def get_loader_labels(dataloader):
         gts.append(y)
     return torch.cat(gts).numpy()
 
-def get_class_info(cls_label, ds_labels, ds_dv=None):
+def extract_class_indices(cls_label, ds_labels):
     '''
     get class (cls_label) information from a dataset
     '''
     cls_mask = ds_labels==cls_label
     ds_indices = np.arange(len(ds_labels))
     cls_indices = ds_indices[cls_mask]
-    cls_dv = ds_dv[cls_mask] if ds_dv is not None else None
-    return cls_indices, cls_mask, cls_dv
+    return cls_indices
         
 def sample_acquire(indices, sample_size):
     return np.random.choice(indices,sample_size,replace=False)
