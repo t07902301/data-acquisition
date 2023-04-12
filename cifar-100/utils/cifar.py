@@ -49,11 +49,10 @@ class CIFAR10(data.Dataset):
 
 
     def __init__(self, root, train=True,
-                 transform=None, target_transform=None,
+                 transform=None,
                  download=False, coarse=False, ):
         self.root = os.path.expanduser(root)
         self.transform = transform
-        self.target_transform = target_transform
         self.train = train  # training set or test set
         self.coarse = coarse
 
@@ -130,12 +129,6 @@ class CIFAR10(data.Dataset):
 
         if self.transform is not None:
             img = self.transform(img)
-
-        if self.target_transform is not None:
-            if self.coarse:
-                coarse_target = self.target_transform[coarse_target]
-            else:
-                target = self.target_transform[target]
 
         if not self.coarse:
             return img, target
