@@ -38,6 +38,9 @@ def dummy_acquire(cls_gt, cls_pred, method, img_num):
     return new_img_indices  
 
 def apply_CLF(clf, data_loader, clip_processor):
+    '''
+    Get DV from CLF, gt from data
+    '''
     # ds_gt, ds_pred, ds_conf = evaluate_model(data_loader,model)
     ds_gts = get_loader_labels(data_loader)
     ds_clip = clip_processor.evaluate_clip_images(data_loader)
