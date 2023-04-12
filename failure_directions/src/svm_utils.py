@@ -327,8 +327,8 @@ def train_per_class_svm(latents, gts, preds, balanced=True, split_and_search=Fal
     val_correct = preds == gts
     val_latent = latents
     clfs = []
-    score = {'fit':[],'cv':[]}
     kernel = svm_args['kernel']
+    cv_score = []
     for c in range(class_num):
         mask = gts == c
         x, clf_gt = val_latent[mask], val_correct[mask]
@@ -337,12 +337,8 @@ def train_per_class_svm(latents, gts, preds, balanced=True, split_and_search=Fal
         best_clf, best_cv = choose_svm_hpara(x, clf_gt, class_weight, cv, kernel, split_and_search)
         best_clf.fit(x, clf_gt)
         clfs.append(best_clf)
-        score['cv'].append(best_cv) # save cross valiadation score
-        # score['standard'].append(best_clf.score(X=x, y=clf_gt)) 
-        clf_pred = best_clf.predict(x)
-        score['fit'].append(clf_precision(ytrue=clf_gt,ypred=clf_pred)) # save SVM precision after fitting
-        # score['recall'].append(clf_recall(ytrue=clf_gt,ypred=clf_pred)) 
-    return clfs, score
+        cv_score.append(best_cv) # save cross valiadation score
+    return clfs, cv_score
     
 def train_per_class_model(latents, gts, preds, balanced=True, split_and_search=False, cv=2, method='SVM', svm_args={}):
     if method == 'SVM':
