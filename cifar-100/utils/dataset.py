@@ -118,10 +118,10 @@ def get_vis_transform(std,mean):
     TOIMAGE = transforms.Compose([INV_NORM, transforms.ToPILImage()])
     return INV_NORM, TOIMAGE
 
-def get_raw_ds(ds_root,target_transform=None):
-    train_ds = cifar.CIFAR100(ds_root, train=True,transform=base_transform,coarse=True, target_transform=target_transform)
-    aug_train_ds = cifar.CIFAR100(ds_root, train=True,transform=train_transform,coarse=True, target_transform=target_transform)
-    test_ds = cifar.CIFAR100(ds_root, train=False,transform=base_transform,coarse=True, target_transform=target_transform)
+def get_raw_ds(ds_root):
+    train_ds = cifar.CIFAR100(ds_root, train=True,transform=base_transform,coarse=True)
+    aug_train_ds = cifar.CIFAR100(ds_root, train=True,transform=train_transform,coarse=True)
+    test_ds = cifar.CIFAR100(ds_root, train=False,transform=base_transform,coarse=True)
     return train_ds,aug_train_ds,test_ds
 
 def get_subset_by_labels(ds, subset_labels, use_fine_label=True):
