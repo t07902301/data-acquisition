@@ -257,34 +257,65 @@ def get_accuracy(ytrue, ypred):
         ypred = torch.tensor(ypred)
     return float((ytrue == ypred).float().mean())*100
 
-def get_precision_clf(ytrue, ypred):
+def clf_precision(ytrue, ypred):
     '''
-    get precision of SVM or other classifiers (clf)
+    get average precision of SVM or other classifiers (clf)
     '''
     accs = []
     for c in range(2):
-        mask = ypred == c
-        if mask.astype(int).sum() == 0:
-            continue
-        accs.append(get_accuracy(ytrue[mask], ypred[mask]))
+        cls_mask = ypred == c
+        if cls_mask.sum()==0:
+            accs.append(0)
+        else:
+            accs.append(get_accuracy(ytrue[cls_mask], ypred[cls_mask]))
     return np.mean(accs)
 
+def clf_recall(ytrue, ypred):
+    '''
+    get recall of SVM or other classifiers (clf)
+    '''
+    accs = []
+    for c in range(2):
+        cls_mask = ytrue == c
+        if cls_mask.sum()==0:
+            accs.append(0)
+        else:
+            accs.append(get_accuracy(ytrue[cls_mask], ypred[cls_mask]))
+    return np.mean(accs)
 
 # =================================
 # Per class SVM
 # =================================
 
-def fit_svm(C, class_weight, x, gt, cv=2,kernel='linear'):
+def fit_svm(C, class_weight, x, gt, cv=2, kernel='linear'):
     '''
     x : input of svm; gt: groud truth of svm; cv: #cross validation splits
     '''
     scorer = sklearn_metrics.make_scorer(sklearn_metrics.balanced_accuracy_score)
     clf = SVC(gamma='auto', kernel=kernel, C=C, class_weight=class_weight)
-    # clf = SVC(gamma='auto', C=C, class_weight=class_weight,kernel='sigmoid')
     cv_scores = cross_val_score(clf, x, gt, cv=cv, scoring=scorer)
     average_cv_scores = np.mean(cv_scores)*100
-    clf.fit(x, gt)
     return clf, average_cv_scores
+def choose_svm_hpara(clf_input, clf_gt, class_weight, cv_splits, kernel, split_and_search):
+    '''
+    select the best hparameter for svm by cross validation
+    '''
+    best_C, best_cv, best_clf = 1, -np.inf, None
+    if split_and_search:
+        for C_ in np.logspace(-6, 0, 7, endpoint=True):
+            # x_resampled, clf_gt_resampled = SMOTE().fit_resample(x, clf_gt)
+            # clf, cv_score = fit_svm(C=C_, x=x_resampled, gt=clf_gt_resampled, class_weight=class_weight, cv=cv, kernel=kernel)
+            clf, cv_score = fit_svm(C=C_, x=clf_input, gt=clf_gt, class_weight=class_weight, cv=cv_splits, kernel=kernel)
+            if cv_score > best_cv:
+                best_cv = cv_score
+                best_C = C_
+                best_clf = clf
+    else:
+        # TODO
+        # Set a default C_
+        C_ = np.log(-6)
+        best_clf, best_cv = fit_svm(C=C_, x=clf_input, gt=clf_gt, class_weight=class_weight, cv=cv_splits, kernel=kernel)
+    return best_clf, best_cv
 
 def train_per_class_svm(latents, gts, preds, balanced=True, split_and_search=False, cv=2, svm_args=None):
     # if split_and_search is true, split our dataset into 50% svm train, 50% svm test
@@ -303,26 +334,14 @@ def train_per_class_svm(latents, gts, preds, balanced=True, split_and_search=Fal
         x, clf_gt = val_latent[mask], val_correct[mask]
         assert False in clf_gt, 'class {} only has correct classifications'.format(c)
         assert True in clf_gt, 'class {} only has misclassifications'.format(c)
-        if split_and_search:
-            best_C, best_cv, best_clf = 1, -np.inf, None
-            for C_ in np.logspace(-6, 0, 7, endpoint=True):
-                # x_resampled, clf_gt_resampled = SMOTE().fit_resample(x, clf_gt)
-                # clf, cv_score = fit_svm(C=C_, x=x_resampled, gt=clf_gt_resampled, class_weight=class_weight, cv=cv, kernel=kernel)
-
-                clf, cv_score = fit_svm(C=C_, x=x, gt=clf_gt, class_weight=class_weight, cv=cv, kernel=kernel)
-                if cv_score > best_cv:
-                    best_cv = cv_score
-                    best_C = C_
-                    best_clf = clf
-            clfs.append(best_clf)
-            score['cv'].append(best_cv) # save cross valiadation score 
-            clf_pred = best_clf.predict(x)
-            score['fit'].append(get_precision_clf(ytrue=clf_gt,ypred=clf_pred)) # save SVM precision after fitting
-        else:
-            # TODO
-            # Set a default C_
-            clf, cv_score = fit_svm(C=C_, x=x, gt=clf_gt, class_weight=class_weight, cv=cv, kernel=kernel)
-            clfs.append(clf)
+        best_clf, best_cv = choose_svm_hpara(x, clf_gt, class_weight, cv, kernel, split_and_search)
+        best_clf.fit(x, clf_gt)
+        clfs.append(best_clf)
+        score['cv'].append(best_cv) # save cross valiadation score
+        # score['standard'].append(best_clf.score(X=x, y=clf_gt)) 
+        clf_pred = best_clf.predict(x)
+        score['fit'].append(clf_precision(ytrue=clf_gt,ypred=clf_pred)) # save SVM precision after fitting
+        # score['recall'].append(clf_recall(ytrue=clf_gt,ypred=clf_pred)) 
     return clfs, score
     
 def train_per_class_model(latents, gts, preds, balanced=True, split_and_search=False, cv=2, method='SVM', svm_args={}):
@@ -360,7 +379,7 @@ def predict_per_class_svm(latents, gts, clfs, preds=None, aux_info=None, verbose
             #     })
             # out_mask[np.arange(gts_num)[mask][clf_out == 1]] = 1
             out_decision[np.arange(gts_num)[mask]] = decision_out
-            score.append(get_precision_clf(ytrue=correct[mask], ypred=clf_out))
+            score.append(clf_precision(ytrue=correct[mask], ypred=clf_out))
             # score.append(get_accuracy(ytrue=correct[mask], ypred=clf_out))
             # print('In class {}, confusion matrix'.format(c))
             # print(sklearn_metrics.confusion_matrix(correct[mask],clf_out))
