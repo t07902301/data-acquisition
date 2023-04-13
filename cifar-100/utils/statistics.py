@@ -1,11 +1,15 @@
 import matplotlib.pyplot as plt
 from utils import config
-from utils.Config import *
-from utils.log import *
-from utils.acquistion import apply_CLF,get_CLF, get_class_info
-from utils.model import *
+# import utils.dataset as dataset
+import utils.acquistion as acquistion
+import utils.objects.model as Model
+import utils.objects.Config as Config
+import utils.objects.CLF as CLF
+import utils.log as log
 from abc import abstractmethod
 import numpy as np
+import os
+import torch
 class test_subet_setter():
     def __init__(self) -> None:
         pass
@@ -22,7 +26,8 @@ class threshold_test_subet_setter(test_subet_setter):
         n_class = len(threshold)
         selected_indices_total = []
         for c in range(n_class):
-            cls_indices, cls_mask, cls_dv = get_class_info(c, data_info['gt'], data_info['dv'])
+            cls_indices = acquistion.extract_class_indices(c, data_info['gt'])
+            cls_dv = data_info['dv'][cls_indices]
             dv_selected_indices = (cls_dv<=threshold[c])
             selected_indices_total.append(dv_selected_indices)
         selected_indices_total = np.concatenate(selected_indices_total)
@@ -52,13 +57,9 @@ class misclassification_test_subet_setter(test_subet_setter):
         }   
         subset_loader = [test_loader]
         return subset_loader
-def subset_setter_factory(method,thresholds):
-    if method == 'mis':
-        return misclassification_test_subet_setter()
-    else:
-        return threshold_test_subet_setter(thresholds)
+    
 class plotter():
-    def __init__(self, select_method, plot_methods, plot_data_numbers, model_config:NewModelConfig) -> None:
+    def __init__(self, select_method, plot_methods, plot_data_numbers, model_config:Config.NewModel) -> None:
         self.select_method = select_method
         self.plot_methods = plot_methods
         self.plot_data_numbers = plot_data_numbers
@@ -97,7 +98,7 @@ class plotter():
     def other_plot(self, value_list):
         if self.select_method == 'dv':
             ylabel = 'decision value'
-        elif self.select_method == 'total':
+        elif (self.select_method == 'total') or (self.select_method == 'threshold'):
             ylabel = 'model accuracy change'
         else:
             ylabel = 'market average dv'
@@ -123,7 +124,7 @@ class plotter():
         plt.legend(fontsize='small')
         plt.savefig(self.fig_name)
         plt.clf()   
-    def plot_data(self,acc_list,threshold_list):
+    def plot_data(self,acc_list,threshold_list=None):
         # if self.select_method == 'threshold':
         #     self.threshold_plot(threshold_list, acc_list)
         # elif self.select_method != 'bm': 
@@ -132,120 +133,128 @@ class plotter():
         #     print(acc_list)
         if isinstance(acc_list,list):
             acc_list = np.array(acc_list)
-        if self.select_method == 'threshold':
-            self.simple_threshold_plot(acc_list)
-        else:
-            self.other_plot(acc_list)
+        # if self.select_method == 'threshold':
+        #     self.simple_threshold_plot(acc_list)
+        # else:
+        #     self.other_plot(acc_list)
+        self.other_plot(acc_list)
         print('save to', self.fig_name)        
 
 class checker():
-    def __init__(self,model_config:NewModelConfig) -> None:
+    def __init__(self,model_config:Config.NewModel) -> None:
         self.model_config = model_config
     @abstractmethod
-    def run(self,acquisition_config:AcquistionConfig):
+    def run(self,acquisition_config:Config.Acquistion):
         pass
     @abstractmethod
-    def setup(self, old_model_config:OldModelConfig, data_splits):
+    def setup(self, old_model_config:Config.OldModel, data_splits):
         '''
         Use the old model and data split to set up a checker (for each epoch)
         '''
         pass
 class dv_checker(checker):
-    def __init__(self, model_config: NewModelConfig) -> None:
+    def __init__(self, model_config: Config.NewModel) -> None:
         super().__init__(model_config)
         # checker.__init__(self, model_config) # TODO: a problem in the constructor of multi-inheritence MRO
-        self.log_config = get_log_config(model_config)
-    def load_log(self):
+        self.log_config = log.get_config(model_config)
+    def load(self):
         data = torch.load(self.log_config.path)
         print('load DV from {}'.format(self.log_config.path))
         return data
     def setup(self, old_model_config, datasplits):
-        self.base_model = load_model(old_model_config)
-        clf,clip_processor,_ = get_CLF(self.base_model,datasplits.loader)
+        self.base_model = Model.load(old_model_config)
+        clf,clip_processor,_ = CLF.get_CLF(self.base_model,datasplits.loader)
         self.clf = clf
         self.clip_processor = clip_processor   
     def run(self,acquisition_config):
         self.log_config.set_path(acquisition_config)
-        data = self.load_log()
+        data = self.log.load()
         loader = torch.utils.data.DataLoader(data, batch_size=self.model_config.batch_size, shuffle=True,drop_last=True)
-        data_info = apply_CLF(self.clf, loader, self.clip_processor, self.base_model)
+        data_info = CLF.apply_CLF(self.clf, loader, self.clip_processor, self.base_model)
         return np.round(np.mean(data_info['dv']),decimals=3)
 class benchmark_checker(dv_checker):
-    def __init__(self, model_config: NewModelConfig) -> None:
+    def __init__(self, model_config: Config.NewModel) -> None:
         super().__init__(model_config)
     def setup(self, old_model_config, datasplits):
         super().setup(old_model_config, datasplits)
         self.datasplits = datasplits       
     def run(self):
-        data_info = apply_CLF(self.clf, self.datasplits.loader['market'], self.clip_processor, self.base_model)
+        data_info = CLF.apply_CLF(self.clf, self.datasplits.loader['market'], self.clip_processor, self.base_model)
         # return (data_info['dv']<0).sum()/len(data_info['dv'])     
         return np.std(data_info['dv']), np.mean(data_info['dv'])
 class test_subset_checker(checker):
-    def __init__(self, model_config: NewModelConfig, threshold_collection) -> None:
+    def __init__(self, model_config: Config.NewModel) -> None:
         super().__init__(model_config)
-        self.threshold_collection = threshold_collection
     def setup(self, old_model_config, datasplits):
-        self.base_model = load_model(old_model_config)
+        self.base_model = Model.load(old_model_config)
         # state = np.random.get_state()
-        clf,clip_processor,_ = get_CLF(self.base_model,datasplits.loader)
-        test_info = apply_CLF(clf,datasplits.loader['test'],clip_processor)
+        clf,clip_processor,_ = CLF.get_CLF(self.base_model,datasplits.loader)
+        test_info = CLF.apply_CLF(clf,datasplits.loader['test'],clip_processor)
         test_info['batch_size'] = old_model_config.batch_size
         test_info['dataset'] = datasplits.dataset['test']
         test_info['loader'] = datasplits.loader['test']
         self.test_info = test_info
-        gt, pred, _ = evaluate_model( datasplits.loader['test'], self.base_model)
+        gt, pred, _ = Model.evaluate(datasplits.loader['test'], self.base_model)
         self.base_acc = (gt == pred).mean()*100   
         # np.random.set_state(state) 
+        self.clf = clf
+        self.clip_processor = clip_processor
+        # acc = CLF.accuracy(self.clf, self.clip_processor, datasplits.loader['test'], self.base_model)
+        # print('CLF acc:',acc)
     def set_test_loader(self,loader):
         self.test_info['loader'] = loader
-    def run(self, acquistion_config:AcquistionConfig):
+    def run(self, acquistion_config:Config.Acquistion, threshold):
         self.model_config.set_path(acquistion_config=acquistion_config)
+        loader = threshold_test_subet_setter().get_subset_loders(self.test_info,threshold)
+        self.set_test_loader(loader)
         return self._target_test(self.test_info['loader'])
 
     def _target_test(self, loader):
-        new_model = load_model(self.model_config)
-        gt,pred,_  = evaluate_model(loader['new_model'],new_model)
+        new_model = Model.load(self.model_config)
+        gt,pred,_  = Model.evaluate(loader['new_model'],new_model)
         new_correct = (gt==pred)
-        gt,pred,_  = evaluate_model(loader['old_model'], self.base_model)
-        old_correct = (gt==pred)
-        total_correct = np.concatenate((old_correct,new_correct))
-        assert total_correct.size == self.test_info['gt'].size   
-        return total_correct.mean()*100-self.base_acc 
+        if len(loader['old_model']) == 0:
+            total_correct = new_correct
+        else:
+            gt,pred,_  = Model.evaluate(loader['old_model'], self.base_model)
+            old_correct = (gt==pred)
+            total_correct = np.concatenate((old_correct,new_correct))
+        return total_correct.mean()*100 - self.base_acc 
     
     def iter_test(self):
-        new_model = load_model(self.model_config)
+        new_model = Model.load(self.model_config)
         acc_change = []
         for threshold in self.threshold_collection:
             loader = threshold_test_subet_setter().get_subset_loders(self.test_info,threshold)
-            gt,pred,_  = evaluate_model(loader['new_model'],new_model)
+            gt,pred,_  = Model.evaluate(loader['new_model'],new_model)
             new_correct = (gt==pred)
-            gt,pred,_  = evaluate_model(loader['old_model'], self.base_model)
+            gt,pred,_  = Model.evaluate(loader['old_model'], self.base_model)
             old_correct = (gt==pred)
             total_correct = np.concatenate((old_correct,new_correct))
             assert total_correct.size == self.test_info['gt'].size
             acc_change.append(total_correct.mean()*100-self.base_acc)
-            # gt,pred,_  = evaluate_model(loader['new_model'], self.base_model)
+            # gt,pred,_  = Model.evaluate(loader['new_model'], self.base_model)
             # old_correct = (gt==pred)        
             # acc_change.append(new_correct.sum()-old_correct.sum())
         return acc_change
     
 class test_set_checker(checker):
-    def __init__(self, model_config: NewModelConfig) -> None:
+    def __init__(self, model_config: Config.NewModel) -> None:
         super().__init__(model_config)
     def setup(self, old_model_config, datasplits):
-        self.base_model = load_model(old_model_config)
+        self.base_model = Model.load(old_model_config)
         self.test_loader = datasplits.loader['test']
-        gt, pred, _ = evaluate_model(self.test_loader,self.base_model)
+        gt, pred, _ = Model.evaluate(self.test_loader,self.base_model)
         self.base_acc = (gt==pred).mean()*100
 
     def run(self, acquisition_config):
         self.model_config.set_path(acquisition_config)
-        new_model = load_model(self.model_config)
-        gt, pred, _ = evaluate_model(self.test_loader,new_model)
+        new_model = Model.load(self.model_config)
+        gt, pred, _ = Model.evaluate(self.test_loader,new_model)
         acc = (gt==pred).mean()*100
         return acc - self.base_acc
 
-def checker_factory(check_method, model_config, threshold_collection):
+def checker_factory(check_method, model_config):
     if check_method == 'dv':
         checker_product = dv_checker(model_config)
     elif check_method == 'total':
@@ -253,45 +262,100 @@ def checker_factory(check_method, model_config, threshold_collection):
     elif check_method == 'bm':
         checker_product = benchmark_checker(model_config)
     else:
-        checker_product = test_subset_checker(model_config, threshold_collection) 
+        checker_product = test_subset_checker(model_config) 
     return checker_product
 
-def get_threshold_collection(data_number_list, acquisition_config:AcquistionConfig, model_config:NewModelConfig, old_model_config:OldModelConfig, data_splits):
+# def get_threshold_collection(data_number_list, acquisition_config:Config.Acquistion, model_config:Config.NewModel, old_model_config:Config.OldModel, data_splits):
+#     '''
+#     Use indices log and SVM to determine max decision values for each class.\n
+#     old_model + data -> SVM \n
+#     model_config + acquisition -> indices log
+#     '''
+#     idx_log_config = log.get_sub_log('indices', model_config, acquisition_config)
+#     base_model = Model.load(old_model_config)
+#     threshold_dict = {}
+#     for data_number in data_number_list:
+#         data_splits.get_dataloader(model_config.batch_size)
+#         clf,clip_processor,_ = get_CLF(base_model,data_splits.loader)
+#         market_info = apply_CLF(clf,data_splits.loader['market'],clip_processor)
+#         # train_info = apply_CLF(clf,data_splits.loader['train'],clip_processor)
+#         acquisition_config.set_items('dv', data_number)
+#         idx_log_config.set_path(acquisition_config)
+#         new_data_indices = log.load(idx_log_config)
+#         max_dv = [np.max(market_info['dv'][new_data_indices[c]]) for c in range(model_config.class_number)]
+#         threshold_dict[data_number] = max_dv
+#     return threshold_dict
+
+def get_threshold(clf, clip_processor, acquisition_config:Config.Acquistion, model_config:Config.NewModel, market_ds):
     '''
     Use indices log and SVM to determine max decision values for each class.\n
     old_model + data -> SVM \n
-    model_config + acquisition -> indices log 
+    model_config + acquisition -> indices log
     '''
-    idx_log_config = get_log_config(model_config)
-    idx_log_config.root = os.path.join(idx_log_config.root, 'indices')
-    base_model = load_model(old_model_config)
-    threshold_dict = {}
-    for data_number in data_number_list:
-        data_splits.get_dataloader(model_config.batch_size)
-        clf,clip_processor,_ = get_CLF(base_model,data_splits.loader)
-        market_info = apply_CLF(clf,data_splits.loader['market'],clip_processor)
-        train_info = apply_CLF(clf,data_splits.loader['train'],clip_processor)
-        acquisition_config.set_items('dv', data_number)
-        idx_log_config.set_path(acquisition_config)
-        new_data_indices = load_log(idx_log_config.path)
-        # max_dv = get_max_dv(market_info, train_info, model_config.class_number, new_data_indices, pure)
-        max_dv = [np.max(market_info['dv'][new_data_indices[c]]) for c in range(model_config.class_number)]
-        threshold_dict[data_number] = max_dv
-    return threshold_dict
+    if acquisition_config.method == 'seq_clf':
+        return seq_bound(clf, clip_processor, acquisition_config, model_config)
+    else:
+        market_loader = torch.utils.data.DataLoader(market_ds, batch_size=model_config.batch_size, 
+                                    num_workers=config['num_workers'])
+        market_info = CLF.apply_CLF(clf, market_loader, clip_processor)
+        return non_seq_bound(acquisition_config, model_config, market_info)
+
+def non_seq_bound(acquisition_config:Config.Acquistion, model_config:Config.NewModel, market_info):
+    idx_log_config = log.get_sub_log('indices', model_config, acquisition_config)
+    idx_log_config.set_path(acquisition_config)
+    new_data_indices = log.load(idx_log_config)
+    max_dv = [np.max(market_info['dv'][new_data_indices[c]]) for c in range(model_config.class_number)]    
+    return max_dv
+
+def seq_bound(clf, clip_processor, acquisition_config:Config.Acquistion, model_config:Config.NewModel):
+    data_log_config = log.get_sub_log('data', model_config, acquisition_config)
+    data_log_config.set_path(acquisition_config)
+    new_data = log.load(data_log_config)
+    new_data_loader = torch.utils.data.DataLoader(new_data, batch_size=model_config.batch_size, 
+                                    num_workers=config['num_workers'])
+    new_data_info = CLF.apply_CLF(clf, new_data_loader, clip_processor)
+    max_dv = []
+    for c in range(model_config.class_number):
+        cls_indices = acquistion.extract_class_indices(c, new_data_info['gt'])
+        cls_dv = new_data_info['dv'][cls_indices]
+        max_dv.append(np.max(cls_dv))
+    return max_dv
 
 def get_max_dv(market_info,train_info,n_cls,new_data_indices,pure):
-    return [np.max(market_info['dv'][new_data_indices[c]]) for c in range(n_cls)]
- 
-    # if pure:
-    #     return [np.max(market_info['dv'][new_data_indices[c]]) for c in range(n_cls)]
-    # else:
-    #     max_dv = []
-    #     for c in range(n_cls):
-    #         cls_indices, cls_mask, cls_dv = get_class_info(c, train_info['gt'], train_info['dv'])
-    #         cls_dv = np.concatenate((cls_dv, market_info['dv'][new_data_indices[c]]))
-    #         max_dv.append(np.max(cls_dv))
-    #     return max_dv
+    '''
+    Deprecated
+    '''
+    if pure:
+        return [np.max(market_info['dv'][new_data_indices[c]]) for c in range(n_cls)]
+    else:
+        max_dv = []
+        for c in range(n_cls):
+            cls_indices = acquistion.extract_class_indices(c, train_info['gt'])
+            train_cls_dv = train_info['dv'][cls_indices]
+            cls_dv = np.concatenate((train_cls_dv, market_info['dv'][new_data_indices[c]]))
+            max_dv.append(np.max(cls_dv))
+        return max_dv
 
-
-
+def seq_dv_bound(model_config, acquisition_config):
+    clf_log = log.get_sub_log('clf', model_config, acquisition_config)
+    data_log = log.get_sub_log('data', model_config, acquisition_config)
+    clf_data = log.load(clf_log)
+    data = log.load(data_log)
+    model = Model.load(model_config)
+    clf_data_loader ={
+        split:torch.utils.data.DataLoader(ds, batch_size=model_config.batch_size, 
+                                        num_workers=config['num_workers'])  for split,ds in clf_data.items()
+    }
+    clf, clip, score = CLF.get_CLF(model, clf_data_loader)
+    return score
+    # data_loader = torch.utils.data.DataLoader(data, batch_size=model_config.batch_size, 
+    #                                     num_workers=config['num_workers'])
+    # data_info = apply_CLF(clf, data_loader, clip)
+    # max_dv = []
+    # for c in range(model_config.class_number):
+    #     cls_indices = acquistion.extract_class_indices(c, data_info['gt'])
+    #     cls_dv = data_info['dv'][cls_indices]
+    #     max_dv.append(np.max(cls_dv))
+    # return max_dv
+        
 
