@@ -70,7 +70,7 @@ class plotter():
         aug_name = '' if model_config.augment else '-na'
         self.fig_name = os.path.join(fig_root, '{}-{}{}.png'.format(pure_name,self.select_method, aug_name))
 
-    def threshold_plot(self, threshold_list, acc_list ):
+    def threshold_plot(self, threshold_list, acc_list):
         fig, axs = plt.subplots(2,2, sharey=True, sharex=True)
         axs = axs.flatten()
         for threshold_idx,threshold in enumerate(threshold_list):
@@ -95,7 +95,7 @@ class plotter():
         fig.savefig(self.fig_name)
         fig.clf()
 
-    def other_plot(self, value_list):
+    def plot(self, value_list):
         if self.select_method == 'dv':
             ylabel = 'decision value'
         elif (self.select_method == 'total') or (self.select_method == 'threshold'):
@@ -113,31 +113,10 @@ class plotter():
         plt.savefig(self.fig_name)
         plt.clf()    
 
-    def simple_threshold_plot(self,acc_list):
-        for m_idx,method in enumerate(self.plot_methods): 
-            method_result = acc_list[:,:,m_idx] #(e,img_num,m) e:epochs,m:methods
-            method_avg = np.round(np.mean(method_result,axis=0),decimals=3) #(e,img_num)
-            plt.plot(self.plot_data_numbers,method_avg,label=method)
-        plt.xticks(self.plot_data_numbers,self.plot_data_numbers)
-        plt.xlabel('#new images for each superclass')
-        plt.ylabel('model accuracy change')
-        plt.legend(fontsize='small')
-        plt.savefig(self.fig_name)
-        plt.clf()   
     def plot_data(self,acc_list,threshold_list=None):
-        # if self.select_method == 'threshold':
-        #     self.threshold_plot(threshold_list, acc_list)
-        # elif self.select_method != 'bm': 
-        #     self.other_plot(acc_list)
-        # else:
-        #     print(acc_list)
         if isinstance(acc_list,list):
             acc_list = np.array(acc_list)
-        # if self.select_method == 'threshold':
-        #     self.simple_threshold_plot(acc_list)
-        # else:
-        #     self.other_plot(acc_list)
-        self.other_plot(acc_list)
+        self.plot(acc_list)
         print('save to', self.fig_name)        
 
 class checker():
@@ -199,8 +178,6 @@ class test_subset_checker(checker):
         # np.random.set_state(state) 
         self.clf = clf
         self.clip_processor = clip_processor
-        # acc = CLF.accuracy(self.clf, self.clip_processor, datasplits.loader['test'], self.base_model)
-        # print('CLF acc:',acc)
     def set_test_loader(self,loader):
         self.test_info['loader'] = loader
     def run(self, acquistion_config:Config.Acquistion, threshold):
@@ -264,27 +241,6 @@ def checker_factory(check_method, model_config):
     else:
         checker_product = test_subset_checker(model_config) 
     return checker_product
-
-# def get_threshold_collection(data_number_list, acquisition_config:Config.Acquistion, model_config:Config.NewModel, old_model_config:Config.OldModel, data_splits):
-#     '''
-#     Use indices log and SVM to determine max decision values for each class.\n
-#     old_model + data -> SVM \n
-#     model_config + acquisition -> indices log
-#     '''
-#     idx_log_config = log.get_sub_log('indices', model_config, acquisition_config)
-#     base_model = Model.load(old_model_config)
-#     threshold_dict = {}
-#     for data_number in data_number_list:
-#         data_splits.get_dataloader(model_config.batch_size)
-#         clf,clip_processor,_ = get_CLF(base_model,data_splits.loader)
-#         market_info = apply_CLF(clf,data_splits.loader['market'],clip_processor)
-#         # train_info = apply_CLF(clf,data_splits.loader['train'],clip_processor)
-#         acquisition_config.set_items('dv', data_number)
-#         idx_log_config.set_path(acquisition_config)
-#         new_data_indices = log.load(idx_log_config)
-#         max_dv = [np.max(market_info['dv'][new_data_indices[c]]) for c in range(model_config.class_number)]
-#         threshold_dict[data_number] = max_dv
-#     return threshold_dict
 
 def get_threshold(clf, clip_processor, acquisition_config:Config.Acquistion, model_config:Config.NewModel, market_ds):
     '''
