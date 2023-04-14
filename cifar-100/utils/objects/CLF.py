@@ -9,12 +9,7 @@ import utils.objects.model as Model
 
 def statistics(epochs, score, incor_precision, n_data_list = None):
     if n_data_list is None:
-        cv_score= []
-        cv_precision = []
-        for epo in range(epochs):
-            cv_score.append(score[epo])
-            cv_precision.append(incor_precision[epo])
-        print('average CV score:', np.mean(cv_score, axis=0))
+        print('average CV score:', np.mean(score, axis=0))
         print('average precision:', np.mean(incor_precision, axis=0))
     else:
         for idx, n_data in enumerate(n_data_list):
