@@ -64,7 +64,7 @@ def get_threshold(clf, clip_processor, acquisition_config:Config.Acquistion, mod
     if acquisition_config.method == 'seq_clf':
         return seq_bound(clf, clip_processor, acquisition_config, model_config)
     else:
-        market_info = CLF.apply_CLF(clf, market_loader, clip_processor)
+        market_info, _ = CLF.apply_CLF(clf, market_loader, clip_processor)
         return non_seq_bound(acquisition_config, model_config, market_info)
 
 def non_seq_bound(acquisition_config:Config.Acquistion, model_config:Config.NewModel, market_info):
@@ -80,7 +80,7 @@ def seq_bound(clf, clip_processor, acquisition_config:Config.Acquistion, model_c
     new_data = log.load(data_log_config)
     new_data_loader = torch.utils.data.DataLoader(new_data, batch_size=model_config.batch_size, 
                                     num_workers=n_workers)
-    new_data_info = CLF.apply_CLF(clf, new_data_loader, clip_processor)
+    new_data_info, _ = CLF.apply_CLF(clf, new_data_loader, clip_processor)
     max_dv = []
     for c in range(model_config.class_number):
         cls_indices = acquistion.extract_class_indices(c, new_data_info['gt'])
@@ -88,20 +88,14 @@ def seq_bound(clf, clip_processor, acquisition_config:Config.Acquistion, model_c
         max_dv.append(np.max(cls_dv))
     return max_dv
 
-def get_max_dv(market_info,train_info,n_cls,new_data_indices,pure):
+def max_dv(new_data_max_dv, train_max_dv, pure):
     '''
     Deprecated
     '''
     if pure:
-        return [np.max(market_info['dv'][new_data_indices[c]]) for c in range(n_cls)]
+        return new_data_max_dv
     else:
-        max_dv = []
-        for c in range(n_cls):
-            cls_indices = acquistion.extract_class_indices(c, train_info['gt'])
-            train_cls_dv = train_info['dv'][cls_indices]
-            cls_dv = np.concatenate((train_cls_dv, market_info['dv'][new_data_indices[c]]))
-            max_dv.append(np.max(cls_dv))
-        return max_dv
+        return max(train_max_dv, new_data_max_dv)
 
 def seq_dv_bound(model_config, acquisition_config):
     clf_log = log.get_sub_log('clf', model_config, acquisition_config)

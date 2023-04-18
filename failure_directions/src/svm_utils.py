@@ -322,20 +322,18 @@ def train_per_class_svm(latents, gts, preds, balanced=True, split_and_search=Fal
     # Then grid search over C = array([1.e-06, 1.e-05, 1.e-04, 1.e-03, 1.e-02, 1.e-01, 1.e+00])
     class_num = gts.max() + 1
     class_weight = 'balanced' if balanced else None        
-    # val_correct = (preds == ys).astype(int)
-    # val_correct = (preds == gts).type(torch.int32)
-    val_correct = preds == gts
+    val_correct_mask = (preds == gts)
     val_latent = latents
     clfs = []
     kernel = svm_args['kernel']
     cv_score = []
     for c in range(class_num):
-        mask = gts == c
-        x, clf_gt = val_latent[mask], val_correct[mask]
+        cls_mask = (gts == c)
+        clf_input, clf_gt = val_latent[cls_mask], val_correct_mask[cls_mask]
         assert False in clf_gt, 'class {} only has correct classifications'.format(c)
         assert True in clf_gt, 'class {} only has misclassifications'.format(c)
-        best_clf, best_cv = choose_svm_hpara(x, clf_gt, class_weight, cv, kernel, split_and_search)
-        best_clf.fit(x, clf_gt)
+        best_clf, best_cv = choose_svm_hpara(clf_input, clf_gt, class_weight, cv, kernel, split_and_search)
+        best_clf.fit(clf_input, clf_gt)
         clfs.append(best_clf)
         cv_score.append(best_cv) # save cross valiadation score
     return clfs, cv_score
@@ -348,59 +346,56 @@ def train_per_class_model(latents, gts, preds, balanced=True, split_and_search=F
     return clfs,score
 
 def predict_per_class_svm(latents, gts, clfs, preds=None, aux_info=None, verbose=True, compute_metrics=False, method='SVM'):
-    gts_num = len(gts)
-    out_mask, out_decision = np.zeros(gts_num), np.zeros(gts_num)
+    dataset_size = len(gts)
+    out_mask, out_decision = np.zeros(dataset_size), np.zeros(dataset_size)
     skipped_classes = []
-    # if compute_metrics:
-    #     assert preds is not None
-    #     corr = preds == gts
-    #     ytrue = corr
-    #     clf_metrics = []
-
-    correct = preds == gts
-    score = []
-    # print('has clfs',len(clfs))
+    dataset_idx = np.arange(dataset_size)
+    incorrect_mask = gts!=preds
+    precision = []
     for c in range(len(clfs)): #replaced class_num
-        mask = gts == c
-        if clfs[c] is not None and (mask.sum()> 0):
-            clf_out = clfs[c].predict(latents[mask])
+        cls_mask = gts == c
+        if clfs[c] is not None and (cls_mask.sum()> 0):
+            clf_out = clfs[c].predict(latents[cls_mask])
             if method == 'SVM':
-                decision_out = clfs[c].decision_function(latents[mask])
+                decision_out = clfs[c].decision_function(latents[cls_mask])
             else:
-                decision_out = clfs[c].predict_proba(latents[mask])[:,0]
-            # if compute_metrics:
-            #     clf_metrics.append({
-            #         'accuracy': get_accuracy(ytrue=ytrue[mask], ypred=clf_out),
-            #         'balanced_accuracy': get_balanced_accuracy(ytrue=ytrue[mask], ypred=clf_out),
-            #     })
-            # out_mask[np.arange(gts_num)[mask][clf_out == 1]] = 1
-            out_decision[np.arange(gts_num)[mask]] = decision_out
-            score.append(clf_precision(ytrue=correct[mask], ypred=clf_out))
-            # score.append(get_accuracy(ytrue=correct[mask], ypred=clf_out))
+                decision_out = clfs[c].predict_proba(latents[cls_mask])[:,0]
+            # out_mask[np.arange(dataset_size)[mask][clf_out == 1]] = 1
+            out_decision[np.arange(dataset_size)[cls_mask]] = decision_out
+            # score.append(get_accuracy(ytrue=correct_mask[cls_mask], ypred=clf_out)) # the base model and the clf prediction of correct classes
             # print('In class {}, confusion matrix'.format(c))
             # print(sklearn_metrics.confusion_matrix(correct[mask],clf_out))
+            if compute_metrics:
+                cls_idx = dataset_idx[cls_mask]
+                clf_cls_incorrect_mask = (decision_out<=0)
+                clf_cls_incorrect_idx = cls_idx[clf_cls_incorrect_mask]
+                real_cls_incorrect_mask = incorrect_mask[cls_mask]
+                real_cls_incorrect_idx = cls_idx[real_cls_incorrect_mask]
+                if  clf_cls_incorrect_idx.size == 0:
+                    precision.append(100)
+                else:
+                    precision.append(np.intersect1d(clf_cls_incorrect_idx, real_cls_incorrect_idx).size / clf_cls_incorrect_idx.size * 100)  
         else:
             skipped_classes.append(c)
     # ypred = out_mask.astype(int)
-    if compute_metrics:
-    #     clf_metrics = {k: np.array([u[k] for u in clf_metrics]) for k in clf_metrics[0].keys()}    
-    #     metric_dict = {
-    #         'accuracy': get_accuracy(ytrue=ytrue, ypred=ypred),
-    #         'balanced_accuracy': get_balanced_accuracy(ytrue=ytrue, ypred=ypred), 
-    #         'confusion_matrix': sklearn_metrics.confusion_matrix(ytrue, ypred),
-    #         'clf_accs': clf_metrics,
-    #         'ytrue': ytrue,
-    #         'ypred': ypred,
-    #         'decision_values': out_decision,
-    #         'classes': gts,
-    #         'skipped_classes': skipped_classes,
-    #         **aux_info
-    #     }
-    #     if verbose:
-    #         pprint(metric_dict, indent=4)
-        return out_mask, out_decision, {}
-    else:
-        return out_mask, out_decision,score
+    # if compute_metrics:
+    # #     clf_metrics = {k: np.array([u[k] for u in clf_metrics]) for k in clf_metrics[0].keys()}    
+    # #     metric_dict = {
+    # #         'accuracy': get_accuracy(ytrue=ytrue, ypred=ypred),
+    # #         'balanced_accuracy': get_balanced_accuracy(ytrue=ytrue, ypred=ypred), 
+    # #         'confusion_matrix': sklearn_metrics.confusion_matrix(ytrue, ypred),
+    # #         'clf_accs': clf_metrics,
+    # #         'ytrue': ytrue,
+    # #         'ypred': ypred,
+    # #         'decision_values': out_decision,
+    # #         'classes': gts,
+    # #         'skipped_classes': skipped_classes,
+    # #         **aux_info
+    # #     }
+    # #     if verbose:
+    # #         pprint(metric_dict, indent=4)
+    #     return out_mask, out_decision, {}
+    return out_mask, out_decision, precision
 
 
 def predict_per_class_model(latents, gts, clfs, preds=None, aux_info=None, verbose=True, compute_metrics=True, method='SVM'):

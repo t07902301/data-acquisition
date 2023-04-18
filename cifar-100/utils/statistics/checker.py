@@ -37,7 +37,7 @@ class DV(prototype):
         self.log_config.set_path(acquisition_config)
         data = self.log.load()
         loader = torch.utils.data.DataLoader(data, batch_size=self.model_config.batch_size, shuffle=True,drop_last=True)
-        data_info = CLF.apply_CLF(self.clf, loader, self.clip_processor, self.base_model)
+        data_info, _ = CLF.apply_CLF(self.clf, loader, self.clip_processor, self.base_model)
         return np.round(np.mean(data_info['dv']),decimals=3)
 class benchmark(DV):
     def __init__(self, model_config: Config.NewModel) -> None:
@@ -46,7 +46,7 @@ class benchmark(DV):
         super().setup(old_model_config, datasplits)
         self.datasplits = datasplits       
     def run(self):
-        data_info = CLF.apply_CLF(self.clf, self.datasplits.loader['market'], self.clip_processor, self.base_model)
+        data_info, _ = CLF.apply_CLF(self.clf, self.datasplits.loader['market'], self.clip_processor, self.base_model)
         # return (data_info['dv']<0).sum()/len(data_info['dv'])     
         return np.std(data_info['dv']), np.mean(data_info['dv'])
 class subset(prototype):
@@ -56,7 +56,7 @@ class subset(prototype):
         self.base_model = Model.load(old_model_config)
         # state = np.random.get_state()
         clf,clip_processor,_ = CLF.get_CLF(self.base_model,datasplits.loader)
-        test_info = CLF.apply_CLF(clf,datasplits.loader['test'],clip_processor)
+        test_info, _ = CLF.apply_CLF(clf,datasplits.loader['test'],clip_processor)
         test_info['batch_size'] = old_model_config.batch_size
         test_info['dataset'] = datasplits.dataset['test']
         test_info['loader'] = datasplits.loader['test']

@@ -8,19 +8,20 @@ from utils.acquistion import get_loader_labels
 import utils.objects.model as Model
 
 def statistics(epochs, score, incor_precision, n_data_list = None):
+    '''
+    pretrained model | seq_clf\n
+    score/precision: (epoch, value)
+    '''
+    score = np.array(score)
+    incor_precision = np.array(incor_precision)
     if n_data_list is None:
-        print('average CV score:', np.mean(score, axis=0))
-        print('average precision:', np.mean(incor_precision, axis=0))
+        print('average CV score:', np.round(np.mean(score, axis=0),decimals=3).tolist())
+        print('average precision:', np.round(np.mean(incor_precision, axis=0), decimals=3).tolist())
     else:
         for idx, n_data in enumerate(n_data_list):
-            cv_score= []
-            cv_precision = []
-            for epo in range(epochs):
-                cv_score.append(score[epo][idx])
-                cv_precision.append(incor_precision[epo][idx])
             print('n_data:', n_data)       
-            print('average CV score:', np.mean(cv_score, axis=0))
-            print('average precision:', np.mean(incor_precision, axis=0))
+            print('average CV score:', np.round(np.mean(score[:,idx,:], axis=0), decimals=3).tolist())
+            print('average precision:', np.round(np.mean(incor_precision[:,idx,:],axis=0), decimals=3).tolist())
 
 def precision(clf, clip_processor, dataloader, base_model):
     data_clip = clip_processor.evaluate_clip_images(dataloader)
@@ -43,18 +44,15 @@ def get_CLF(base_model, dataloaders, svm_fit_label= 'val'):
     return svm_fitter, clip_processor, score
 
 
-def apply_CLF(clf, data_loader, clip_processor):
+def apply_CLF(clf, data_loader, clip_processor, compute_metrics=False, preds=None):
     '''
-    Get DV from CLF, gt from data
+    Get DV and gt from dataset, precision from CLF
     '''
     # ds_gt, ds_pred, ds_conf = Model.evaluate(data_loader,model)
     ds_gts = get_loader_labels(data_loader)
     ds_clip = clip_processor.evaluate_clip_images(data_loader)
-    _, dv, _ = clf.predict(latents=ds_clip, gts=ds_gts, compute_metrics=False, preds=None)
-    ds_info ={
-        'dv': dv,
+    _, dv, clf_precision = clf.predict(latents=ds_clip, gts=ds_gts, compute_metrics=compute_metrics, preds=preds)
+    return {
         'gt': ds_gts,
-        # 'pred': ds_pred,
-        # 'conf': ds_conf
-    }
-    return ds_info
+        'dv': dv,
+    }, clf_precision
