@@ -8,6 +8,8 @@ import torch.nn as nn
 from utils.env import model_env
 from utils import config
 from utils.objects.Config import OldModel
+from utils.acquistion import extract_class_indices
+
 model_env()
 hparams = config['hparams']
 def build(num_class,  use_pretrained=False):
@@ -75,4 +77,17 @@ def save(model, path):
     }, path)
     print('model saved to {}'.format(path))
 
-
+def shift_importance(dataset, n_class, gt, pred, ):
+    check_labels = config['data']['remove_fine_labels']
+    check_labels_cnt = [0 for i in range(n_class)]
+    for c in range(n_class):
+        cls_mask = (gt==c)
+        cls_incor_mask = (gt!=pred)[cls_mask]
+        cls_idx = extract_class_indices(c, gt)
+        cls_incor_idx = cls_idx[cls_incor_mask]
+        for idx in cls_incor_idx:
+            _, coarse_target, target = dataset[idx]
+            if target in check_labels:
+                check_labels_cnt[coarse_target] += 1             
+        check_labels_cnt[c] = check_labels_cnt[c]/len(cls_incor_idx) * 100
+    return check_labels_cnt
