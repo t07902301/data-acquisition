@@ -19,7 +19,7 @@ class ModelAcc(Prototype):
         super().__init__(model_config)
 
     def get_fig_name(self, check_type):
-        pure_name = 'pure' if self.model_config.pure else 'non_pure'
+        pure_name = 'pure' if self.model_config.pure else 'non-pure'
         fig_root = 'figure/{}'.format(self.model_config.model_dir)
         if os.path.exists(fig_root) is False:
             os.makedirs(fig_root)
@@ -55,7 +55,6 @@ class Distribution(Prototype):
         axs = axs.flatten() #2D -> 1D
         for row in range(n_rows):
             for col in range(n_cols):
-                print(len(dv_list[col][split_name[row]]))
                 axs[col + n_cols * row].hist(dv_list[col][split_name[row]], bins = 6)
         fig_name = self.get_fig_name(check_type, check_class, method, n_data)
         fig.savefig(fig_name)
@@ -67,7 +66,7 @@ class Distribution(Prototype):
         fig_root = 'figure/{}/distribution/{}'.format(self.model_config.model_dir, check_type)
         if os.path.exists(fig_root) is False:
             os.makedirs(fig_root)
-        fig_name = os.path.join(fig_root, '{}-{}-{}.png'.format(check_class, method, n_data)) if check_type != 'total' else os.path.join(fig_root, '{}.png'.format(check_class))
+        fig_name = os.path.join(fig_root, 'class_{}-{}-{}.png'.format(check_class, method, n_data)) if check_type != 'total' else os.path.join(fig_root, '{}.png'.format(check_class))
         return fig_name
 
     # def threshold_collection(self, threshold_list, acc_list):
