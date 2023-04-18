@@ -53,7 +53,8 @@ mapping = {
 superclass_labels = list(mapping.keys())
 remove_fine_labels = [4, 73, 54, 10, 51, 40, 84, 18, 3, 12, 33, 38, 64, 45, 2, 44, 80, 96, 13, 81]
 remove_mapping = {0: 4, 1: 73, 2: 54, 3: 10, 4: 51, 5: 40, 6: 84, 7: 18, 8: 3, 9: 12, 10: 33, 11: 38, 12: 64, 13: 45, 14: 2, 15: 44, 16: 80, 17: 96, 18: 13, 19: 81} #(superclass_idx: subclass_idx)
-select_superclasses = superclass_labels
+# select_superclasses = superclass_labels
+select_superclasses = [superclass_labels[idx] for idx in [11,3]]
 # select_superclasses = ['flowers', 'vehicles 1', 'large carnivores', 'household furniture', 'household electrical devices', 'insects', 'people', 'large natural outdoor scenes', 'aquatic mammals', 'fruit and vegetables']
 # select_superclasses = ['fruit and vegetables', 'food containers', 'aquatic mammals']
 selected_fine_labels = []
@@ -65,5 +66,5 @@ for sp_label in select_superclasses:
             selected_fine_labels.append(sb_idx)
             break
     selected_fine_labels.append(remove_mapping[sp_idx])
-assert len(selected_fine_labels) == len(select_superclasses)*2, len(selected_fine_labels)
+assert len(selected_fine_labels) == len(select_superclasses)*2
 print(selected_fine_labels)
