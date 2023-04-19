@@ -5,6 +5,7 @@ import utils.statistics.checker as Checker
 import utils.statistics.plot as Plotter
 import utils.objects.Config as Config 
 import utils.acquistion as acquistion
+from utils import n_workers
 
 def get_distribution(data_splits:Dataset.DataSplits, acquire_instruction:Config.Acquistion, model_config:Config.NewModel, product:Checker.subset, check_class, distribution_type):
     if distribution_type == 'total':
@@ -23,23 +24,37 @@ def total(check_class, data_splits:Dataset.DataSplits, clf, clip_processor):
     return split_dv
     
 def threshold(acquisition_config:Config.Acquistion, model_config:Config.NewModel, product:Checker.subset, market_loader, check_class):
-    marker_info, _ = CLF.apply_CLF(product.clf, market_loader, product.clip_processor)
-    train_distribution = subset_by_indicesLog(acquisition_config, model_config, marker_info, check_class)
-    test_distribution = subset_by_threshold(acquisition_config, model_config, product, market_loader, check_class)
+    market_info, _ = CLF.apply_CLF(product.clf, market_loader, product.clip_processor)
+    if acquisition_config.method == 'seq_clf':
+        train_distribution = data_distribution(acquisition_config, model_config, check_class, product)
+    else:
+        train_distribution = indices_distribution(acquisition_config, model_config, market_info, check_class)
+    test_distribution = subset_distribution(acquisition_config, model_config, product, market_loader, check_class)
     dv_result = {
         'train': train_distribution,
         'test': test_distribution
     }
     return dv_result
 
-def subset_by_indicesLog(acquisition_config:Config.Acquistion, model_config:Config.NewModel, market_info, check_class):
-    idx_log_config = log.get_sub_log('indices', model_config, acquisition_config)
-    idx_log_config.set_path(acquisition_config)
-    new_data_indices = log.load(idx_log_config)        
-    subset_dv = market_info['dv'][new_data_indices[check_class]] 
-    return subset_dv  
+def data_distribution(acquisition_config:Config.Acquistion, model_config:Config.NewModel, check_class, product:Checker.subset):
+    log_config = log.get_sub_log('data', model_config, acquisition_config)
+    log_config.set_path(acquisition_config)
+    new_data = log.load(log_config)  
+    new_data_loader = torch.utils.data.DataLoader(new_data, batch_size=model_config.batch_size, 
+                            num_workers=n_workers)
+    subset_info, _ = CLF.apply_CLF(product.clf, new_data_loader, product.clip_processor)
+    cls_mask = (check_class == subset_info['gt'])
+    subset_dv = subset_info['dv'][cls_mask]
+    return subset_dv
 
-def subset_by_threshold(acquisition_config:Config.Acquistion, model_config:Config.NewModel, product:Checker.subset, market_loader, check_class):
+def indices_distribution(acquisition_config:Config.Acquistion, model_config:Config.NewModel, market_info, check_class):
+    log_config = log.get_sub_log('indices', model_config, acquisition_config)
+    log_config.set_path(acquisition_config)
+    new_data_indices = log.load(log_config)       
+    subset_dv = market_info['dv'][new_data_indices[check_class]] 
+    return subset_dv
+
+def subset_distribution(acquisition_config:Config.Acquistion, model_config:Config.NewModel, product:Checker.subset, market_loader, check_class):
     market_bound = Subset.get_threshold(product.clf, product.clip_processor, acquisition_config, model_config, market_loader)
     subset_loader = product.get_subset_loader(market_bound, acquisition_config)
     subset_info, _ = CLF.apply_CLF(product.clf, subset_loader['new_model'], product.clip_processor)
