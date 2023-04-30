@@ -14,9 +14,6 @@ def model_env():
 generator = torch.Generator()
 generator.manual_seed(0)
 
-def clip_env():
-    np.random.seed(0)
-
 def data_split_env():
     np.random.seed(0)
     random.seed(0)    

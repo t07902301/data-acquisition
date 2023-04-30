@@ -9,16 +9,16 @@ from utils import n_workers
 
 def get_distribution(data_splits:Dataset.DataSplits, acquire_instruction:Config.Acquistion, model_config:Config.NewModel, product:Checker.subset, check_class, distribution_type):
     if distribution_type == 'total':
-        distribution = total(check_class, data_splits, product.clf, product.clip_processor)
+        distribution = total(check_class, data_splits, product.clf)
     else:
         distribution = threshold(acquire_instruction, model_config, product, data_splits.loader['market'], check_class)     
     return distribution      
 
-def total(check_class, data_splits:Dataset.DataSplits, clf, clip_processor):
+def total(check_class, data_splits:Dataset.DataSplits, clf):
     split_dv = {}
-    used_splits = ['train', 'val', 'market', 'test', 'train_clip']
+    used_splits = list(data_splits.dataset.keys())
     for split_name in used_splits:
-        split_info, _ = CLF.apply_CLF(clf, data_splits.loader[split_name], clip_processor)
+        split_info, _ = clf.predict(data_splits.loader[split_name])
         cls_indices = acquistion.extract_class_indices(check_class, split_info['gt'])
         split_dv[split_name] = split_info['dv'][cls_indices]
     return split_dv
@@ -69,7 +69,6 @@ def main(epochs, method, n_data, acquistion_class, new_model_setter='retrain', p
     torch.cuda.set_device(device_config)
     batch_size, select_fine_labels, label_map, new_img_num_list, superclass_num, ratio, seq_rounds_config, ds_list, device_config = set_up(epochs, model_dir, pure, device)
     results = []
-    ds_list = Dataset.get_data_splits_list(epochs, select_fine_labels, label_map, ratio)
     for epo in range(epochs):
         print('in epoch {}'.format(epo))
         ds = ds_list[epo]
@@ -79,7 +78,8 @@ def main(epochs, method, n_data, acquistion_class, new_model_setter='retrain', p
         acquire_instruction = Config.AcquistionFactory('seq',seq_rounds_config) 
         acquire_instruction.set_items(method, n_data)
         product = Checker.factory('threshold', new_model_config)
-        product.setup(old_model_config, ds)          
+        product.setup(old_model_config, ds)   
+           
         distribution = get_distribution(ds, acquire_instruction, new_model_config, product, acquistion_class, distribution_type)
         results.append(distribution)
  
