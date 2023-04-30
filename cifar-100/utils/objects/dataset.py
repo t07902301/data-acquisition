@@ -33,7 +33,6 @@ class DataSplits():
         if len(select_fine_labels)>0:
             train_ds = get_subset_by_labels(train_ds,select_fine_labels)
             test_ds = get_subset_by_labels(test_ds,select_fine_labels)
-            aug_train_ds = get_subset_by_labels(aug_train_ds,select_fine_labels)
 
         label_summary = [i for i in range(max_subclass_num)] if len(select_fine_labels)==0 else select_fine_labels
 
@@ -41,29 +40,33 @@ class DataSplits():
         train_indices,val_market_indices = split_dataset(train_fine_labels, label_summary, train_size/(train_size+val_size+market_size))
 
         val_market_set = torch.utils.data.Subset(train_ds,val_market_indices)
-        aug_val_market_set = torch.utils.data.Subset(aug_train_ds,val_market_indices)
         clip_train_ds_split = torch.utils.data.Subset(train_ds,train_indices)
-        aug_train_ds_split = torch.utils.data.Subset(aug_train_ds,train_indices)
-
+    
         val_mar_fine_labels = get_ds_labels(val_market_set)
         val_indices,market_indices = split_dataset(val_mar_fine_labels,label_summary,val_size/(val_size+market_size))
-
         val_ds = torch.utils.data.Subset(val_market_set,val_indices)
         market_ds = torch.utils.data.Subset(val_market_set,market_indices)
-        aug_market_ds = torch.utils.data.Subset(aug_val_market_set,market_indices)
 
-        split_train_fine_labels = get_ds_labels(aug_train_ds_split)
+        split_train_fine_labels = get_ds_labels(clip_train_ds_split)
         _, left_indices = split_dataset(split_train_fine_labels,data_config['remove_fine_labels'],remove_rate)
         left_clip_train = torch.utils.data.Subset(clip_train_ds_split,left_indices)
-        left_aug_train = torch.utils.data.Subset(aug_train_ds_split,left_indices)
+
+        split_val_fine_labels = get_ds_labels(val_ds)
+        _, left_indices = split_dataset(split_val_fine_labels,data_config['remove_fine_labels'],remove_rate)
+        left_val = torch.utils.data.Subset(val_ds,left_indices)
+
+        split_test_fine_labels = get_ds_labels(test_ds)
+        _, left_indices = split_dataset(split_test_fine_labels,data_config['remove_fine_labels'],remove_rate)
+        left_test = torch.utils.data.Subset(test_ds,left_indices)
 
         ds = {}
-        ds['train'] =  left_aug_train
-        ds['val'] =  val_ds
+        ds['train'] =  left_clip_train
+        ds['train_clip'] =  left_clip_train
+        ds['val_shift'] =  val_ds
+        ds['val'] = left_val
         ds['market'] =  market_ds
-        ds['train_clip'] = left_clip_train
-        ds['market_aug'] =  aug_market_ds
-        ds['test'] = test_ds
+        ds['test_shift'] = test_ds
+        ds['test'] = left_test
         return ds
     def modify_coarse_label(self, label_map):
         for split in self.dataset.keys():
@@ -87,7 +90,10 @@ class DataSplits():
     def get_dataloader(self, batch_size):
         self.loader = {
             k: torch.utils.data.DataLoader(self.dataset[k], batch_size=batch_size, 
-                                        shuffle=(k=='train'), drop_last=(k=='train'),num_workers=config['num_workers'],generator=generator)
+                                        # shuffle=(k=='train'), drop_last=(k=='train'),num_workers=config['num_workers'],generator=generator)
+                                        shuffle=(k=='train'), num_workers=1,generator=generator)
+                                        # num_workers=1,generator=generator)
+
             for k in self.dataset.keys()
         }
     def update_dataloader(self, split_name, batch_size):
@@ -149,7 +155,7 @@ def sample_indices(indices,ratio):
 
 def complimentary_mask(mask_length, active_spot):
     '''
-    get an aversion of the active mask
+    reverse the active mask
     '''
     active_mask = np.zeros(mask_length, dtype=bool)
     active_mask[active_spot] = True
