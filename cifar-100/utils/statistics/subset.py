@@ -55,16 +55,16 @@ class misclassification_subset_setter(subset_setter):
         subset_loader = [test_loader]
         return subset_loader
     
-def get_threshold(clf, clip_processor, acquisition_config:Config.Acquistion, model_config:Config.NewModel, market_loader):
+def get_threshold(clf, acquisition_config:Config.Acquistion, model_config:Config.NewModel, market_loader):
     '''
     Use indices log and SVM to determine max decision values for each class.\n
     old_model + data -> SVM \n
     model_config + acquisition -> indices log
     '''
     if acquisition_config.method == 'seq_clf':
-        return seq_bound(clf, clip_processor, acquisition_config, model_config)
+        return seq_bound(clf, acquisition_config, model_config)
     else:
-        market_info, _ = CLF.apply_CLF(clf, market_loader, clip_processor)
+        market_info, _ = clf.predict(market_loader)
         return non_seq_bound(acquisition_config, model_config, market_info)
 
 def non_seq_bound(acquisition_config:Config.Acquistion, model_config:Config.NewModel, market_info):

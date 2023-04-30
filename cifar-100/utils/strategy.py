@@ -35,11 +35,21 @@ class NonSeqStrategy(Strategy):
         new_data_indices, raw_new_data_indices,_ = self.get_new_data_indices(acquire_instruction.new_data_number_per_class, ds, old_model_config)
         # new_data_set = self.get_new_data(data_splits, new_data_indices, new_model_config.augment)
         # ds.use_new_data(new_data_set, new_model_config, acquire_instruction)
-        # new_model = Model.get_new(new_model_config, ds.loader['train'], ds.loader['val'])
+        # new_model = Model.get_new(new_model_config, ds.loader['train'], ds.loader['val_shift'])
         # new_model_config.set_path(acquire_instruction)
         # Model.save(new_model,new_model_config.path)
-        idx_log = log.get_sub_log('indices',new_model_config, acquire_instruction)
-        log.save(raw_new_data_indices, idx_log)
+        if new_model_config.pure:
+            idx_log = log.get_sub_log('indices',new_model_config, acquire_instruction)
+            log.save(raw_new_data_indices, idx_log)
+            base_model = Model.load(old_model_config)
+            clf = CLF.SVM(ds.loader['train_clip'])
+            score = clf.fit(base_model, ds.loader['val_shift'])
+            market_info, precision = clf.predict(ds.loader['market'])
+            for cls_idx in raw_new_data_indices:
+                print(np.max(market_info['dv'][cls_idx]))
+            new_model_config.set_path(acquire_instruction)
+            print(new_model_config.path)
+
         return 0,0
 
     def get_new_data(self, data_splits: Dataset.DataSplits, new_data_indices, augmentation):
@@ -53,8 +63,9 @@ class Greedy(NonSeqStrategy):
         super().__init__()
     def get_new_data_indices(self, n_data, data_splits: Dataset.DataSplits, old_model_config: Config.OldModel):
         base_model = Model.load(old_model_config)
-        clf,clip_processor,clf_score = CLF.get_CLF(base_model,data_splits.loader)
-        market_info, _ = CLF.apply_CLF(clf,data_splits.loader['market'],clip_processor)
+        clf = CLF.SVM(data_splits.loader['train_clip'])
+        score = clf.fit(base_model, data_splits.loader['val_shift'])
+        market_info, _ = clf.predict(data_splits.loader['market'])
         new_data_indices_total = []
         for c in range(old_model_config.class_number):
             cls_indices = acquistion.extract_class_indices(c, market_info['gt'])
@@ -64,8 +75,7 @@ class Greedy(NonSeqStrategy):
             new_data_indices_total.append(new_data_indices)
         clf_info = {
             'clf': clf,
-            'score': clf_score,
-            'clip_processor': clip_processor
+            'score': score
         }
         return np.concatenate(new_data_indices_total), new_data_indices_total, clf_info       
 
@@ -103,8 +113,9 @@ class Mix(NonSeqStrategy):
         super().__init__()
     def get_new_data_indices(self, n_data, data_splits: Dataset.DataSplits, old_model_config: Config.OldModel):
         base_model = Model.load(old_model_config)
-        clf,clip_processor,_ = CLF.get_CLF(base_model,data_splits.loader)
-        market_info, _ = CLF.apply_CLF(clf,data_splits.loader['market'],clip_processor)
+        clf = CLF.SVM(data_splits.loader['train_clip'])
+        score = clf.fit(base_model, data_splits.loader['val_shift'])
+        market_info, _ = clf.predict(data_splits.loader['market'])
         new_data_indices_total = []
         for c in range(old_model_config.class_number):
             cls_indices = acquistion.extract_class_indices(c, market_info['gt'])
@@ -124,37 +135,36 @@ class SeqCLF(Strategy):
         self.sub_strategy = StrategyFactory(acquire_instruction.round_acquire_method)
         ds = deepcopy(data_splits)
         ds.get_dataloader(new_model_config.batch_size)
-        org_val_ds = ds.dataset['val']
+        org_val_ds = ds.dataset['val_shift']
         new_data_total_set = None
         rounds = acquire_instruction.sequential_rounds_info[acquire_instruction.new_data_number_per_class]
 
         for round_i in range(rounds):
             acquire_instruction.set_round(round_i)
-            new_data_round_indices,_, clf_info = self.sub_strategy.get_new_data_indices(acquire_instruction.round_data_per_class, ds, old_model_config)
+            new_data_round_indices, _, clf_info = self.sub_strategy.get_new_data_indices(acquire_instruction.round_data_per_class, ds, old_model_config)
             new_data_round_set_no_aug = torch.utils.data.Subset(ds.dataset['market'],new_data_round_indices)
             new_data_round_set = self.sub_strategy.get_new_data(ds, new_data_round_indices, new_model_config.augment)
 
             ds.reduce('market', new_data_round_indices, new_model_config.batch_size)
-            ds.reduce('market_aug', new_data_round_indices, new_model_config.batch_size)
-            ds.expand('val', new_data_round_set_no_aug, new_model_config.batch_size)
+            ds.expand('val_shift', new_data_round_set_no_aug, new_model_config.batch_size)
 
             new_data_total_set = new_data_round_set  if (new_data_total_set == None) else  torch.utils.data.ConcatDataset([new_data_total_set,new_data_round_set])
 
-        # ds.use_new_data(new_data_total_set, new_model_config, acquire_instruction)
-        # assert len(org_val_ds) == len(ds.dataset['val']) - acquire_instruction.get_new_data_size(new_model_config.class_number), "size error with original val"
-        # ds.update_dataset('val', org_val_ds, new_model_config.batch_size)
-        # new_model = Model.get_new(new_model_config, ds.loader['train'], ds.loader['val'])
-        # new_model_config.set_path(acquire_instruction)
-        # Model.save(new_model,new_model_config.path)
+        ds.use_new_data(new_data_total_set, new_model_config, acquire_instruction)
+        assert len(org_val_ds) == len(ds.dataset['val_shift']) - acquire_instruction.get_new_data_size(new_model_config.class_number), "size error with original val"
+        ds.update_dataset('val_shift', org_val_ds, new_model_config.batch_size)
+        new_model = Model.get_new(new_model_config, ds.loader['train'], ds.loader['val_shift'])
+        new_model_config.set_path(acquire_instruction)
+        Model.save(new_model,new_model_config.path)
 
         if new_model_config.pure:
             base_model = Model.load(old_model_config)
-            gt,pred,_  = Model.evaluate(ds.loader['test'],base_model)
-            _, prec = CLF.apply_CLF(clf_info['clf'], ds.loader['test'], clf_info['clip_processor'], compute_metrics=True, preds= pred)
+            gt, pred,_  = Model.evaluate(ds.loader['test'],base_model)
+            _, precision = clf_info['clf'].predict(ds.loader['test'], compute_metrics=True, dataset_preds= pred)        
             stat_config = log.get_sub_log('stat', new_model_config, acquire_instruction)
             stat = {
                 'cv score': clf_info['score'],
-                'precision': prec
+                'precision': precision
             }
             log.save(stat, stat_config)
 
@@ -164,7 +174,7 @@ class SeqCLF(Strategy):
             # clf_config = log.get_sub_log('clf', new_model_config, acquire_instruction)
             # clf_data = {
             #     'train_clip': ds.dataset['train_clip'],
-            #     'val': ds.dataset['val']
+            #     'val_shift': ds.dataset['val_shift']
             # } 
             # log.save(clf_data, clf_config)
 
@@ -185,17 +195,16 @@ class Seq(Strategy):
             new_data_round_set = self.sub_strategy.get_new_data(ds, new_data_round_indices, new_model_config.augment)
 
             ds.reduce('market', new_data_round_indices, new_model_config.batch_size)
-            ds.reduce('market_aug', new_data_round_indices, new_model_config.batch_size)
             ds.expand('train_clip', new_data_round_set_no_aug, new_model_config.batch_size)
             ds.expand('train', new_data_round_set, new_model_config.batch_size)
 
-            model = Model.get_new(new_model_config, ds.loader['train'], ds.loader['val'], model)
+            model = Model.get_new(new_model_config, ds.loader['train'], ds.loader['val_shift'], model)
             new_data_total_set = new_data_round_set  if (new_data_total_set == None) else torch.utils.data.ConcatDataset([new_data_total_set,new_data_round_set])
 
         assert len(new_data_total_set) == acquire_instruction.get_new_data_size(new_model_config.class_number), 'size error with new data'
         if new_model_config.pure:
             ds.update_dataset('train', new_data_total_set, new_model_config.batch_size)
-            model = Model.get_new(new_model_config, ds.loader['train'], ds.loader['val'], model)
+            model = Model.get_new(new_model_config, ds.loader['train'], ds.loader['val_shift'], model)
 
         # log_data(ds.dataset['train'], new_model_config, acquire_instruction)
         new_model_config.set_path(acquire_instruction)

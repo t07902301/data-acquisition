@@ -51,15 +51,15 @@ class Distribution(Prototype):
         n_cols = epochs
         split_name = list(dv_list[0].keys())
         n_rows = len(split_name) #n_splits
-        fig, axs = plt.subplots(n_rows, n_cols, sharex=True, tight_layout=True)
+        fig, axs = plt.subplots(n_rows, n_cols, sharex=True, sharey=True, tight_layout=True)
         axs = axs.flatten() #2D -> 1D
         for row in range(n_rows):
             for col in range(n_cols):
                 axs[col + n_cols * row].hist(dv_list[col][split_name[row]], bins = 6)
         fig_name = self.get_fig_name(check_type, check_class, method, n_data)
+        fig.suptitle(split_name)
         fig.savefig(fig_name)
         fig.clf()      
-        print(split_name)
         print('save fig to', fig_name)  
 
     def get_fig_name(self, check_type, check_class, method, n_data):

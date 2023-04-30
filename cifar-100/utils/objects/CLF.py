@@ -2,12 +2,10 @@ import sys
 sys.path.append('..')
 import numpy as np
 from failure_directions.src.wrappers import SVMFitter,CLIPProcessor
-from utils.env import clip_env
 from utils import config
-from utils.acquistion import get_loader_labels
 import utils.objects.model as Model
 
-def statistics(epochs, score, incor_precision, n_data_list = None):
+def statistics(score, incor_precision, n_data_list = None):
     '''
     pretrained model | seq_clf\n
     score/precision: (epoch, value)
@@ -32,27 +30,23 @@ def precision(clf, clip_processor, dataloader, base_model):
     real_cls_incorrect = np.arange(dataset_len)[gt!=pred]
     return np.intersect1d(clf_cls_incorrect, real_cls_incorrect).size / clf_cls_incorrect.size
 
-def get_CLF(base_model, dataloaders, svm_fit_label= 'val'):
-    clip_env()
-    clip_processor = CLIPProcessor(ds_mean=config['data']['mean'], ds_std=config['data']['std'])
-    clip_set_up = clip_processor.evaluate_clip_images(dataloaders['train_clip'])
-    svm_fitter = SVMFitter(method=config['clf'], svm_args=config['clf_args'],cv= config['clf_args']['k-fold'])
-    svm_fitter.set_preprocess(clip_set_up)
-    svm_fit_gt,svm_fit_pred,_ = Model.evaluate(dataloaders[svm_fit_label],base_model) # gts, preds, loss
-    clip_fit = clip_processor.evaluate_clip_images(dataloaders[svm_fit_label])
-    score = svm_fitter.fit(preds=svm_fit_pred, gts=svm_fit_gt, latents=clip_fit)
-    return svm_fitter, clip_processor, score
+class SVM():
+    def __init__(self, set_up_data) -> None:
+        self.clip_processor = CLIPProcessor(ds_mean=config['data']['mean'], ds_std=config['data']['std'])
+        clip_set_up,_, _ = self.clip_processor.evaluate_clip_images(set_up_data)        
+        self.fitter = SVMFitter(method=config['clf'], svm_args=config['clf_args'],cv=config['clf_args']['k-fold'])
+        self.fitter.set_preprocess(clip_set_up) 
 
-
-def apply_CLF(clf, data_loader, clip_processor, compute_metrics=False, preds=None):
-    '''
-    Get DV and gt from dataset, precision from CLF
-    '''
-    # ds_gt, ds_pred, ds_conf = Model.evaluate(data_loader,model)
-    ds_gts = get_loader_labels(data_loader)
-    ds_clip = clip_processor.evaluate_clip_images(data_loader)
-    _, dv, clf_precision = clf.predict(latents=ds_clip, gts=ds_gts, compute_metrics=compute_metrics, preds=preds)
-    return {
-        'gt': ds_gts,
-        'dv': dv,
-    }, clf_precision
+    def fit(self, base_model, fit_data):
+        svm_fit_gt,svm_fit_pred,_ = Model.evaluate(fit_data,base_model)
+        clip_fit,_ ,_ = self.clip_processor.evaluate_clip_images(fit_data)
+        score = self.fitter.fit(preds=svm_fit_pred, gts=svm_fit_gt, latents=clip_fit)        
+        return score
+    
+    def predict(self, data_loader, compute_metrics=False, dataset_preds=None):
+        ds_clip, _, clip_gts = self.clip_processor.evaluate_clip_images(data_loader)
+        _, dv, precision = self.fitter.predict(latents=ds_clip, gts=clip_gts, compute_metrics=compute_metrics, preds=dataset_preds)
+        return {
+            'gt': clip_gts,
+            'dv': dv,
+        }, precision        
