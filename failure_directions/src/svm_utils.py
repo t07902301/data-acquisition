@@ -4,9 +4,9 @@ import torch
 from tqdm import tqdm
 import os
 import numpy as np
-from sklearn import svm
+# from sklearn import svm
 from sklearn.preprocessing import StandardScaler
-from sklearn.svm import SVC
+from sklearn.svm import LinearSVC, SVC
 from sklearn.pipeline import make_pipeline
 import numpy as np
 import sklearn.metrics as sklearn_metrics
@@ -15,18 +15,18 @@ import torch.nn as nn
 import torch.optim as optim
 import torchvision
 import failure_directions.src.trainer as trainer_utils
-import failure_directions.src.ffcv_utils as ffcv_utils
+# import failure_directions.src.ffcv_utils as ffcv_utils
 import torch.nn as nn
 from torch.cuda.amp import autocast
 from pprint import pprint
-from torch.utils.data import Dataset, DataLoader
+# from torch.utils.data import Dataset, DataLoader
 # from src.trainer import SVMTrainer
-import clip
-import torchvision.transforms as transforms
+# import clip
+# import torchvision.transforms as transforms
 import torchmetrics
-import sklearn.neural_network
-from sklearn.model_selection import KFold
-from imblearn.over_sampling import SMOTE,ADASYN
+# import sklearn.neural_network
+# from sklearn.model_selection import KFold
+# from imblearn.over_sampling import SMOTE,ADASYN
 
 class SVMPreProcessing(nn.Module):
     
@@ -292,7 +292,8 @@ def fit_svm(C, class_weight, x, gt, cv=2, kernel='linear'):
     x : input of svm; gt: groud truth of svm; cv: #cross validation splits
     '''
     scorer = sklearn_metrics.make_scorer(sklearn_metrics.balanced_accuracy_score)
-    clf = SVC(gamma='auto', kernel=kernel, C=C, class_weight=class_weight)
+    # clf = LinearSVC(C=C, class_weight=class_weight)
+    clf = SVC(C=C, kernel=kernel, class_weight=class_weight, gamma='auto')
     cv_scores = cross_val_score(clf, x, gt, cv=cv, scoring=scorer)
     average_cv_scores = np.mean(cv_scores)*100
     return clf, average_cv_scores
@@ -317,15 +318,15 @@ def choose_svm_hpara(clf_input, clf_gt, class_weight, cv_splits, kernel, split_a
         best_clf, best_cv = fit_svm(C=C_, x=clf_input, gt=clf_gt, class_weight=class_weight, cv=cv_splits, kernel=kernel)
     return best_clf, best_cv
 
-def train_per_class_svm(latents, gts, preds, balanced=True, split_and_search=False, cv=2, svm_args=None):
+def train_per_class_svm(latents, gts, preds, balanced=True, split_and_search=False, cv=2, svm_args=None, binary=False):
     # if split_and_search is true, split our dataset into 50% svm train, 50% svm test
     # Then grid search over C = array([1.e-06, 1.e-05, 1.e-04, 1.e-03, 1.e-02, 1.e-01, 1.e+00])
-    class_num = gts.max() + 1
+    class_num = 1 if binary else gts.max() + 1
     class_weight = 'balanced' if balanced else None        
     val_correct_mask = (preds == gts)
     val_latent = latents
-    clfs = []
     kernel = svm_args['kernel']
+    clfs = []
     cv_score = []
     for c in range(class_num):
         cls_mask = (gts == c)
@@ -337,42 +338,44 @@ def train_per_class_svm(latents, gts, preds, balanced=True, split_and_search=Fal
         clfs.append(best_clf)
         cv_score.append(best_cv) # save cross valiadation score
     return clfs, cv_score
-    
-def train_per_class_model(latents, gts, preds, balanced=True, split_and_search=False, cv=2, method='SVM', svm_args={}):
-    if method == 'SVM':
-        clfs,score = train_per_class_svm(latents=latents, gts=gts, preds=preds, balanced=balanced, split_and_search=split_and_search, cv=cv,svm_args=svm_args)
+
+def train_per_class_model(latents, gts, preds, balanced=True, split_and_search=False, cv=2, method='SVM', svm_args={}, binary=False):
+    clfs,score = train_per_class_svm(latents=latents, gts=gts, preds=preds, balanced=balanced, split_and_search=split_and_search, cv=cv,svm_args=svm_args, binary=binary)
     # else:
     #     clfs,score = train_per_class_mlp(latents=latents, ys=ys, preds=preds, balanced=balanced, split_and_search=split_and_search, cv=cv, svm_args=svm_args, market_info=market_info)
     return clfs,score
 
-def predict_per_class_svm(latents, gts, clfs, preds=None, aux_info=None, verbose=True, compute_metrics=False, method='SVM'):
+def predict_per_class_svm(latents, gts, clfs, preds=None, aux_info=None, verbose=True, compute_metrics=False, method='SVM', binary=False):
+    n_clfs = len(clfs)
     dataset_size = len(gts)
     out_mask, out_decision = np.zeros(dataset_size), np.zeros(dataset_size)
     skipped_classes = []
     dataset_idx = np.arange(dataset_size)
-    incorrect_mask = gts!=preds
+    incorrect_mask = (gts!=preds)
     precision = []
-    for c in range(len(clfs)): #replaced class_num
+    for c in range(n_clfs): #replaced class_num
         cls_mask = gts == c
-        if clfs[c] is not None and (cls_mask.sum()> 0):
-            clf_out = clfs[c].predict(latents[cls_mask])
+        if clfs[c] is not None and (cls_mask.sum()> 0): # clf for this class exists and this dataset has labels for this class
             if method == 'SVM':
-                decision_out = clfs[c].decision_function(latents[cls_mask])
+                cls_decision_out = clfs[c].decision_function(latents[cls_mask])
             else:
-                decision_out = clfs[c].predict_proba(latents[cls_mask])[:,0]
+                cls_decision_out = clfs[c].predict_proba(latents[cls_mask])[:,0]
+            out_decision[cls_mask] = cls_decision_out #out_decision[dataset_idx[cls_mask]]
+            
+            # clf_out = clfs[c].predict(latents[cls_mask])
             # out_mask[np.arange(dataset_size)[mask][clf_out == 1]] = 1
-            out_decision[np.arange(dataset_size)[cls_mask]] = decision_out
             # score.append(get_accuracy(ytrue=correct_mask[cls_mask], ypred=clf_out)) # the base model and the clf prediction of correct classes
             # print('In class {}, confusion matrix'.format(c))
             # print(sklearn_metrics.confusion_matrix(correct[mask],clf_out))
             if compute_metrics:
                 cls_idx = dataset_idx[cls_mask]
-                clf_cls_incorrect_mask = (decision_out<=0)
+                clf_cls_incorrect_mask = (cls_decision_out<=0)
                 clf_cls_incorrect_idx = cls_idx[clf_cls_incorrect_mask]
                 real_cls_incorrect_mask = incorrect_mask[cls_mask]
                 real_cls_incorrect_idx = cls_idx[real_cls_incorrect_mask]
                 if  clf_cls_incorrect_idx.size == 0:
                     precision.append(100)
+                    print('In class {}, no misclassifications'.format(c))
                 else:
                     precision.append(np.intersect1d(clf_cls_incorrect_idx, real_cls_incorrect_idx).size / clf_cls_incorrect_idx.size * 100)  
         else:
@@ -397,9 +400,8 @@ def predict_per_class_svm(latents, gts, clfs, preds=None, aux_info=None, verbose
     #     return out_mask, out_decision, {}
     return out_mask, out_decision, precision
 
-
-def predict_per_class_model(latents, gts, clfs, preds=None, aux_info=None, verbose=True, compute_metrics=True, method='SVM'):
-    return predict_per_class_svm(latents=latents, gts=gts, clfs=clfs, preds=preds, aux_info=aux_info, verbose=verbose, compute_metrics=compute_metrics, method=method)
+def predict_per_class_model(latents, gts, clfs, preds=None, aux_info=None, verbose=True, compute_metrics=True, method='SVM', binary=False):
+    return predict_per_class_svm(latents=latents, gts=gts, clfs=clfs, preds=preds, aux_info=aux_info, verbose=verbose, compute_metrics=compute_metrics, method=method, binary=binary)
 
 # def train_per_class_mlp(latents, ys, preds, balanced=True, split_and_search=False, cv=2, hidden_layer_size=100, svm_args={},market_info=None):
 #     market_latents = market_info['latents']
