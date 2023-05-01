@@ -8,31 +8,35 @@ def run(ds:Dataset.DataSplits, model_config:Config.OldModel, train_flag:bool):
     # Evaluate
     gt,pred,_  = Model.evaluate(ds.loader['test'],base_model)
     base_acc = (gt==pred).mean()*100
-    clf,clip_features,score = CLF.get_CLF(base_model, ds.loader)
-    _, prec = CLF.apply_CLF(clf, ds.loader['test'], clip_features, preds=pred, compute_metrics=True)
-    shift_score = Model.shift_importance(ds.dataset['test'], model_config.class_number, gt, pred)
+    gt,pred,_  = Model.evaluate(ds.loader['test_shift'],base_model)
+    base_acc_shift = (gt==pred).mean()*100
+    shift_score = Model.shift_importance(ds.dataset['test_shift'], model_config.class_number, gt, pred)
+    clf = CLF.SVM(ds.loader['train_clip'])
+    score = clf.fit(base_model, ds.loader['val_shift'])
+    _, precision = clf.predict(ds.loader['test_shift'])
     if train_flag:
         # Get a new base model from Resnet
         Model.save(base_model, model_config.path)
-    return base_acc, score, prec, shift_score
+    return base_acc, score, precision, shift_score, base_acc_shift
 
 def main(epochs,  model_dir ='', train_flag=False, device=0):
     batch_size, select_fine_labels, label_map, new_img_num_list, superclass_num, ratio, seq_rounds_config, ds_list, device_config = set_up(epochs, model_dir, False, device)
-
-    acc_list, clf_score_list, clf_prec_list, shift_score_list = [], [], [], []
+    acc_list, clf_score_list, clf_prec_list, shift_score_list, acc_shift_list = [], [], [], [], []
     for epo in range(epochs):
         print('in epoch {}'.format(epo))
         ds = ds_list[epo]
-        ds.get_dataloader(batch_size)
+        labels = acquistion.get_loader_labels(ds.loader['train'])
         old_model_config = Config.OldModel(batch_size,superclass_num,model_dir, device_config, epo)
-        acc, score, prec, shift_score = run(ds, old_model_config, train_flag)
+        acc, score, prec, shift_score, acc_shift = run(ds, old_model_config, train_flag)
         acc_list.append(acc)
         clf_score_list.append(score)
         clf_prec_list.append(prec)
         shift_score_list.append(shift_score)
-    print('Model Average Acc:', np.round(np.mean(acc_list),decimals=3))
-    CLF.statistics(epochs, clf_score_list, clf_prec_list)
-    print('Distribution Shift Proportion on Model Misclassifications', np.mean(np.array(shift_score_list), axis=0))
+        acc_shift_list.append(acc_shift)
+    print('Model Average Acc before shift:', np.round(np.mean(acc_list),decimals=3))
+    print('Model Average Acc after shift:', np.round(np.mean(acc_shift_list),decimals=3))
+    CLF.statistics(clf_score_list, clf_prec_list)
+    print('Distribution Shift Proportion on Model Misclassifications', np.round(np.mean(np.array(shift_score_list),axis=0), decimals=3))
     split_data = ds.dataset
     for spit_name in split_data.keys():
         print(spit_name, len(split_data[spit_name]))
