@@ -51,7 +51,7 @@ class Distribution(Prototype):
         n_cols = epochs
         split_name = list(dv_list[0].keys())
         n_rows = len(split_name) #n_splits
-        fig, axs = plt.subplots(n_rows, n_cols, sharex=True, sharey=True, tight_layout=True)
+        fig, axs = plt.subplots(n_rows, n_cols, sharex=True, tight_layout=True)
         axs = axs.flatten() #2D -> 1D
         for row in range(n_rows):
             for col in range(n_cols):
@@ -66,7 +66,10 @@ class Distribution(Prototype):
         fig_root = 'figure/{}/distribution/{}'.format(self.model_config.model_dir, check_type)
         if os.path.exists(fig_root) is False:
             os.makedirs(fig_root)
-        fig_name = os.path.join(fig_root, 'class_{}-{}-{}.png'.format(check_class, method, n_data)) if check_type != 'total' else os.path.join(fig_root, '{}.png'.format(check_class))
+        if check_type != 'total':
+            fig_name = os.path.join(fig_root, 'class_{}-{}.png'.format(check_class, n_data))
+        else:
+            fig_name = os.path.join(fig_root, '{}.png'.format(check_class))
         return fig_name
 
     # def threshold_collection(self, threshold_list, acc_list):
