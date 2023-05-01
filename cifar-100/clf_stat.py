@@ -13,8 +13,8 @@ def get_new_clf_statistics(new_img_num_list, new_model_config:Config.NewModel, a
     if new_model_config.pure:
         for new_img_num in new_img_num_list:
             acquire_instruction.set_items('seq_clf',new_img_num)
-            stat_config = log.get_sub_log('stat', new_model_config, acquire_instruction)
-            clf_stat = log.load(stat_config)
+            stat_config = Log.get_config(new_model_config, acquire_instruction, 'stat')
+            clf_stat = Log.load(stat_config)
             cv_score_list.append(clf_stat['cv score'])
             clf_precision_list.append(clf_stat['precision'])
     return cv_score_list, clf_precision_list
@@ -54,9 +54,9 @@ def main(epochs, new_model_setter='retrain', pure=False, model_dir ='', device=0
 
     if pure:
         print("Before acquisition:")
-        CLF.statistics(epochs, base_score, base_precision)
+        CLF.statistics(base_score, base_precision)
         print("After acquisition:")
-        CLF.statistics(epochs, score, precision, new_img_num_list)
+        CLF.statistics(score, precision, new_img_num_list)
 
 import argparse
 if __name__ == '__main__':
