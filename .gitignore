@@ -4,9 +4,18 @@ binary-classifier/log/
 binary-classifier/new_model/
 binary-classifier/__pycache__/
 binary-classifier/runs/
-failure_directions/src/__pycache__/
 binary-classifier/utils/__pycache__/
 binary-classifier/utils/objects/__pycache__/
 binary-classifier/utils/statistics/__pycache__/
 # binary-classifier/
-cifar-100/*
+cifar-100/model/
+cifar-100/figure/
+cifar-100/log/
+cifar-100/new_model/
+cifar-100/__pycache__/
+cifar-100/runs/
+cifar-100/utils/__pycache__/
+cifar-100/utils/objects/__pycache__/
+cifar-100/utils/statistics/__pycache__/
+failure_directions/src/__pycache__/
+cifar-100/labels.py
