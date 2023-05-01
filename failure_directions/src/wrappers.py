@@ -38,16 +38,16 @@ class SVMFitter:
         else:
             print("No whitening")
         
-    def fit(self, preds, gts, latents):
+    def fit(self, preds, gts, latents, binary=False):
         assert self.pre_process is not None, 'run set_preprocess on a training set first'
         latents = self.pre_process(latents).numpy()
         clfs, score = svm_utils.train_per_class_model(latents=latents, gts=gts, 
                                                         preds=preds, balanced=self.balanced, 
-                                                        split_and_search=self.split_and_search,svm_args=self.svm_args)
+                                                        split_and_search=self.split_and_search,svm_args=self.svm_args, binary=binary)
         self.clfs = clfs
         return score
     
-    def predict(self, gts, latents, compute_metrics=True, preds=None, aux_info=None, verbose=True):
+    def predict(self, gts, latents, compute_metrics=True, preds=None, aux_info=None, verbose=True, binary=False):
         assert self.clfs is not None, "must call fit first"
         latents = self.pre_process(latents).numpy()
         #gts = gts.numpy()
@@ -55,7 +55,7 @@ class SVMFitter:
         #    preds = preds.numpy()
         return svm_utils.predict_per_class_model(latents=latents, gts=gts, clfs=self.clfs, 
                                      preds=preds, aux_info=aux_info,
-                                     verbose=verbose, compute_metrics=compute_metrics, method=self.method) 
+                                     verbose=verbose, compute_metrics=compute_metrics, method=self.method,binary=binary) 
     
     def export(self, filename):
         args = {
@@ -109,15 +109,18 @@ class CLIPProcessor:
         
     def evaluate_clip_images(self, dataloader):
         clip_activations = []
+        clip_gts = []
         with torch.no_grad():
             with autocast():
-                for batch in dataloader:
-                    x = batch[0]
+                for batch_info in dataloader:
+                    x = batch_info[0] # (image, labels)
                     x = x.to(self.device)
                     image_features = self.clip_model.encode_image(self.preprocess_clip(x))
                     clip_activations.append(image_features.cpu())
+                    clip_gts.append(batch_info[1])
         out = torch.cat(clip_activations).float()
-        return out
+        clip_gts = torch.cat(clip_gts).numpy()
+        return out, clip_gts
     
     def evaluate_clip_captions(self, captions):
         text = clip.tokenize(captions)
