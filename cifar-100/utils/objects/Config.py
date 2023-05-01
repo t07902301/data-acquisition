@@ -54,7 +54,8 @@ class SequentialAc(Acquistion):
         return 'acquisition method: {}, n_data_per_class:({},{}) in round {}'.format(self.method, self.n_data_not_last, self.n_data_last_round, self.current_round)
     def set_items(self, method, new_data_number):
         super().set_items(method, new_data_number)
-        self.sequential_rounds = self.sequential_rounds_info[self.new_data_number_per_class]
+        # self.sequential_rounds = self.sequential_rounds_info[self.new_data_number_per_class]
+        self.sequential_rounds = 2
         self.n_data_not_last = self.new_data_number_per_class  // self.sequential_rounds
         n_data_acquired = self.n_data_not_last * (self.sequential_rounds - 1)
         self.n_data_last_round = self.new_data_number_per_class - n_data_acquired
@@ -106,27 +107,24 @@ class NewModel(ModelConfig):
         aug_name = '' if self.augment else 'na'
         self.root = os.path.join(self.root, self.setter, pure_name, str(self.model_cnt), aug_name) 
         # self.root = os.path.join(self.root, self.setter, pure_name, str(self.model_cnt), aug_name, 'trial') 
-        # self.root = os.path.join(self.root, self.setter, pure_name, str(self.model_cnt), aug_name, 'trial_init') 
         self.check_dir(self.root)
 
     def set_seq_root(self,root, acquistion_config:SequentialAc):
-        root = os.path.join(root,'{}_rounds'.format(acquistion_config.sequential_rounds_info[acquistion_config.new_data_number_per_class]))
+        # root = os.path.join(root,'{}_rounds'.format(acquistion_config.sequential_rounds_info[acquistion_config.new_data_number_per_class]))
         self.check_dir(root)
         return root
 
 class Log(NewModel):
-    def __init__(self, batch_size, class_number, model_dir, device, model_cnt, pure, setter, augment) -> None:
+    def __init__(self, batch_size, class_number, model_dir, device, model_cnt, pure, setter, augment, log_symbol) -> None:
         super().__init__(batch_size, class_number, model_dir, device, model_cnt, pure, setter, augment)
-        self.set_log_root()
-    def set_log_root(self):
-        self.root = os.path.join(self.root,'log')
+        self.set_log_root(log_symbol)
+    def set_log_root(self, log_symbol):
+        '''
+        Add sub_log symbol ('data','indices',...) to the root
+        '''
+        self.root = os.path.join(self.root,'log', log_symbol)
         self.check_dir(self.root)
-    def set_sub_log_root(self, symbol):
-        '''
-        Append sub_log symbol ('data','indices',...) to the root
-        '''
-        self.root = os.path.join(self.root, symbol)
-        self.sub_log_symbol = symbol
+        self.log_symbol = log_symbol
 
 def str2bool(value):
     if isinstance(value,bool):
