@@ -4,3 +4,5 @@ import yaml
 with open('utils/config.yaml', 'r') as file:
     config = yaml.safe_load(file)
     file.close()
+
+n_workers = config['num_workers']
