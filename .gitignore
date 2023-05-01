@@ -19,3 +19,4 @@ cifar-100/utils/objects/__pycache__/
 cifar-100/utils/statistics/__pycache__/
 failure_directions/src/__pycache__/
 cifar-100/labels.py
+.vscode/settings.json
