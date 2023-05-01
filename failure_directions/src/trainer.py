@@ -21,7 +21,6 @@ def unwrap_batch(batch, set_device=False):
     x, y, spurious, index = None, None, None, None
     if len(batch) == 3: # only for cifar-100?
         x, y, fine_y = batch
-        # x, fine_y, y = batch
     elif len(batch) == 4:
         x, y, spurious, index = batch
     elif len(batch) == 2:
@@ -113,7 +112,8 @@ class LightWeightTrainer():
         x, y, spurious, index = unwrap_batch(batch, self.set_device)
         logits = model(x)
         if self.bce:
-            temp = self.bce_loss_unreduced(logits, y.float())
+            # logits = logits.view(logits.shape[0])
+            temp = self.bce_loss_unreduced(logits, y.float()) # weighted loss
         else:
             temp = self.ce_loss_unreduced(logits, y)
         # # get loss weights
@@ -134,6 +134,7 @@ class LightWeightTrainer():
         x, y, spurious, index = unwrap_batch(batch, self.set_device)
         logits = model(x)
         if self.bce:
+            # logits = logits.view(logits.shape[0])
             loss = self.bce_loss(logits, y.float())
         else:
             loss = self.ce_loss(logits, y)
