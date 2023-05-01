@@ -8,7 +8,7 @@ def get_loader_labels(dataloader):
 
 def extract_class_indices(cls_label, ds_labels):
     '''
-    get class (cls_label) information from a dataset
+    Get indices of a class from dataset with 'ds_labels'
     '''
     cls_mask = ds_labels==cls_label
     ds_indices = np.arange(len(ds_labels))
