@@ -57,7 +57,6 @@ def main(epochs, new_model_setter='retrain', pure=False, model_dir ='', check_me
         # method_list = ['dv','sm','conf','mix','seq']
         # method_labels = ['greedy decision value','random sampling','model confidence','greedy+sampling', 'sequential']
 
-    ds_list = Dataset.get_data_splits_list(epochs, select_fine_labels, label_map, ratio)
     for epo in range(epochs):
         print('in epoch {}'.format(epo))
         
