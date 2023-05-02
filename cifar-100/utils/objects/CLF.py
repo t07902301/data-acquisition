@@ -48,7 +48,10 @@ class SVM():
         '''
         No precision for SVM in train loader (shuffle)
         '''
-        _, dataset_preds, _ = Model.evaluate(data_loader, base_model)
+        if compute_metrics:
+            _, dataset_preds, _ = Model.evaluate(data_loader, base_model)
+        else:
+            dataset_preds = None
         embedding, data_gts = self.clip_processor.evaluate_clip_images(data_loader)
         _, dv, precision = self.fitter.predict(latents=embedding, gts=data_gts, compute_metrics=compute_metrics, preds=dataset_preds)
         return {
