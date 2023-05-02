@@ -6,7 +6,7 @@ from abc import abstractmethod
 import numpy as np
 import torch
 import utils.statistics.subset as Subset
-
+import utils.acquistion as acquistion
 class prototype():
     def __init__(self,model_config:Config.NewModel) -> None:
         self.model_config = model_config
@@ -55,17 +55,16 @@ class subset(prototype):
     def setup(self, old_model_config, datasplits):
         self.base_model = Model.load(old_model_config)
         # state = np.random.get_state()
-        clf,clip_processor,_ = CLF.get_CLF(self.base_model,datasplits.loader)
-        test_info, _ = CLF.apply_CLF(clf,datasplits.loader['test'],clip_processor)
+        self.clf = CLF.SVM(datasplits.loader['train_clip'])
+        score = self.clf.fit(self.base_model, datasplits.loader['val_shift'])
+        test_info, _ = self.clf.predict(datasplits.loader['test_shift'])        
         test_info['batch_size'] = old_model_config.batch_size
-        test_info['dataset'] = datasplits.dataset['test']
-        test_info['loader'] = datasplits.loader['test']
+        test_info['dataset'] = datasplits.dataset['test_shift']
+        test_info['loader'] = datasplits.loader['test_shift']
         self.test_info = test_info
-        gt, pred, _ = Model.evaluate(datasplits.loader['test'], self.base_model)
+        gt, pred, _ = Model.evaluate(datasplits.loader['test_shift'], self.base_model)
         self.base_acc = (gt == pred).mean()*100   
         # np.random.set_state(state) 
-        self.clf = clf
-        self.clip_processor = clip_processor
 
     def get_subset_loader(self, threshold, acquistion_config):
         self.model_config.set_path(acquistion_config=acquistion_config)
@@ -111,7 +110,7 @@ class total(prototype):
         super().__init__(model_config)
     def setup(self, old_model_config, datasplits):
         self.base_model = Model.load(old_model_config)
-        self.test_loader = datasplits.loader['test']
+        self.test_loader = datasplits.loader['test_shift']
         gt, pred, _ = Model.evaluate(self.test_loader,self.base_model)
         self.base_acc = (gt==pred).mean()*100
 

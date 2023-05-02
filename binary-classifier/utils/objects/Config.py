@@ -85,6 +85,7 @@ class OldModel(ModelConfig):
     def __init__(self, batch_size, class_number, model_dir, device, model_cnt) -> None:
         super().__init__(batch_size, class_number, model_dir, device)
         self.path = os.path.join(self.root,'{}.pt'.format(model_cnt))
+
 class NewModel(ModelConfig):
     path: str
     def __init__(self, batch_size, class_number, model_dir, device, model_cnt, pure:bool, setter, augment:bool) -> None:
@@ -115,18 +116,16 @@ class NewModel(ModelConfig):
         return root
 
 class Log(NewModel):
-    def __init__(self, batch_size, class_number, model_dir, device, model_cnt, pure, setter, augment) -> None:
+    def __init__(self, batch_size, class_number, model_dir, device, model_cnt, pure, setter, augment, log_symbol) -> None:
         super().__init__(batch_size, class_number, model_dir, device, model_cnt, pure, setter, augment)
-        self.set_log_root()
-    def set_log_root(self):
-        self.root = os.path.join(self.root,'log')
+        self.set_log_root(log_symbol)
+    def set_log_root(self, log_symbol):
+        '''
+        Add sub_log symbol ('data','indices',...) to the root
+        '''
+        self.root = os.path.join(self.root,'log', log_symbol)
         self.check_dir(self.root)
-    def set_sub_log_root(self, symbol):
-        '''
-        Append sub_log symbol ('data','indices',...) to the root
-        '''
-        self.root = os.path.join(self.root, symbol)
-        self.sub_log_symbol = symbol
+        self.log_symbol = log_symbol
 
 def str2bool(value):
     if isinstance(value,bool):
@@ -134,7 +133,7 @@ def str2bool(value):
     else:
         return False if value=='0' else True
 
-def parse( pure:bool):
+def parse(pure:bool):
     pure_name = 'pure' if pure else 'non-pure'
     hparams = config['hparams']
     batch_size = hparams['batch_size']
@@ -146,9 +145,9 @@ def parse( pure:bool):
     ratio = data_config['ratio']
     seq_rounds = 2
     train_labels = data_config['train_label']
-    old_test_labels = data_config['old_test_label']
+    # old_test_labels = data_config['old_test_label']
     target_test_labels = data_config['target_test_label']
-    return batch_size, train_labels, old_test_labels, target_test_labels, label_map, img_per_cls_list, superclass_num, ratio, seq_rounds 
+    return batch_size, train_labels, target_test_labels, label_map, img_per_cls_list, superclass_num, ratio, seq_rounds 
 
 def display(batch_size, label_map, img_per_cls_list, superclass_num, ratio):
     output = {

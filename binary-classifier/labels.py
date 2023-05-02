@@ -24,5 +24,6 @@ mapping = {
 'vehicles 2': ['lawn_mower', 'rocket', 'streetcar', 'tank', 'tractor'],
 }
 
-select_fine_label = ['beaver', 'dolphin', 'otter', 'seal', 'whale', 'aquarium_fish', 'flatfish', 'ray', 'shark', 'trout']
+select_fine_label = ['bicycle', 'bus', 'motorcycle', 'pickup_truck', 'train', 'lawn_mower', 'rocket', 'streetcar', 'tank', 'tractor']
 print([fine_labels.index(label) for label in select_fine_label])
+print([fine_labels.index(label) for label in ['pickup_truck', 'train']]) #small and medium mammals

@@ -62,7 +62,7 @@ class DataSplits():
         else:
             self.expand('train', new_data)
 
-def create_dataset(ds_root, select_fine_labels, ratio):
+def create_dataset(ds_root, select_fine_labels, ratio, target_test_label):
     # When all classes are used, only work on removal
     # When some classes are neglected, test set and the big train set will be shrank.
     train_ds,test_ds = get_raw_ds(ds_root)
@@ -96,20 +96,47 @@ def create_dataset(ds_root, select_fine_labels, ratio):
     split_val_fine_labels = get_ds_labels(val_ds)
     _, left_indices = split_dataset(split_val_fine_labels,data_config['remove_fine_labels'],remove_rate)
     left_val = torch.utils.data.Subset(val_ds,left_indices)
+   
+    test_ds = get_subset_by_labels(test_ds, target_test_label)
 
     split_test_fine_labels = get_ds_labels(test_ds)
     _, left_indices = split_dataset(split_test_fine_labels,data_config['remove_fine_labels'],remove_rate)
     left_test = torch.utils.data.Subset(test_ds,left_indices)
 
     ds = {}
-    ds['train'] =  left_clip_train
+    modified_labels = list(set(select_fine_labels) - set(target_test_label))
+    balanced_train_ds = balance_dataset(target_test_label, modified_labels, left_clip_train)
+    ds['train'] = balanced_train_ds
     ds['val'] = left_val
     ds['test'] = left_test
     ds['val_shift'] =  val_ds
     ds['market'] =  market_ds
     ds['test_shift'] = test_ds
-    ds['train_clip'] =  left_clip_train
+    ds['train_clip'] =  balanced_train_ds
+    ds['train_baseline'] = train_ds
     return ds
+    # return {
+    #     'train': clip_train_ds_split,
+    #     'test': test_ds,
+    #     'val': val_ds
+    # }
+def balance_dataset(target_labels, modified_label, dataset):
+    target_ds = get_subset_by_labels(dataset, target_labels)
+    n_modify_cls = int(len(target_ds)/len(modified_label))
+    ds_labels = get_ds_labels(dataset)
+    ds_indices = np.arange(len(dataset))
+    modified_indices = []
+    for label in modified_label:
+        cls_mask = (ds_labels==label)
+        sampled = sample_indices(ds_indices[cls_mask], n_modify_cls)
+        modified_indices.append(sampled)
+    modified_indices = np.concatenate(modified_indices)
+    modified_ds = torch.utils.data.Subset(dataset, modified_indices)
+    # modified_label_check = get_ds_labels(modified_ds)
+    # print(np.unique(modified_label_check))
+    # for label in modified_label:
+    #     assert label in modified_label_check
+    return torch.utils.data.ConcatDataset([modified_ds, target_ds])
 
 def modify_coarse_label(dataset, label_map):
     for split in dataset.keys():
@@ -154,7 +181,10 @@ def get_ds_labels(ds,use_fine_label=True):
     return np.array(labels)
     
 def sample_indices(indices,ratio):
-    return np.random.choice(indices,int(ratio*len(indices)),replace=False)
+    if type(ratio) == float:
+        return np.random.choice(indices,int(ratio*len(indices)),replace=False)
+    else:
+        return np.random.choice(indices,ratio,replace=False)
 
 def complimentary_mask(mask_length, active_spot):
     '''
@@ -204,11 +234,11 @@ def count_minority(ds):
             cnt += 1
     return cnt
 
-def get_data_splits_list(epochs, select_fine_labels, label_map, ratio):
+def get_data_splits_list(epochs, select_fine_labels, label_map, ratio, target_test_labels):
     data_split_env()
     ds_list = []
     for epo in range(epochs):
-        ds = create_dataset(data_config['ds_root'],select_fine_labels,ratio)
+        ds = create_dataset(data_config['ds_root'],select_fine_labels,ratio, target_test_labels)
         if select_fine_labels!=[] and (isinstance(label_map, dict)):
             ds = modify_coarse_label(ds, label_map)
         ds_list.append(ds)

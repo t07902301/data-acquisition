@@ -3,7 +3,8 @@ import utils.acquistion as acquistion
 import utils.objects.model as Model
 import utils.objects.Config as Config
 import utils.objects.CLF as CLF
-import utils.log as log
+import utils.log as Log
+import utils.objects.dataset as Dataset
 from abc import abstractmethod
 import numpy as np
 import torch
@@ -23,8 +24,9 @@ class threshold_subset_setter(subset_setter):
         n_class = len(threshold)
         selected_indices_total = []
         for c in range(n_class):
-            cls_indices = acquistion.extract_class_indices(c, data_info['gt'])
-            cls_dv = data_info['dv'][cls_indices]
+            # cls_indices = acquistion.extract_class_indices(c, data_info['gt'])
+            cls_mask = (data_info['gt']==c)
+            cls_dv = data_info['dv'][cls_mask]
             dv_selected_indices = (cls_dv<=threshold[c])
             selected_indices_total.append(dv_selected_indices)
         selected_indices_total = np.concatenate(selected_indices_total)
@@ -55,36 +57,42 @@ class misclassification_subset_setter(subset_setter):
         subset_loader = [test_loader]
         return subset_loader
     
-def get_threshold(clf, clip_processor, acquisition_config:Config.Acquistion, model_config:Config.NewModel, market_loader):
+def get_threshold(clf, acquisition_config:Config.Acquistion, model_config:Config.NewModel, data_splits:Dataset.DataSplits):
     '''
     Use indices log and SVM to determine max decision values for each class.\n
     old_model + data -> SVM \n
     model_config + acquisition -> indices log
     '''
     if acquisition_config.method == 'seq_clf':
-        return seq_bound(clf, clip_processor, acquisition_config, model_config)
+        return seq_bound(clf, acquisition_config, model_config)
     else:
-        market_info, _ = CLF.apply_CLF(clf, market_loader, clip_processor)
-        return non_seq_bound(acquisition_config, model_config, market_info)
+        return non_seq_bound(clf, acquisition_config, model_config, data_splits)
 
-def non_seq_bound(acquisition_config:Config.Acquistion, model_config:Config.NewModel, market_info):
-    idx_log_config = log.get_sub_log('indices', model_config, acquisition_config)
-    idx_log_config.set_path(acquisition_config)
-    new_data_indices = log.load(idx_log_config)
-    max_dv = [np.max(market_info['dv'][new_data_indices[c]]) for c in range(model_config.class_number)]    
-    return max_dv
-
-def seq_bound(clf, clip_processor, acquisition_config:Config.Acquistion, model_config:Config.NewModel):
-    data_log_config = log.get_sub_log('data', model_config, acquisition_config)
-    data_log_config.set_path(acquisition_config)
-    new_data = log.load(data_log_config)
-    new_data_loader = torch.utils.data.DataLoader(new_data, batch_size=model_config.batch_size, 
-                                    num_workers=n_workers)
-    new_data_info, _ = CLF.apply_CLF(clf, new_data_loader, clip_processor)
+def non_seq_bound(clf, acquire_instruction:Config.Acquistion, model_config:Config.NewModel, data_splits:Dataset.DataSplits):
+    idx_log = Log.get_config(model_config, acquire_instruction, 'indices')
+    idx_log.set_path(acquire_instruction)
+    new_data_indices = Log.load(idx_log)
+    new_data = torch.utils.data.Subset(data_splits.dataset['market'],new_data_indices)
+    new_data_loader = torch.utils.data.DataLoader(new_data, batch_size= data_splits.batch_size, num_workers= n_workers)
+    new_data_info, _ = clf.predict(new_data_loader)
     max_dv = []
     for c in range(model_config.class_number):
-        cls_indices = acquistion.extract_class_indices(c, new_data_info['gt'])
-        cls_dv = new_data_info['dv'][cls_indices]
+        cls_mask = (new_data_info['gt']==c)
+        cls_dv = new_data_info['dv'][cls_mask]
+        max_dv.append(np.max(cls_dv))
+    return max_dv
+
+def seq_bound(clf, acquire_instruction:Config.Acquistion, model_config:Config.NewModel):
+    data_log = Log.get_config(model_config, acquire_instruction, 'data')
+    data_log.set_path(acquire_instruction)
+    new_data = Log.load(data_log)
+    new_data_loader = torch.utils.data.DataLoader(new_data, batch_size=model_config.batch_size, 
+                                    num_workers=n_workers)
+    new_data_info, _ = clf.predict(new_data_loader)
+    max_dv = []
+    for c in range(model_config.class_number):
+        cls_mask = (new_data_info['gt']==c)
+        cls_dv = new_data_info['dv'][cls_mask]
         max_dv.append(np.max(cls_dv))
     return max_dv
 

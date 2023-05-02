@@ -47,7 +47,7 @@ class Distribution(Prototype):
     def __init__(self, model_config: Config.NewModel) -> None:
         super().__init__(model_config)
 
-    def run(self, epochs, dv_list, check_type, check_class, method, n_data):
+    def run(self, epochs, dv_list, check_type, check_class, n_data):
         n_cols = epochs
         split_name = list(dv_list[0].keys())
         n_rows = len(split_name) #n_splits
@@ -56,17 +56,29 @@ class Distribution(Prototype):
         for row in range(n_rows):
             for col in range(n_cols):
                 axs[col + n_cols * row].hist(dv_list[col][split_name[row]], bins = 6)
-        fig_name = self.get_fig_name(check_type, check_class, method, n_data)
+        # fig, axs = plt.subplots(1, n_cols, tight_layout=True)
+        # axs = axs.flatten() #2D -> 1D
+        # for col in range(n_cols):
+        #     sub_fig, sub_axs = plt.subplots(n_rows, 1, sharex=True, tight_layout=True)
+        #     for row in range(n_rows):
+        #         sub_axs[row].hist(dv_list[col][split_name[row]], bins = 6)
+        #     axs[col] = sub_fig
+
+        fig_name = self.get_fig_name(check_type, check_class, n_data, self.model_config.pure)
+        fig.suptitle(split_name)
         fig.savefig(fig_name)
         fig.clf()      
-        print(split_name)
         print('save fig to', fig_name)  
 
-    def get_fig_name(self, check_type, check_class, method, n_data):
+    def get_fig_name(self, check_type, check_class, n_data, pure):
         fig_root = 'figure/{}/distribution/{}'.format(self.model_config.model_dir, check_type)
+        pure_name = '-pure' if pure else ''
         if os.path.exists(fig_root) is False:
             os.makedirs(fig_root)
-        fig_name = os.path.join(fig_root, 'class_{}-{}-{}.png'.format(check_class, method, n_data)) if check_type != 'total' else os.path.join(fig_root, '{}.png'.format(check_class))
+        if check_type != 'total':
+            fig_name = os.path.join(fig_root, 'class_{}-{}{}.png'.format(check_class, n_data, pure_name))
+        else:
+            fig_name = os.path.join(fig_root, '{}.png'.format(check_class))
         return fig_name
 
     # def threshold_collection(self, threshold_list, acc_list):

@@ -40,13 +40,20 @@ class SVM():
     def fit(self, base_model, fit_data):
         svm_fit_gt,svm_fit_pred,_ = Model.evaluate(fit_data,base_model)
         fit_embedding, fit_gts = self.clip_processor.evaluate_clip_images(fit_data)
-        assert((svm_fit_gt == fit_gts).sum()==len(svm_fit_gt))
-        score = self.fitter.fit(preds=svm_fit_pred, gts=svm_fit_gt, latents=fit_embedding)        
+        assert((svm_fit_gt == fit_gts).sum()==len(svm_fit_gt)) # avoid shuffling
+        score = self.fitter.fit(preds=svm_fit_pred, gts=svm_fit_gt, latents=fit_embedding, binary=True)        
         return score
     
-    def predict(self, data_loader, compute_metrics=False, dataset_preds=None):
+    def predict(self, data_loader, compute_metrics=False, base_model=None):
+        '''
+        No precision for SVM in train loader (shuffle)
+        '''
+        if compute_metrics:
+            _, dataset_preds, _ = Model.evaluate(data_loader, base_model)
+        else:
+            dataset_preds = None
         embedding, data_gts = self.clip_processor.evaluate_clip_images(data_loader)
-        _, dv, precision = self.fitter.predict(latents=embedding, gts=data_gts, compute_metrics=compute_metrics, preds=dataset_preds)
+        _, dv, precision = self.fitter.predict(latents=embedding, gts=data_gts, compute_metrics=compute_metrics, preds=dataset_preds, binary=True)
         return {
             'gt': data_gts,
             'dv': dv,
