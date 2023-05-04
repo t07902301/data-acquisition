@@ -1,0 +1,12 @@
+c1: 
+  ratio: 
+    train_size : 0.5
+    val_size : 0.1
+    market_size : 0.4
+    remove_rate: 1.00           
+  acquired_num_per_class: [100, 200, 300, 400]
+  label_map:
+    18: 0
+    19: 1
+  remove_fine_labels: [58, 90]
+  train_label: [8, 13, 48, 58, 90, 41, 69, 81, 85, 89] # all classes

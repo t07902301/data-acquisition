@@ -12,7 +12,6 @@ def run(ds:Dataset.DataSplits, model_config:Config.OldModel, train_flag:bool):
         base_model = Model.train(ds.loader['train'], ds.loader['val'], num_class=2)
     else:
         base_model = Model.load(model_config)
-
     # Evaluate
     gt,pred,_  = Model.evaluate(ds.loader['test'],base_model)
     base_acc = (gt==pred).mean()*100
@@ -47,10 +46,11 @@ def main(epochs,  model_dir ='', train_flag=False, device=0):
         recall_list.append(recall)
     # print( np.round(np.mean(recall_list),decimals=3))
     print('Model Average Acc before shift:', np.round(np.mean(acc_list),decimals=3))
-    # print(acc_list)
+    print(acc_list)
     print('Model Average Acc after shift:', np.round(np.mean(acc_shift_list),decimals=3))
-    # print(acc_shift_list)
-    CLF.statistics(clf_score_list, clf_prec_list)
+    print(acc_shift_list)
+    CLF.statistics(clf_score_list, 'score')
+    CLF.statistics(clf_prec_list, 'precision')
     print('Distribution Shift Proportion on Model Misclassifications', np.round(np.mean(np.array(shift_score_list),axis=0), decimals=3))
     
     # print(check(ds.dataset['test_shift']))

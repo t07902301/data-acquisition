@@ -57,7 +57,9 @@ class subset(prototype):
         # state = np.random.get_state()
         self.clf = CLF.SVM(datasplits.loader['train_clip'])
         score = self.clf.fit(self.base_model, datasplits.loader['val_shift'])
-        test_info, _ = self.clf.predict(datasplits.loader['test_shift'])        
+        test_info = {}
+        test_dv, _ = self.clf.predict(datasplits.loader['test_shift'])        
+        test_info['dv'] = test_dv
         test_info['batch_size'] = old_model_config.batch_size
         test_info['dataset'] = datasplits.dataset['test_shift']
         test_info['loader'] = datasplits.loader['test_shift']

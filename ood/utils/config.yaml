@@ -39,15 +39,14 @@ data:
   std: [51.5865, 50.847, 51.255]
   ds_root: '/home/yiwei/data/'
   ratio: 
-    train_size : 0.5
+    train_size : 0.3
     val_size : 0.1
-    market_size : 0.4
+    market_size : 0.6
     remove_rate: 1.00           
-  acquired_num_per_class: [100, 200, 300, 400]
+  n_new_data: [200, 300, 400, 500, 600]
   label_map:
     18: 0
     19: 1
-  remove_fine_labels: [58, 90, 41,81]
-  target_test_label: [8, 13, 48, 58, 90] # new + old distribution for a class
+  remove_fine_labels: [81, 90]
   train_label: [8, 13, 48, 58, 90, 41, 69, 81, 85, 89] # all classes
 base_root: 'model/'

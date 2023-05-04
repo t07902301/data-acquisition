@@ -55,14 +55,14 @@ class DataSplits():
         '''
         new data to be added to train set or not, and update loader automatically
         '''
-        assert len(new_data) == acquisition_config.get_new_data_size(new_model_config.class_number), 'size error - new data: {}, required new data: {} under {}'.format(len(new_data), acquisition_config.get_new_data_size(new_model_config.class_number), acquisition_config.get_info())
+        assert len(new_data) == acquisition_config.n_ndata, 'size error - new data: {}, required new data: {} under {}'.format(len(new_data), acquisition_config.n_ndata, acquisition_config.get_info())
 
         if new_model_config.pure:
             self.replace('train', new_data)
         else:
             self.expand('train', new_data)
 
-def create_dataset(ds_root, select_fine_labels, ratio, target_test_label):
+def create_dataset(ds_root, select_fine_labels, ratio):
     # When all classes are used, only work on removal
     # When some classes are neglected, test set and the big train set will be shrank.
     train_ds,test_ds = get_raw_ds(ds_root)
@@ -113,7 +113,7 @@ def create_dataset(ds_root, select_fine_labels, ratio, target_test_label):
     ds['market'] =  market_ds
     ds['test_shift'] = test_ds
     ds['train_clip'] =  left_clip_train
-    ds['train_baseline'] = train_ds
+    # ds['train_baseline'] = train_ds
     return ds
     # return {
     #     'train': clip_train_ds_split,
@@ -234,11 +234,11 @@ def count_minority(ds):
             cnt += 1
     return cnt
 
-def get_data_splits_list(epochs, select_fine_labels, label_map, ratio, target_test_labels):
+def get_data_splits_list(epochs, select_fine_labels, label_map, ratio):
     data_split_env()
     ds_list = []
     for epo in range(epochs):
-        ds = create_dataset(data_config['ds_root'],select_fine_labels,ratio, target_test_labels)
+        ds = create_dataset(data_config['ds_root'],select_fine_labels,ratio)
         if select_fine_labels!=[] and (isinstance(label_map, dict)):
             ds = modify_coarse_label(ds, label_map)
         ds_list.append(ds)
