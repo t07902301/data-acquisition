@@ -52,32 +52,10 @@ class misclassification_subset_setter(subset_setter):
         return subset_loader
     
 def get_threshold(clf, acquisition_config:Config.Acquistion, model_config:Config.NewModel, data_splits:Dataset.DataSplits):
+    if 'seq' in acquisition_config.method: 
+        clf = Log.get_log_clf(acquisition_config, model_config, data_splits.loader['train_clip'])
     new_data = Log.get_log_data(acquisition_config, model_config, data_splits)
     train_data_loader = torch.utils.data.DataLoader(new_data, batch_size=model_config.batch_size, 
                             num_workers= n_workers)
     train_dv, _ = clf.predict(train_data_loader)
     return np.max(train_dv)
-
-def seq_dv_bound(model_config, acquisition_config):
-    clf_log = log.get_sub_log('clf', model_config, acquisition_config)
-    data_log = log.get_sub_log('data', model_config, acquisition_config)
-    clf_data = log.load(clf_log)
-    data = log.load(data_log)
-    model = Model.load(model_config)
-    clf_data_loader ={
-        split:torch.utils.data.DataLoader(ds, batch_size=model_config.batch_size, 
-                                        num_workers=n_workers)  for split,ds in clf_data.items()
-    }
-    clf, clip, score = CLF.get_CLF(model, clf_data_loader)
-    return score
-    # data_loader = torch.utils.data.DataLoader(data, batch_size=model_config.batch_size, 
-    #                                     num_workers=n_workers)
-    # data_info = apply_CLF(clf, data_loader, clip)
-    # max_dv = []
-    # for c in range(model_config.class_number):
-    #     cls_indices = acquistion.extract_class_indices(c, data_info['gt'])
-    #     cls_dv = data_info['dv'][cls_indices]
-    #     max_dv.append(np.max(cls_dv))
-    # return max_dv
-        
-

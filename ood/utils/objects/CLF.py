@@ -28,9 +28,9 @@ def precision(clf, clip_processor, dataloader, base_model):
     return np.intersect1d(clf_cls_incorrect, real_cls_incorrect).size / clf_cls_incorrect.size
 
 class SVM():
-    def __init__(self, set_up_data) -> None:
+    def __init__(self, set_up_dataloader) -> None:
         self.clip_processor = CLIPProcessor(ds_mean=config['data']['mean'], ds_std=config['data']['std'])
-        set_up_embedding, _ = self.clip_processor.evaluate_clip_images(set_up_data)        
+        set_up_embedding, _ = self.clip_processor.evaluate_clip_images(set_up_dataloader)        
         self.fitter = SVMFitter(method=config['clf'], svm_args=config['clf_args'],cv=config['clf_args']['k-fold'])
         self.fitter.set_preprocess(set_up_embedding) 
 

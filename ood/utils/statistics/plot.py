@@ -45,7 +45,7 @@ class Histogram(Prototype):
     def __init__(self, model_config: Config.NewModel) -> None:
         super().__init__(model_config)
 
-    def run(self, epochs, dv_list, n_data, method):
+    def run(self, epochs, dv_list, n_data=None, method=None):
         n_cols = epochs
         split_name = list(dv_list[0].keys())
         n_rows = len(split_name) #n_splits
@@ -54,7 +54,6 @@ class Histogram(Prototype):
         for row in range(n_rows):
             for col in range(n_cols):
                 axs[col + n_cols * row].hist(dv_list[col][split_name[row]], bins = 6)
-
         fig_name = self.get_fig_name(n_data, method)
         fig.suptitle(split_name)
         fig.savefig(fig_name)
@@ -65,7 +64,10 @@ class Histogram(Prototype):
         fig_root = 'figure/{}/distribution'.format(self.model_config.model_dir)
         if os.path.exists(fig_root) is False:
             os.makedirs(fig_root)
-        fig_name = os.path.join(fig_root, '{}-{}.png'.format(method, n_data))
+        if n_data == None and method == None:
+            fig_name = os.path.join(fig_root, 'total.png')
+        else:
+            fig_name = os.path.join(fig_root, '{}-{}.png'.format(method, n_data))
         return fig_name
 
     # def threshold_collection(self, threshold_list, acc_list):
