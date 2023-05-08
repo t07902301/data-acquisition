@@ -30,13 +30,11 @@ def main(epochs, new_model_setter='retrain', pure=False, model_dir ='', check_me
 
     method_list = ['dv','sm','conf','mix','seq_clf']
     method_labels = ['greedy decision value','random sampling','model confidence','greedy+sampling', 'sequential with only SVM updates']
-    # method_list, method_labels = ['seq_clf'], ['seq']
+    # method_list, method_labels = ['dv', 'seq_clf'], ['dv', 'seq_clf']
+    # method_list, method_labels = ['seq_clf'], ['seq_clf']
+
     # method_list = ['dv','sm','conf','mix']
     # method_labels = ['greedy decision value','random sampling','model confidence','greedy+sampling']
-
-    if check_method == 'total' and pure == False:
-        method_list = ['dv','sm','conf','mix','seq_clf', 'seq']
-        method_labels = ['greedy decision value','random sampling','model confidence','greedy+sampling', 'sequential with only SVM updates', 'SVM and model updates']
 
     for epo in range(epochs):
         print('in epoch {}'.format(epo))
@@ -54,7 +52,7 @@ def main(epochs, new_model_setter='retrain', pure=False, model_dir ='', check_me
         results.append(result_epoch)
 
     result_plotter = Plotter.Line(new_model_config)
-    result_plotter.run(results, method_labels, new_img_num_list, 'model accuracy change', 'acc')  
+    result_plotter.run(results, method_labels, new_img_num_list, 'model accuracy change(%)', 'acc')  
 
 import argparse
 if __name__ == '__main__':

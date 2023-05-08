@@ -31,7 +31,7 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='Process some integers.')
     parser.add_argument('-e','--epochs',type=int,default=1)
-    parser.add_argument('-p','--pure',type=Config.str2bool,default=False)
+    parser.add_argument('-p','--pure',type=Config.str2bool,default=True)
     parser.add_argument('-md','--model_dir',type=str,default='')
     parser.add_argument('-s','--strategy',type=str)
     parser.add_argument('-d','--device',type=int,default=0)

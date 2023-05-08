@@ -23,7 +23,7 @@ def run(acquisition_config:Config.Acquistion, model_config:Config.NewModel, meth
     acquisition_config.set_items(method,n_data)
     bound = Subset.get_threshold(product.clf, acquisition_config, model_config, data_splits)
     dv = compare(acquisition_config, model_config, product, data_splits, bound)
-    old_train_dv, _ = product.clf.predict(data_splits.loader['train'])
+    old_train_dv, _ = product.clf.predict(data_splits.loader['train_clip'])
     dv['old_train'] = old_train_dv
     return dv
 
@@ -49,7 +49,7 @@ def main(epochs, new_model_setter='retrain', model_dir ='', ac_methods='', ac_nu
         results.append(result_epoch)
 
     result_plotter = Plotter.Histogram(new_model_config)
-    result_plotter.run(epochs, results, 'ts', ac_number, ac_methods)  
+    result_plotter.run(epochs, results, ac_number, ac_methods)  
 
 import argparse
 if __name__ == '__main__':
@@ -59,7 +59,7 @@ if __name__ == '__main__':
     parser.add_argument('-p','--pure',type=Config.str2bool,default=False)
     parser.add_argument('-md','--model_dir',type=str,default='')
     parser.add_argument('-am','--ac_methods',type=str, default='dv')
-    parser.add_argument('-an','--ac_number',type=str, default=200)
+    parser.add_argument('-an','--ac_number',type=int, default=200)
     parser.add_argument('-d','--device',type=int,default=0)
 
     args = parser.parse_args()

@@ -9,7 +9,7 @@ def get_new_clf_statistics(new_img_num_list, new_model_config:Config.NewModel, a
     if new_model_config.pure:
         for new_img_num in new_img_num_list:
             acquire_instruction.set_items('seq_clf',new_img_num)
-            clf = Log.get_log_clf(acquire_instruction, new_model_config)
+            clf = Log.get_log_clf(acquire_instruction, new_model_config, data_splits.loader['train_clip'])
             _, precision = clf.predict(data_splits.loader['test_shift'], compute_metrics=True, base_model = base_model)
             clf_precision_list.append(precision)
     return clf_precision_list
