@@ -20,7 +20,7 @@ def threshold_run(acquisition_config:Config.Acquistion, model_config:Config.NewM
 def run(new_img_num_list, acquire_instruction, methods, new_model_config, data_splits:Dataset.DataSplits, product:Checker.prototype):
     return threshold_run(acquire_instruction, new_model_config, methods, new_img_num_list, product, data_splits)
 
-def main(epochs, new_model_setter='retrain', pure=False, model_dir ='', check_method='', device=0, augment=True):
+def main(epochs, new_model_setter='retrain', pure=False, model_dir ='', device=0, augment=True):
     print('Use pure: ',pure)
     print('Use augment: ',augment)
     device_config = 'cuda:{}'.format(device)
@@ -45,7 +45,7 @@ def main(epochs, new_model_setter='retrain', pure=False, model_dir ='', check_me
         dataset = ds_list[epo]
         dataset_splits = Dataset.DataSplits(dataset, old_model_config.batch_size)
 
-        product = Checker.factory(check_method, new_model_config)
+        product = Checker.factory('ts', new_model_config)
         product.setup(old_model_config, dataset_splits)
 
         result_epoch = run(new_img_num_list, acquire_instruction, method_list, new_model_config, dataset_splits, product)
@@ -61,9 +61,8 @@ if __name__ == '__main__':
     parser.add_argument('-e','--epochs',type=int,default=1)
     parser.add_argument('-p','--pure',type=Config.str2bool,default=True)
     parser.add_argument('-md','--model_dir',type=str,default='')
-    parser.add_argument('-m','--check_methods',type=str, default='ts')
     parser.add_argument('-d','--device',type=int,default=0)
     parser.add_argument('-a','--augment',type=Config.str2bool, default=False)
 
     args = parser.parse_args()
-    main(args.epochs,pure=args.pure,model_dir=args.model_dir, check_method=args.check_methods,device=args.device, augment=args.augment)
+    main(args.epochs,pure=args.pure,model_dir=args.model_dir, device=args.device, augment=args.augment)
