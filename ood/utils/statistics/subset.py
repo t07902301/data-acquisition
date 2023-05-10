@@ -1,13 +1,12 @@
-from utils import n_workers
-import utils.acquistion as acquistion
+from utils import n_workers, config
 import utils.objects.model as Model
 import utils.objects.Config as Config
-import utils.objects.CLF as CLF
 import utils.log as Log
 import utils.objects.dataset as Dataset
 from abc import abstractmethod
 import numpy as np
 import torch
+
 class subset_setter():
     def __init__(self) -> None:
         pass
@@ -52,10 +51,26 @@ class misclassification_subset_setter(subset_setter):
         return subset_loader
     
 def get_threshold(clf, acquisition_config:Config.Acquistion, model_config:Config.NewModel, data_splits:Dataset.DataSplits):
-    if 'seq' in acquisition_config.method: 
-        clf = Log.get_log_clf(acquisition_config, model_config, data_splits.loader['train_clip'])
+    # if 'seq' in acquisition_config.method: 
+    #     clf = Log.get_log_clf(acquisition_config, model_config, data_splits.loader['train_clip'])
     new_data = Log.get_log_data(acquisition_config, model_config, data_splits)
     train_data_loader = torch.utils.data.DataLoader(new_data, batch_size=model_config.batch_size, 
                             num_workers= n_workers)
     train_dv, _ = clf.predict(train_data_loader)
     return np.max(train_dv)
+
+def shift_importance(split_name, data_split:Dataset.DataSplits, base_model):
+    gt,pred,_  = Model.evaluate(data_split.loader[split_name],base_model)
+    print('{} acc: {}%'.format(split_name,(gt==pred).mean()*100))
+    check_labels = config['data']['remove_fine_labels']
+    dataset = data_split.dataset[split_name]
+    dataset_idx = np.arange(len(dataset))
+    incor_mask = (gt!=pred)
+    incor_idx = dataset_idx[incor_mask]
+    incor_dataset = torch.utils.data.Subset(dataset,incor_idx)
+    incor_fine_labels = Dataset.get_ds_labels(incor_dataset, use_fine_label=True)
+    check_labels_cnt = 0
+    for label in check_labels:
+        check_labels_cnt += (label==incor_fine_labels).sum()
+    check_labels_cnt = check_labels_cnt/len(incor_fine_labels) * 100
+    return check_labels_cnt
