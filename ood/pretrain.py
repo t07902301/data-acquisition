@@ -1,5 +1,6 @@
 from utils.strategy import *
 from utils.set_up import set_up
+import utils.statistics.subset as Subset
 def check(dataset):
     check_labels = [58, 90]
     labels = Dataset.get_ds_labels(dataset)
@@ -19,13 +20,13 @@ def run(ds:Dataset.DataSplits, model_config:Config.OldModel, train_flag:bool):
     base_acc_shift = (gt==pred).mean()*100
     cls_mask = (gt==0)
     recall = ((gt==pred)[cls_mask]).mean()*100
-    shift_score = Model.shift_importance(ds.dataset['test_shift'], gt, pred)
     clf = CLF.SVM(ds.loader['train_clip'])
     score = clf.fit(base_model, ds.loader['val_shift'])
-    _, precision = clf.predict(ds.loader['test_shift'], compute_metrics=True, base_model=base_model)
+    _, precision = clf.predict(ds.loader['val_shift'], compute_metrics=True, base_model=base_model)
     if train_flag:
         # Get a new base model from Resnet
         Model.save(base_model, model_config.path)
+    shift_score = Subset.shift_importance('val_shift', ds, base_model)
     return base_acc, score, precision, shift_score, base_acc_shift, recall 
 
 def main(epochs,  model_dir ='', train_flag=False, device=0):
@@ -45,13 +46,17 @@ def main(epochs,  model_dir ='', train_flag=False, device=0):
         acc_shift_list.append(acc_shift)
         recall_list.append(recall)
     # print( np.round(np.mean(recall_list),decimals=3))
-    print('Model Average Acc before shift:', np.round(np.mean(acc_list),decimals=3))
+    print('Model Average Acc before shift: {}%'.format(np.round(np.mean(acc_list),decimals=3)))
     print(acc_list)
-    print('Model Average Acc after shift:', np.round(np.mean(acc_shift_list),decimals=3))
+    print('Model Average Acc after shift: {}%'.format(np.round(np.mean(acc_shift_list),decimals=3)))
     print(acc_shift_list)
+    print('In shifted val set:')
     CLF.statistics(clf_score_list, 'score')
+    print(clf_score_list)
     CLF.statistics(clf_prec_list, 'precision')
-    print('Distribution Shift Proportion on Model Misclassifications', np.round(np.mean(np.array(shift_score_list),axis=0), decimals=3))
+    print(clf_prec_list)
+    print('Distribution Shift Proportion on Model Misclassifications: {}%'.format(np.round(np.mean(np.array(shift_score_list),axis=0), decimals=3)))
+    print(shift_score_list)
     
     # print(check(ds.dataset['test_shift']))
     # print(check(ds.dataset['val_shift']))
@@ -66,7 +71,7 @@ import argparse
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='Process some integers.')
-    parser.add_argument('-e','--epochs',type=int,default=10)
+    parser.add_argument('-e','--epochs',type=int,default=1)
     parser.add_argument('-tf','--train_flag',type=bool,default=False)
     parser.add_argument('-md','--model_dir',type=str,default='')
     parser.add_argument('-d','--device',type=int,default=0)
