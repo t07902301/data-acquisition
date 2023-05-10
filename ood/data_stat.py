@@ -9,14 +9,14 @@ def compare(acquisition_config:Config.Acquistion, model_config:Config.NewModel, 
     new_test_mask = test_dv<=bound
     old_test_mask = ~new_test_mask
     dv_result = {
-        'new_test': test_dv[new_test_mask],
-        'old_test': test_dv[old_test_mask]
+        'shifted_test': test_dv[new_test_mask],
+        'non_shifted_test': test_dv[old_test_mask]
     }        
     new_data = Log.get_log_data(acquisition_config, model_config, dataset_splits)
     train_data_loader = torch.utils.data.DataLoader(new_data, batch_size=model_config.batch_size, 
                             num_workers= config['num_workers'])
     train_dv, _ = product.clf.predict(train_data_loader)    
-    dv_result['new_train'] = train_dv
+    dv_result['shifted_train'] = train_dv
     return dv_result
 
 def run(acquisition_config:Config.Acquistion, model_config:Config.NewModel, method, n_data, product:Checker.subset, data_splits:Dataset.DataSplits):
@@ -24,7 +24,7 @@ def run(acquisition_config:Config.Acquistion, model_config:Config.NewModel, meth
     bound = Subset.get_threshold(product.clf, acquisition_config, model_config, data_splits)
     dv = compare(acquisition_config, model_config, product, data_splits, bound)
     old_train_dv, _ = product.clf.predict(data_splits.loader['train_clip'])
-    dv['old_train'] = old_train_dv
+    dv['non_shifted_train'] = old_train_dv
     return dv
 
 def main(epochs, new_model_setter='retrain', model_dir ='', ac_methods='', ac_number=0, device=0):
