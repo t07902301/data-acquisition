@@ -34,11 +34,11 @@ class SVMFitter:
         else:
             print("No whitening")
         
-    def fit(self, preds, gts, latents):
+    def fit(self, model_preds, model_gts, latents):
         assert self.pre_process is not None, 'run set_preprocess on a training set first'
         latents = self.pre_process(latents).numpy()
-        clf, score = svm_utils.train(latents=latents, gts=gts, 
-                                                        preds=preds, balanced=self.balanced, 
+        clf, score = svm_utils.train(latents=latents, model_gts=model_gts, 
+                                                        model_preds=model_preds, balanced=self.balanced, 
                                                         split_and_search=self.split_and_search,svm_args=self.svm_args)
         self.clf = clf
         return score
@@ -51,7 +51,21 @@ class SVMFitter:
         #    preds = preds.numpy()
         return svm_utils.predict(latents=latents, gts=gts, clf=self.clf, 
                                      preds=preds, compute_metrics=compute_metrics) 
+
+    def base_fit(self, gts, latents):
+        assert self.pre_process is not None, 'run set_preprocess on a training set first'
+        latents = self.pre_process(latents).numpy()
+        clf, score = svm_utils.base_train(latents=latents, gts=gts, balanced=self.balanced, 
+                                                        split_and_search=self.split_and_search,svm_args=self.svm_args)
+        self.clf = clf
+        return score
     
+    def base_predict(self, gts, latents):
+        assert self.clf is not None, "must call fit first"
+        latents = self.pre_process(latents).numpy()
+        acc = svm_utils.base_predict(latents, gts, self.clf) 
+        return acc
+
     def export(self, filename):
         args = {
             'split_and_search': self.split_and_search,

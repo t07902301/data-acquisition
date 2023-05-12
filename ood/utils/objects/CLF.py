@@ -38,7 +38,7 @@ class SVM():
         svm_fit_gt,svm_fit_pred,_ = Model.evaluate(fit_data,base_model)
         fit_embedding, fit_gts = self.clip_processor.evaluate_clip_images(fit_data)
         assert((svm_fit_gt == fit_gts).sum()==len(svm_fit_gt)) # avoid shuffling
-        score = self.fitter.fit(preds=svm_fit_pred, gts=svm_fit_gt, latents=fit_embedding)        
+        score = self.fitter.fit(model_preds=svm_fit_pred, model_gts=svm_fit_gt, latents=fit_embedding)        
         return score
     
     def predict(self, data_loader, compute_metrics=False, base_model=None):

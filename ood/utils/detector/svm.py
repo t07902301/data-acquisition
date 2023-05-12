@@ -53,14 +53,14 @@ class SVMPreProcessing(nn.Module):
         self.mean = args['mean']
         self.std = args['std']
         self.do_normalize = args['normalize']
-            
-def train(latents, gts, preds, balanced=True, split_and_search=False, cv=2, svm_args=None):
+
+def train(latents, model_gts, model_preds, balanced=True, split_and_search=False, cv=2, svm_args=None):
     # if split_and_search is true, split our dataset into 50% svm train, 50% svm test
     # Then grid search over C = array([1.e-06, 1.e-05, 1.e-04, 1.e-03, 1.e-02, 1.e-01, 1.e+00])
     class_weight = 'balanced' if balanced else None        
-    mask = (preds == gts)
-    model_predictions = np.zeros(len(gts))
-    model_predictions[mask] = 1
+    model_correct_pred_mask = (model_preds == model_gts)
+    model_predictions = np.zeros(len(model_gts))
+    model_predictions[model_correct_pred_mask] = 1
     kernel = svm_args['kernel']
     best_clf, best_cv = choose_svm_hpara(latents, model_predictions, class_weight, cv, kernel, split_and_search)
     best_clf.fit(latents, model_predictions)
@@ -105,11 +105,10 @@ def predict(latents, gts, clf, preds=None, compute_metrics=False):
     dataset_idx = np.arange(dataset_size)
     real_incorrect_mask = (gts!=preds)
     precision = []
-    decision_out = clf.decision_function(latents)
-    out_decision = decision_out #out_decision[dataset_idx]
+    out_decision = clf.decision_function(latents)
     
     if compute_metrics:
-        clf_incorrect_mask = (decision_out<=0)
+        clf_incorrect_mask = (out_decision<=0)
         incorrect_idx = dataset_idx[clf_incorrect_mask]
         real_incorrect_idx = dataset_idx[real_incorrect_mask]
         if  len(incorrect_idx) == 0:
@@ -119,3 +118,13 @@ def predict(latents, gts, clf, preds=None, compute_metrics=False):
             precision.append(np.intersect1d(incorrect_idx, real_incorrect_idx).size / incorrect_idx.size * 100)  
 
     return out_mask, out_decision, precision
+
+def base_train(latents, gts, balanced=True, split_and_search=False, cv=2, svm_args=None):
+    class_weight = 'balanced' if balanced else None        
+    kernel = svm_args['kernel']
+    best_clf, best_cv = choose_svm_hpara(latents, gts, class_weight, cv, kernel, split_and_search)
+    best_clf.fit(latents, gts)
+    return best_clf, best_cv  
+
+def base_predict(latents, gts, clf):
+    return clf.score(latents, gts)
