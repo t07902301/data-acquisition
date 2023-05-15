@@ -1,9 +1,7 @@
-binary-classifier/
 cifar-100/
-ood/model
-ood/log
-# ood/figure
+ood/
 figure/
 __pycache__/
 .vscode/settings.json
-ood/labels.py
+binary/model
+binary/log
