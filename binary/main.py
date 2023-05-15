@@ -21,8 +21,8 @@ def main(epochs, new_model_setter='retrain', pure=False, model_dir ='', strategy
     for epo in range(epochs):
         print('In epoch {}'.format(epo))
         dataset = ds_list[epo]
-        old_model_config = Config.OldModel(batch_size,superclass_num,model_dir, device_config, epo)
-        new_model_config = Config.NewModel(batch_size,superclass_num,model_dir, device_config, epo, pure, new_model_setter, augment)
+        old_model_config = Config.OldModel(batch_size['base'], superclass_num,model_dir, device_config, epo)
+        new_model_config = Config.NewModel(batch_size['base'], superclass_num,model_dir, device_config, epo, pure, new_model_setter, augment, batch_size['new'])
         acquire_instruction = Config.AcquistionFactory(strategy,seq_rounds_config)
         run(dataset,method_list, new_img_num_list, old_model_config,new_model_config, acquire_instruction)
 
@@ -31,7 +31,7 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='Process some integers.')
     parser.add_argument('-e','--epochs',type=int,default=1)
-    parser.add_argument('-p','--pure',type=Config.str2bool,default=False)
+    parser.add_argument('-p','--pure',type=Config.str2bool,default=True)
     parser.add_argument('-md','--model_dir',type=str,default='')
     parser.add_argument('-s','--strategy',type=str)
     parser.add_argument('-d','--device',type=int,default=0)

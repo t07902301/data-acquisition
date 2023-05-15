@@ -5,6 +5,8 @@ import numpy as np
 from utils.env import generator, data_split_env
 import utils.objects.cifar as cifar
 import utils.objects.Config as Config
+import random
+
 data_config = config['data']
 max_subclass_num = config['hparams']['subclass']
 base_transform = transforms.Compose([
@@ -15,6 +17,7 @@ train_transform = transforms.Compose([
     transforms.RandomHorizontalFlip(),
     base_transform
 ])
+
 class DataSplits():
     dataset: dict
     loader: dict
@@ -23,7 +26,6 @@ class DataSplits():
         self.loader = {
             k: torch.utils.data.DataLoader(self.dataset[k], batch_size=batch_size, 
                                         shuffle=(k=='train'), drop_last=(k=='train'),num_workers=config['num_workers'],generator=generator)
-
             for k in self.dataset.keys()
         }        
         self.batch_size = batch_size
@@ -44,25 +46,33 @@ class DataSplits():
         self.dataset[split_name] = torch.utils.data.Subset(self.dataset[split_name],np.arange(original_split_len)[left_market_mask])
         self.update_dataloader(split_name) 
 
+
+    def update_dataloader(self, split_name):
+        self.loader[split_name] = torch.utils.data.DataLoader(self.dataset[split_name], batch_size= self.batch_size, shuffle=(split_name=='train'), drop_last=(split_name=='train'),num_workers=config['num_workers'],generator=generator)
+        
+        
     def update_dataloader(self, split_name):
         self.loader[split_name] = torch.utils.data.DataLoader(self.dataset[split_name], batch_size= self.batch_size, shuffle=(split_name=='train'), drop_last=(split_name=='train'),num_workers=config['num_workers'],generator=generator)
         
     def replace(self, replaced_split, new_data):
         self.dataset[replaced_split] = new_data
         self.update_dataloader(replaced_split)
+        
+    def update_dataloader(self, split_name):
+        self.loader[split_name] = torch.utils.data.DataLoader(self.dataset[split_name], batch_size= self.batch_size, shuffle=(split_name=='train'), drop_last=(split_name=='train'),num_workers=config['num_workers'],generator=generator)
 
     def use_new_data(self, new_data, new_model_config:Config.NewModel, acquisition_config:Config.Acquistion):
         '''
         new data to be added to train set or not, and update loader automatically
         '''
-        assert len(new_data) == acquisition_config.get_new_data_size(new_model_config.class_number), 'size error - new data: {}, required new data: {} under {}'.format(len(new_data), acquisition_config.get_new_data_size(new_model_config.class_number), acquisition_config.get_info())
+        assert len(new_data) == acquisition_config.n_ndata, 'size error - new data: {}, required new data: {} under {}'.format(len(new_data), acquisition_config.n_ndata, acquisition_config.get_info())
 
         if new_model_config.pure:
             self.replace('train', new_data)
         else:
             self.expand('train', new_data)
 
-def create_dataset(ds_root, select_fine_labels, ratio, target_test_label):
+def create_dataset(ds_root, select_fine_labels, ratio):
     # When all classes are used, only work on removal
     # When some classes are neglected, test set and the big train set will be shrank.
     train_ds,test_ds = get_raw_ds(ds_root)
@@ -88,6 +98,12 @@ def create_dataset(ds_root, select_fine_labels, ratio, target_test_label):
     val_indices,market_indices = split_dataset(val_mar_fine_labels,label_summary,val_size/(val_size+market_size))
     val_ds = torch.utils.data.Subset(val_market_set,val_indices)
     market_ds = torch.utils.data.Subset(val_market_set,market_indices)
+    # return {
+    #     'train': clip_train_ds_split,
+    #     'test': test_ds,
+    #     'val': val_market_set,
+    #     'total': train_ds
+    # }
 
     split_train_fine_labels = get_ds_labels(clip_train_ds_split)
     _, left_indices = split_dataset(split_train_fine_labels,data_config['remove_fine_labels'],remove_rate)
@@ -97,8 +113,6 @@ def create_dataset(ds_root, select_fine_labels, ratio, target_test_label):
     _, left_indices = split_dataset(split_val_fine_labels,data_config['remove_fine_labels'],remove_rate)
     left_val = torch.utils.data.Subset(val_ds,left_indices)
    
-    # test_ds = get_subset_by_labels(test_ds, target_test_label)
-
     split_test_fine_labels = get_ds_labels(test_ds)
     _, left_indices = split_dataset(split_test_fine_labels,data_config['remove_fine_labels'],remove_rate)
     left_test = torch.utils.data.Subset(test_ds,left_indices)
@@ -113,13 +127,9 @@ def create_dataset(ds_root, select_fine_labels, ratio, target_test_label):
     ds['market'] =  market_ds
     ds['test_shift'] = test_ds
     ds['train_clip'] =  left_clip_train
-    ds['train_baseline'] = train_ds
+    # ds['train'] = clip_train_ds_split
     return ds
-    # return {
-    #     'train': clip_train_ds_split,
-    #     'test': test_ds,
-    #     'val': val_ds
-    # }
+
 def balance_dataset(target_labels, modified_label, dataset):
     target_ds = get_subset_by_labels(dataset, target_labels)
     n_modify_cls = int(len(target_ds)/len(modified_label))
@@ -196,12 +206,12 @@ def complimentary_mask(mask_length, active_spot):
     return advert_mask
 
 def split_dataset(labels, label_summary, ratio=0 ):
-    '''Label-wise split a dataset into two parts. in Part I: take every split_amt data-point per class.
-    in part II: the rest of data
+    '''Label-wise split a dataset into two parts. in Part I: take every split_amt data-point with labels indicated in label_summary.
+    in Part II: the rest of data
     
     Params: 
            labels: numpy array of subclass labels
-           label_summary: what labels has data split
+           label_summary: which labels has data split
            split_ratio: how much to split into PART 1 from the dataset 
     Return:
            p1_indices: indices belonging to part 1 (split_ratio)
@@ -234,12 +244,17 @@ def count_minority(ds):
             cnt += 1
     return cnt
 
-def get_data_splits_list(epochs, select_fine_labels, label_map, ratio, target_test_labels):
+def get_data_splits_list(epochs, select_fine_labels, label_map, ratio):
     data_split_env()
     ds_list = []
     for epo in range(epochs):
-        ds = create_dataset(data_config['ds_root'],select_fine_labels,ratio, target_test_labels)
+        ds = create_dataset(data_config['ds_root'],select_fine_labels,ratio)
         if select_fine_labels!=[] and (isinstance(label_map, dict)):
             ds = modify_coarse_label(ds, label_map)
         ds_list.append(ds)
     return ds_list
+
+def get_shuffle_idx(dataset):
+    shuffle_idx = np.arange(len(dataset))
+    random.shuffle(shuffle_idx)    
+    return shuffle_idx

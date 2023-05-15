@@ -5,3 +5,4 @@ __pycache__/
 .vscode/settings.json
 binary/model
 binary/log
+binary_classifier/

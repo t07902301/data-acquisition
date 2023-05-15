@@ -14,40 +14,38 @@ class Prototype():
     def get_fig_name(self):
         pass
 
-class ModelAcc(Prototype):
+class Line(Prototype):
     def __init__(self, model_config: Config.NewModel) -> None:
         super().__init__(model_config)
 
-    def get_fig_name(self, check_type):
-        pure_name = 'pure' if self.model_config.pure else 'non-pure'
+    def get_fig_name(self, data_name):
         fig_root = 'figure/{}'.format(self.model_config.model_dir)
         if os.path.exists(fig_root) is False:
             os.makedirs(fig_root)
-        aug_name = '' if self.model_config.augment else '-na'
-        return os.path.join(fig_root, '{}-{}{}.png'.format(pure_name, check_type, aug_name))
+        aug_name = '' if self.model_config.augment else 'na'
+        return os.path.join(fig_root, '{}-{}.png'.format(aug_name, data_name))
     
-    def run(self, value_list, method_list, n_data_list, check_type):
+    def run(self, value_list, method_list, n_data_list, ylabel, data_name):
         if isinstance(value_list,list):
             value_list = np.array(value_list)        
-        ylabel = 'model accuracy change'
         for m_idx,method in enumerate(method_list): 
             method_result = value_list[:,m_idx,:] #(e,m,img_num) e:epochs,m:methods
             method_avg = np.round(np.mean(method_result,axis=0),decimals=3) #(e,img_num)
             plt.plot(n_data_list,method_avg,label=method)
         plt.xticks(n_data_list,n_data_list)
-        plt.xlabel('#new images for each superclass')
+        plt.xlabel('#new images')
         plt.ylabel(ylabel)
         plt.legend(fontsize='small')
-        fig_name = self.get_fig_name(check_type)
+        fig_name = self.get_fig_name(data_name)
         plt.savefig(fig_name)
         plt.clf()    
         print('save fig to', fig_name)        
 
-class Distribution(Prototype):
+class Histogram(Prototype):
     def __init__(self, model_config: Config.NewModel) -> None:
         super().__init__(model_config)
 
-    def run(self, epochs, dv_list, check_type, check_class, n_data):
+    def run(self, epochs, dv_list, n_data=None, method=None):
         n_cols = epochs
         split_name = list(dv_list[0].keys())
         n_rows = len(split_name) #n_splits
@@ -56,29 +54,20 @@ class Distribution(Prototype):
         for row in range(n_rows):
             for col in range(n_cols):
                 axs[col + n_cols * row].hist(dv_list[col][split_name[row]], bins = 6)
-        # fig, axs = plt.subplots(1, n_cols, tight_layout=True)
-        # axs = axs.flatten() #2D -> 1D
-        # for col in range(n_cols):
-        #     sub_fig, sub_axs = plt.subplots(n_rows, 1, sharex=True, tight_layout=True)
-        #     for row in range(n_rows):
-        #         sub_axs[row].hist(dv_list[col][split_name[row]], bins = 6)
-        #     axs[col] = sub_fig
-
-        fig_name = self.get_fig_name(check_type, check_class, n_data, self.model_config.pure)
+        fig_name = self.get_fig_name(n_data, method)
         fig.suptitle(split_name)
         fig.savefig(fig_name)
         fig.clf()      
         print('save fig to', fig_name)  
 
-    def get_fig_name(self, check_type, check_class, n_data, pure):
-        fig_root = 'figure/{}/distribution/{}'.format(self.model_config.model_dir, check_type)
-        pure_name = '-pure' if pure else ''
+    def get_fig_name(self, n_data, method):
+        fig_root = 'figure/{}/distribution'.format(self.model_config.model_dir)
         if os.path.exists(fig_root) is False:
             os.makedirs(fig_root)
-        if check_type != 'total':
-            fig_name = os.path.join(fig_root, 'class_{}-{}{}.png'.format(check_class, n_data, pure_name))
+        if n_data == None and method == None:
+            fig_name = os.path.join(fig_root, 'total.png')
         else:
-            fig_name = os.path.join(fig_root, '{}.png'.format(check_class))
+            fig_name = os.path.join(fig_root, '{}-{}.png'.format(method, n_data))
         return fig_name
 
     # def threshold_collection(self, threshold_list, acc_list):
