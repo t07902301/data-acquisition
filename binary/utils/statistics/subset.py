@@ -58,9 +58,12 @@ def get_threshold(clf, acquisition_config:Config.Acquistion, model_config:Config
                             num_workers= n_workers)
     train_dv, _ = clf.predict(train_data_loader)
     return np.max(train_dv)
-check_labels = config['data']['remove_fine_labels']
 
-def get_proportion_mis_cls(split_name, data_split:Dataset.DataSplits, base_model:Model.prototype, check_labels):
+def mis_cls_stat(split_name, data_split:Dataset.DataSplits, base_model:Model.prototype):
+    '''
+    Get misclassification proportion on some labels
+    '''
+    check_labels = config['data']['remove_fine_labels']
     gt,pred,_  = base_model.eval(data_split.loader[split_name])
     dataset = data_split.dataset[split_name]
     dataset_idx = np.arange(len(dataset))
