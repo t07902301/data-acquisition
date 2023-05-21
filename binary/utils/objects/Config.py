@@ -77,9 +77,11 @@ class ModelConfig():
     def check_dir(self, dir):
         if os.path.exists(dir) is False:
             os.makedirs(dir)
+            
 class OldModel(ModelConfig):
     def __init__(self, batch_size, class_number, model_dir, device, model_cnt, type) -> None:
         super().__init__(batch_size, class_number, model_dir, device, type)
+        self.model_cnt = model_cnt # can be redundant if dv_stat_test not epoch-wised
         self.path = os.path.join(self.root,'{}.pt'.format(model_cnt))
 
 class NewModel(ModelConfig):
@@ -87,10 +89,9 @@ class NewModel(ModelConfig):
         super().__init__(batch_size, class_number, model_dir, device, type)
         self.pure = pure
         self.setter = setter
-        self.model_cnt = model_cnt
         self.augment = augment
         self.new_batch_size = new_batch_size
-        self.set_root()
+        self.set_root(model_cnt)
 
     def set_path(self,acquistion_config:Acquistion):
         if 'seq' in acquistion_config.method:
@@ -99,13 +100,13 @@ class NewModel(ModelConfig):
             root = self.root
         self.path = os.path.join(root, '{}_{}.pt'.format(acquistion_config.method, acquistion_config.n_ndata))
     
-    def set_root(self):
+    def set_root(self, model_cnt):
         pure_name = 'pure' if self.pure else 'non-pure'
         aug_name = '' if self.augment else 'na'
         if self.model_type != 'svm':
-            self.root = os.path.join(self.root, self.setter, pure_name, str(self.model_cnt), aug_name, str(self.new_batch_size)) 
+            self.root = os.path.join(self.root, self.setter, pure_name, str(model_cnt), aug_name, str(self.new_batch_size)) 
         else:
-            self.root = os.path.join(self.root, pure_name, str(self.model_cnt), aug_name) 
+            self.root = os.path.join(self.root, pure_name, str(model_cnt), aug_name) 
         self.check_dir(self.root)
 
     def set_seq_root(self,root, acquistion_config:SequentialAc):
@@ -114,8 +115,8 @@ class NewModel(ModelConfig):
         return root
 
 class Log(NewModel):
-    def __init__(self, batch_size, class_number, model_dir, device, model_cnt, pure: bool, setter, augment: bool, new_batch_size, log_symbol) -> None:
-        super().__init__(batch_size, class_number, model_dir, device, model_cnt, pure, setter, augment, new_batch_size)
+    def __init__(self, batch_size, class_number, model_dir, device, model_cnt, pure: bool, setter, augment: bool, new_batch_size, log_symbol, type) -> None:
+        super().__init__(batch_size, class_number, model_dir, device, model_cnt, pure, setter, augment, new_batch_size, type)
         self.set_log_root(log_symbol)
     def set_log_root(self, log_symbol):
         '''
