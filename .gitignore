@@ -6,3 +6,4 @@ __pycache__/
 binary/model
 binary/log
 binary_classifier/
+binary/labels.py
