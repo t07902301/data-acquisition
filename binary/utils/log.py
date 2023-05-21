@@ -3,7 +3,7 @@ import utils.objects.dataset as Dataset
 import utils.objects.Detector as Detector
 import torch
 def get_config(model_config:Config.NewModel, acquisition_config:Config.Acquistion, log_symbol):
-    log_config = Config.Log(batch_size=model_config.batch_size,class_number=model_config.class_number,model_dir=model_config.model_dir,pure=model_config.pure,setter=model_config.setter,model_cnt=model_config.model_cnt, device=model_config.device, augment=model_config.augment, new_batch_size=model_config.new_batch_size, log_symbol=log_symbol)
+    log_config = Config.Log(batch_size=model_config.batch_size,class_number=model_config.class_number,model_dir=model_config.model_dir,pure=model_config.pure,setter=model_config.setter,model_cnt=model_config.model_cnt, device=model_config.device, augment=model_config.augment, new_batch_size=model_config.new_batch_size, log_symbol=log_symbol, type=model_config.model_type)
     log_config.set_path(acquisition_config)    
     return log_config
 
