@@ -12,7 +12,8 @@ def threshold_run(acquisition_config:Config.Acquistion, model_config:Config.NewM
         for new_img_num in new_img_num_list:
             acquisition_config.set_items(method,new_img_num)
             bound = Subset.get_threshold(product.clf, acquisition_config, model_config, data_splits)
-            check_result = product.run(acquisition_config, bound)
+            test_info = product.get_test_info(data_splits, model_config)
+            check_result = product.run(acquisition_config, bound, test_info)
             result_method.append(check_result)
         result_list.append(result_method)
     return result_list
@@ -28,23 +29,21 @@ def main(epochs, new_model_setter='retrain', pure=False, model_dir ='', device=0
     batch_size, label_map, new_img_num_list, superclass_num, ratio, seq_rounds_config, ds_list, device_config = set_up(epochs, False, device)
     results = []
 
-    # method_list = ['dv','sm','conf','mix','seq_clf']
-    # method_labels = ['greedy decision value','random sampling','model confidence','greedy+sampling', 'sequential with only SVM updates']
-    method_list, method_labels = ['dv', 'seq_clf'], ['dv', 'seq_clf']
-
+    method_list, method_labels = ['dv','sm','conf','seq_clf'], ['greedy decision value','random sampling','model confidence','sequential with only SVM updates']
+    # method_list, method_labels = ['dv', 'seq_clf'], ['dv', 'seq_clf']
     # method_list = ['dv','sm','conf','mix']
     # method_labels = ['greedy decision value','random sampling','model confidence','greedy+sampling']
 
+    clip_processor = Detector.load_clip(device_config)
     for epo in range(epochs):
         print('in epoch {}'.format(epo))
-        
-        old_model_config = Config.OldModel(batch_size,superclass_num,model_dir, device_config, epo)
-        new_model_config = Config.NewModel(batch_size,superclass_num,model_dir, device_config, epo, pure, new_model_setter,augment)
+        old_model_config = Config.OldModel(batch_size['base'], superclass_num,model_dir, device_config, epo, base_type='resnet')
+        new_model_config = Config.NewModel(batch_size['base'], superclass_num,model_dir, device_config, epo, pure, new_model_setter, augment, batch_size['new'], base_type='resnet')
         acquire_instruction = Config.AcquistionFactory('seq',seq_rounds_config) 
         dataset = ds_list[epo]
         dataset_splits = Dataset.DataSplits(dataset, old_model_config.batch_size)
 
-        product = Checker.factory('ts', new_model_config)
+        product = Checker.factory('ts', new_model_config, clip_processor, dataset_splits.loader['train_clip'])
         product.setup(old_model_config, dataset_splits)
 
         result_epoch = run(new_img_num_list, acquire_instruction, method_list, new_model_config, dataset_splits, product)

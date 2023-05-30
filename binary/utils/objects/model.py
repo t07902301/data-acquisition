@@ -1,5 +1,5 @@
 import sys
-from binary.utils.objects.Config import OldModel
+import binary.utils.objects.Config as Config
 sys.path.append('..')
 import failure_directions.src.model_utils as model_utils
 import failure_directions.src.trainer as trainer_utils
@@ -36,7 +36,7 @@ class prototype():
     def update(self):
         pass
     @abstractmethod
-    def load(self, model_config:OldModel):
+    def load(self, model_config:Config.ModelConfig):
         pass
 
 class resnet(prototype):
@@ -46,7 +46,7 @@ class resnet(prototype):
         self.model = build_fn(hparams['arch'], num_class,use_pretrained)
         self.model = self.model.cuda()
 
-    def load(self, model_config: OldModel):
+    def load(self, model_config: Config.ModelConfig):
         super().load(model_config)
         out = torch.load(model_config.path,map_location=model_config.device)
         self.model.load_state_dict(out['state_dict'])
@@ -112,7 +112,7 @@ class svm(prototype):
         self.model = SVMFitter(method=config['clf'], svm_args=config['clf_args'],cv=config['clf_args']['k-fold'], split_and_search = split_and_search)
         self.model.set_preprocess(set_up_embedding) 
     
-    def load(self, model_config: OldModel):
+    def load(self, model_config: Config.ModelConfig):
         super().load(model_config)
         self.model.clf = torch.load(model_config.path)
 
@@ -131,3 +131,9 @@ class svm(prototype):
     
     def update(self,train_loader):
         self.train(train_loader)
+
+def prototype_factory(base_type, set_up_loader=None, clip_processor=None):
+    if base_type == 'resnet':
+        return resnet(2)
+    else:
+        return svm(set_up_loader, clip_processor)

@@ -1,6 +1,8 @@
 import utils.objects.model as Model
 import utils.objects.Config as Config
-import utils.objects.CLF as CLF
+import utils.objects.Detector as Detector
+import utils.objects.dataset as Dataset
+
 import utils.log as log
 from abc import abstractmethod
 import numpy as np
@@ -30,65 +32,74 @@ class DV(prototype):
         return data
     def setup(self, old_model_config, datasplits):
         self.base_model = Model.load(old_model_config)
-        clf,clip_processor,_ = CLF.get_CLF(self.base_model,datasplits.loader)
+        clf,clip_processor,_ = Detector.get_CLF(self.base_model,datasplits.loader)
         self.clf = clf
         self.clip_processor = clip_processor   
     def run(self,acquisition_config):
         self.log_config.set_path(acquisition_config)
         data = self.log.load()
         loader = torch.utils.data.DataLoader(data, batch_size=self.model_config.batch_size, shuffle=True,drop_last=True)
-        data_info, _ = CLF.apply_CLF(self.clf, loader, self.clip_processor, self.base_model)
+        data_info, _ = Detector.apply_CLF(self.clf, loader, self.clip_processor, self.base_model)
         return np.round(np.mean(data_info['dv']),decimals=3)
 class benchmark(DV):
     def __init__(self, model_config: Config.NewModel) -> None:
         super().__init__(model_config)
     def setup(self, old_model_config, datasplits):
         super().setup(old_model_config, datasplits)
-        self.datasplits = datasplits       
-    def run(self):
-        data_info, _ = CLF.apply_CLF(self.clf, self.datasplits.loader['market'], self.clip_processor, self.base_model)
+        datasplits = datasplits       
+    def run(self, datasplits):
+        data_info, _ = Detector.apply_CLF(self.clf, datasplits.loader['market'], self.clip_processor, self.base_model)
         # return (data_info['dv']<0).sum()/len(data_info['dv'])     
         return np.std(data_info['dv']), np.mean(data_info['dv'])
 class subset(prototype):
-    def __init__(self, model_config: Config.NewModel) -> None:
+    def __init__(self, model_config: Config.NewModel, clip_processor: Detector.CLIPProcessor, clip_set_up_loader) -> None:
         super().__init__(model_config)
-    def setup(self, old_model_config, datasplits):
-        self.base_model = Model.load(old_model_config)
-        # state = np.random.get_state()
-        self.clf = CLF.SVM(datasplits.loader['train_clip'])
+        self.clip_processor = clip_processor
+        self.clip_set_up_loader = clip_set_up_loader
+    def setup(self, old_model_config:Config.OldModel, datasplits:Dataset.DataSplits):
+        self.base_model = Model.prototype_factory(old_model_config.model_type, self.clip_set_up_loader, self.clip_processor)
+        self.base_model.load(old_model_config)
+        self.clf = Detector.SVM(self.clip_set_up_loader, self.clip_processor)
         score = self.clf.fit(self.base_model, datasplits.loader['val_shift'])
+
+        gt, pred, _ = self.base_model.eval(datasplits.loader['test_shift'])
+        self.base_acc = (gt == pred).mean()*100   
+
+    def get_test_info(self, datasplits:Dataset.DataSplits, new_model_config: Config.NewModel):
         test_info = {}
         test_dv, _ = self.clf.predict(datasplits.loader['test_shift'])        
         test_info['dv'] = test_dv
-        test_info['batch_size'] = old_model_config.batch_size
+        test_info['old_batch_size'] = new_model_config.batch_size
+        test_info['new_batch_size'] = new_model_config.new_batch_size
         test_info['dataset'] = datasplits.dataset['test_shift']
         test_info['loader'] = datasplits.loader['test_shift']
-        self.test_info = test_info
-        gt, pred, _ = Model.evaluate(datasplits.loader['test_shift'], self.base_model)
-        self.base_acc = (gt == pred).mean()*100   
-        # np.random.set_state(state) 
+        return test_info
 
-    def get_subset_loader(self, threshold, acquistion_config):
+    def get_subset_loader(self, threshold, acquistion_config, test_info):
         self.model_config.set_path(acquistion_config=acquistion_config)
-        loader = Subset.threshold_subset_setter().get_subset_loders(self.test_info,threshold)        
+        loader = Subset.threshold_subset_setter().get_subset_loders(test_info,threshold)        
         return loader
     
-    def set_subset_loader(self, loader):
-        self.test_info['loader'] = loader
+    # def set_subset_loader(self, loader):
+    #     self.test_info['loader'] = loader
 
-    def run(self, acquistion_config:Config.Acquistion, threshold):
-        loader = self.get_subset_loader(threshold, acquistion_config)
-        self.set_subset_loader(loader)
-        return self._target_test(self.test_info['loader'])
+    def run(self, acquistion_config:Config.Acquistion, threshold, test_info):
+        loader = self.get_subset_loader(threshold, acquistion_config, test_info)
+        # self.set_subset_loader(loader)
+        return self._target_test(loader)
 
     def _target_test(self, loader):
-        new_model = Model.load(self.model_config)
-        gt,pred,_  = Model.evaluate(loader['new_model'],new_model)
+        '''
+        loader: new_model + old_model
+        '''
+        new_model = Model.prototype_factory(self.model_config.model_type, self.clip_set_up_loader, self.clip_processor)
+        new_model.load(self.model_config)
+        gt,pred,_  = new_model.eval(loader['new_model'])
         new_correct = (gt==pred)
         if len(loader['old_model']) == 0:
             total_correct = new_correct
         else:
-            gt,pred,_  = Model.evaluate(loader['old_model'], self.base_model)
+            gt,pred,_  = self.base_model.eval(loader['old_model'])
             old_correct = (gt==pred)
             total_correct = np.concatenate((old_correct,new_correct))
         return total_correct.mean()*100 - self.base_acc 
@@ -131,7 +142,7 @@ class total(prototype):
             acc = (new_gt==new_pred).mean()*100
             return acc - base_acc
 
-def factory(check_method, model_config):
+def factory(check_method, model_config,  clip_processor: Detector.CLIPProcessor, clip_set_up_loader):
     if check_method == 'dv':
         product = DV(model_config)
     elif check_method == 'total':
@@ -139,5 +150,5 @@ def factory(check_method, model_config):
     elif check_method == 'bm':
         product = benchmark(model_config)
     else:
-        product = subset(model_config) 
+        product = subset(model_config, clip_processor, clip_set_up_loader) 
     return product
