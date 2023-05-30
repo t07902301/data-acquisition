@@ -14,7 +14,7 @@ def compare(acquisition_config:Config.Acquistion, model_config:Config.NewModel, 
     }        
     new_data = Log.get_log_data(acquisition_config, model_config, dataset_splits)
     train_data_loader = torch.utils.data.DataLoader(new_data, batch_size=model_config.batch_size, 
-                            num_workers= config['num_workers'])
+                            num_workers= Dataset.config['num_workers'])
     train_dv, _ = product.clf.predict(train_data_loader)    
     dv_result['shifted_train'] = train_dv
     return dv_result
