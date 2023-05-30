@@ -66,27 +66,27 @@ def AcquistionFactory(strategy, sequential_rounds_config):
         return SequentialAc(sequential_rounds_config)
 
 class ModelConfig():
-    def __init__(self, batch_size, class_number, model_dir, device, type) -> None:
+    def __init__(self, batch_size, class_number, model_dir, device, base_type) -> None:
         self.batch_size = batch_size
         self.class_number = class_number
         self.model_dir = model_dir
-        self.root = os.path.join(config['base_root'], model_dir, type, str(batch_size))
+        self.root = os.path.join(config['base_root'], model_dir, base_type, str(batch_size))
         self.check_dir(self.root)
         self.device = device
-        self.model_type = type
+        self.model_type = base_type
     def check_dir(self, dir):
         if os.path.exists(dir) is False:
             os.makedirs(dir)
             
 class OldModel(ModelConfig):
-    def __init__(self, batch_size, class_number, model_dir, device, model_cnt, type) -> None:
-        super().__init__(batch_size, class_number, model_dir, device, type)
+    def __init__(self, batch_size, class_number, model_dir, device, model_cnt, base_type) -> None:
+        super().__init__(batch_size, class_number, model_dir, device, base_type)
         self.model_cnt = model_cnt # can be redundant if dv_stat_test not epoch-wised
         self.path = os.path.join(self.root,'{}.pt'.format(model_cnt))
 
 class NewModel(ModelConfig):
-    def __init__(self, batch_size, class_number, model_dir, device, model_cnt, pure:bool, setter, augment:bool, new_batch_size, type) -> None:
-        super().__init__(batch_size, class_number, model_dir, device, type)
+    def __init__(self, batch_size, class_number, model_dir, device, model_cnt, pure:bool, setter, augment:bool, new_batch_size, base_type) -> None:
+        super().__init__(batch_size, class_number, model_dir, device, base_type)
         self.pure = pure
         self.setter = setter
         self.augment = augment
@@ -113,18 +113,24 @@ class NewModel(ModelConfig):
         # root = os.path.join(root,'{}_rounds'.format(acquistion_config.sequential_rounds_info[acquistion_config.n_ndata]))
         self.check_dir(root)
         return root
-
-class Log(NewModel):
-    def __init__(self, batch_size, class_number, model_dir, device, model_cnt, pure: bool, setter, augment: bool, new_batch_size, log_symbol, type) -> None:
-        super().__init__(batch_size, class_number, model_dir, device, model_cnt, pure, setter, augment, new_batch_size, type)
-        self.set_log_root(log_symbol)
-    def set_log_root(self, log_symbol):
+    
+    def get_log_config(self, log_symbol):
         '''
         Add sub_log symbol ('data','indices',...) to the root
         '''
-        self.root = os.path.join(self.root,'log', log_symbol)
-        self.check_dir(self.root)
+        log_config = Log(self.root, log_symbol)
+        self.check_dir(log_config.root)
+        return log_config
+
+class Log():
+    log_symbol: str
+    root: str
+    path: str
+    def __init__(self, model_config_root, log_symbol) -> None:
+        self.root = os.path.join(model_config_root, 'log', log_symbol)
         self.log_symbol = log_symbol
+    def set_path(self, acquistion_config:Acquistion):
+        self.path = os.path.join(self.root, '{}_{}.pt'.format(acquistion_config.method, acquistion_config.n_ndata))    
 
 def str2bool(value):
     if isinstance(value,bool):
