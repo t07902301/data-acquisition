@@ -2,14 +2,14 @@ from utils.strategy import *
 from utils.set_up import set_up
 import utils.statistics.subset as Subset
 import utils.statistics.stat_test as stat_test
-def run(ds:Dataset.DataSplits, model_config:Config.OldModel, train_flag:bool, base_type, clip_processor):
+def run(ds:Dataset.DataSplits, model_config:Config.OldModel, train_flag:bool, clip_processor):
     
-    if base_type == 'svm':
+    if model_config.base_type == 'svm':
         base_model = Model.svm(ds.loader['train_clip'], clip_processor)
     else:
         base_model = Model.resnet(2)
     if train_flag:
-        if base_type == 'svm':
+        if model_config.base_type == 'svm':
             base_model.train(ds.loader['train_clip'])
         else:
             base_model.train(ds.loader['train'], ds.loader['val'])

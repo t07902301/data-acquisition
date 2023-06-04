@@ -73,7 +73,7 @@ class ModelConfig():
         self.root = os.path.join(config['base_root'], model_dir, base_type, str(batch_size))
         self.check_dir(self.root)
         self.device = device
-        self.model_type = base_type
+        self.base_type = base_type
     def check_dir(self, dir):
         if os.path.exists(dir) is False:
             os.makedirs(dir)
