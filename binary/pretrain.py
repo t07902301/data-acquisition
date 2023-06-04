@@ -29,8 +29,6 @@ def run(ds:Dataset.DataSplits, model_config:Config.OldModel, train_flag:bool, ba
 
     shift_score = Subset.mis_cls_stat('val_shift', ds, base_model)
 
-    stat_test.run(clf, ds.loader['val_shift'], base_model, model_config)
-
     return acc, acc_shift, detect_prec, shift_score
 
 def main(epochs,  model_dir ='', train_flag=False, device_id=0, base_type=''):
@@ -42,7 +40,7 @@ def main(epochs,  model_dir ='', train_flag=False, device_id=0, base_type=''):
         old_model_config = Config.OldModel(batch_size['base'],superclass_num,model_dir, device_config, epo, base_type)
         ds = ds_list[epo]
         ds = Dataset.DataSplits(ds, old_model_config.batch_size)
-        prec, acc_shift, detect_prec, shift_score = run(ds, old_model_config, train_flag, base_type, clip_processor)
+        prec, acc_shift, detect_prec, shift_score, intersection_area = run(ds, old_model_config, train_flag, base_type, clip_processor)
         acc_list.append(prec)
         acc_shift_list.append(acc_shift)
         detect_prec_list.append(detect_prec)
