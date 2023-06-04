@@ -88,34 +88,15 @@ def create_dataset(ds_root, select_fine_labels, ratio):
 
     label_summary = [i for i in range(max_subclass_num)] if len(select_fine_labels)==0 else select_fine_labels
 
-    train_fine_labels = get_ds_labels(train_ds)
-    train_indices,val_market_indices = split_dataset(train_fine_labels, label_summary, train_size/(train_size+val_size+market_size))
+    clip_train_ds_split, val_market_set = split_dataset(train_ds, label_summary, train_size/(train_size+val_size+market_size))
 
-    val_market_set = torch.utils.data.Subset(train_ds,val_market_indices)
-    clip_train_ds_split = torch.utils.data.Subset(train_ds,train_indices)
+    val_ds, market_ds = split_dataset(val_market_set, label_summary, val_size/(val_size+market_size))
 
-    val_mar_fine_labels = get_ds_labels(val_market_set)
-    val_indices,market_indices = split_dataset(val_mar_fine_labels,label_summary,val_size/(val_size+market_size))
-    val_ds = torch.utils.data.Subset(val_market_set,val_indices)
-    market_ds = torch.utils.data.Subset(val_market_set,market_indices)
-    # return {
-    #     'train': clip_train_ds_split,
-    #     'test': test_ds,
-    #     'val': val_market_set,
-    #     'total': train_ds
-    # }
+    _, left_clip_train = split_dataset(clip_train_ds_split, data_config['remove_fine_labels'], remove_rate)
 
-    split_train_fine_labels = get_ds_labels(clip_train_ds_split)
-    _, left_indices = split_dataset(split_train_fine_labels,data_config['remove_fine_labels'],remove_rate)
-    left_clip_train = torch.utils.data.Subset(clip_train_ds_split,left_indices)
-
-    split_val_fine_labels = get_ds_labels(val_ds)
-    _, left_indices = split_dataset(split_val_fine_labels,data_config['remove_fine_labels'],remove_rate)
-    left_val = torch.utils.data.Subset(val_ds,left_indices)
+    _, left_val = split_dataset(val_ds, data_config['remove_fine_labels'], remove_rate)
    
-    split_test_fine_labels = get_ds_labels(test_ds)
-    _, left_indices = split_dataset(split_test_fine_labels,data_config['remove_fine_labels'],remove_rate)
-    left_test = torch.utils.data.Subset(test_ds,left_indices)
+    _, left_test = split_dataset(test_ds, data_config['remove_fine_labels'], remove_rate)
 
     ds = {}
     # modified_labels = list(set(select_fine_labels) - set(target_test_label))
@@ -129,6 +110,13 @@ def create_dataset(ds_root, select_fine_labels, ratio):
     ds['train_clip'] =  left_clip_train
     # ds['train'] = clip_train_ds_split
     return ds
+
+def split_dataset(dataset, target_labels, split_1_ratio):
+    dataset_labels = get_ds_labels(dataset)
+    splits_1, splits_2 = get_split_indices(dataset_labels, target_labels, split_1_ratio)
+    subset_1 = torch.utils.data.Subset(dataset, splits_1)
+    subset_2 = torch.utils.data.Subset(dataset, splits_2)
+    return subset_1, subset_2
 
 def balance_dataset(target_labels, modified_label, dataset):
     target_ds = get_subset_by_labels(dataset, target_labels)
@@ -191,10 +179,11 @@ def get_ds_labels(ds,use_fine_label=True):
     return np.array(labels)
     
 def sample_indices(indices,ratio):
-    if type(ratio) == float:
-        return np.random.choice(indices,int(ratio*len(indices)),replace=False)
-    else:
-        return np.random.choice(indices,ratio,replace=False)
+    # if type(ratio) == np.float64:
+    #     return np.random.choice(indices,int(ratio*len(indices)),replace=False)
+    # else:
+    #     return np.random.choice(indices,ratio,replace=False)
+    return np.random.choice(indices,int(ratio*len(indices)),replace=False)
 
 def complimentary_mask(mask_length, active_spot):
     '''
@@ -205,26 +194,24 @@ def complimentary_mask(mask_length, active_spot):
     advert_mask = ~active_mask 
     return advert_mask
 
-def split_dataset(labels, label_summary, ratio=0 ):
-    '''Label-wise split a dataset into two parts. in Part I: take every split_amt data-point with labels indicated in label_summary.
-    in Part II: the rest of data
+def get_split_indices(dataset_labels, target_labels, split_1_ratio=0):
+    '''
+    Label-wise split a dataset into two parts according to target labels and a ratio. 
     
     Params: 
-           labels: numpy array of subclass labels
-           label_summary: which labels has data split
-           split_ratio: how much to split into PART 1 from the dataset 
+           split_1_ratio: how much splits into PART 1 from the dataset 
     Return:
-           p1_indices: indices belonging to part 1 (split_ratio)
+           p1_indices: indices belonging to part 1 (split_1_ratio)
            p2_indices: indices belonging to part 2
     '''
 
-    if torch.is_tensor(labels):
-        labels = labels.numpy()
-    ds_length = len(labels)
+    if torch.is_tensor(dataset_labels):
+        dataset_labels = dataset_labels.numpy()
+    ds_length = len(dataset_labels)
     p1_indices = []
-    for c in label_summary:
-        cls_indices = np.arange(ds_length)[labels == c]
-        split_indices = sample_indices(cls_indices,ratio)
+    for c in target_labels:
+        cls_indices = np.arange(ds_length)[dataset_labels == c]
+        split_indices = sample_indices(cls_indices,split_1_ratio)
         p1_indices.append(split_indices)
 
     p1_indices = np.concatenate(p1_indices)
