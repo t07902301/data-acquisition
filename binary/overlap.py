@@ -3,7 +3,7 @@ from utils.set_up import set_up
 import utils.statistics.subset as Subset
 import utils.statistics.stat_test as stat_test
 old_labels = set(Dataset.data_config['train_label']) - set(Dataset.data_config['remove_fine_labels'])
-def sample_old_data(dataset, sample_ratio):
+def remove_old_data(dataset, sample_ratio):
     _, left_data = Dataset.split_dataset(dataset, old_labels, sample_ratio)
     return left_data
 
@@ -32,7 +32,7 @@ def run(ds:Dataset.DataSplits, model_config:Config.OldModel, clip_processor, old
 
 def ratio_run(ratio, dataset, old_model_config, clip_processor):
     ds = deepcopy(dataset)
-    ds['test_shift'] = sample_old_data(ds['test_shift'], ratio)
+    ds['test_shift'] = remove_old_data(ds['test_shift'], ratio)
     ds = Dataset.DataSplits(ds, old_model_config.batch_size)
     acc, acc_shift, detect_prec, shift_score, intersection_area = run(ds, old_model_config, clip_processor, ratio)
     print(len(ds.dataset['test_shift']))
@@ -68,7 +68,7 @@ def main(epochs,  model_dir ='', device_id=0, base_type=''):
         shift_list.append(shift_epo)
         intersection_area_list.append(intersection_area_epo)
     # Print the table headers
-    print('{} (%), {}(%), {}(%), {}(%), {}(%),'.format('Old Data Ratio in Test Set', 'Model Average Acc', 'SVM Precision', 'Shifted Data Proportion on Model Misclassifications', 'Overlapped Area'))
+    print('{}(%), {}(%), {}(%), {}(%), {}(%),'.format('Old Data Removal from Test Set', 'Base Model Average Acc', 'SVM Precision', 'New Data Percent on Model Mistakes', 'Overlapped Area'))
 
     acc_shift_list = np.round(np.mean(acc_shift_list, axis=0), decimals=3)
     detect_prec_list = np.round(np.mean(detect_prec_list, axis=0), decimals=3)
