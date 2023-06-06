@@ -52,7 +52,7 @@ def ecdf(raw_values, test_value=None):
     else:
         return np.array([np.sum(raw_values <= test_value) / n_raw_vals])
     
-def plot(values, n_bins, path, clf_metrics, ratio):
+def plot(values, n_bins, path, clf_metrics, removal_ratio):
     val_key = 'correct pred'
     bin_value, bins, _ = plt.hist(values[val_key], 
            bins=n_bins, alpha=0.3, density=True, color='orange')
@@ -87,7 +87,7 @@ def plot(values, n_bins, path, clf_metrics, ratio):
 
     plt.xlabel('decision values')
     plt.ylabel('density')
-    format_metrics = 'old_data: {}%; '.format((1-ratio)*100)
+    format_metrics = 'old_data: {}%; '.format((1-removal_ratio)*100)
     plt.title(format_metrics)
     plt.legend(loc='upper right')
     plt.savefig(path)
@@ -96,23 +96,23 @@ def plot(values, n_bins, path, clf_metrics, ratio):
     return incor_area + cor_area
     # return 0
 
-def get_fig_name(fig_dir, model_type, model_cnt, ratio):
+def get_fig_name(fig_dir, model_type, model_cnt, removal_ratio):
     # fig_root = 'figure/{}/stat_test/{}'.format(fig_dir, model_type)
     fig_root = 'figure/{}/stat_test/{}/overlap/{}'.format(fig_dir, model_type, model_cnt)
 
     if os.path.exists(fig_root) is False:
         os.makedirs(fig_root)    
-    fig_path = os.path.join(fig_root, '{}.png'.format(ratio))
+    fig_path = os.path.join(fig_root, '{}.png'.format(removal_ratio))
     return fig_path
 
-def run(clf:Detector.SVM, dataloader, base_model: Model.prototype, model_config: Config.OldModel, ratio=0):
+def run(clf:Detector.SVM, dataloader, base_model: Model.prototype, model_config: Config.OldModel, removal_ratio=0):
     dataset_gts, dataset_preds, _ = base_model.eval(dataloader)
     dv, precision = clf.predict(dataloader, compute_metrics=True, base_model=base_model)
     cor_mask = (dataset_gts == dataset_preds)
     incor_mask = ~cor_mask
     cor_dv = dv[cor_mask]
     incor_dv = dv[incor_mask]
-    fig_path = get_fig_name(model_config.model_dir, model_config.base_type, model_config.model_cnt, ratio)
+    fig_path = get_fig_name(model_config.model_dir, model_config.base_type, model_config.model_cnt, removal_ratio)
     total_dv = {
         'correct pred': cor_dv,
         'incorrect pred': incor_dv
@@ -121,6 +121,6 @@ def run(clf:Detector.SVM, dataloader, base_model: Model.prototype, model_config:
         'SVM ': np.round(precision, decimals=2),
         'Model': np.round(cor_mask.mean()*100, decimals=2)
     }
-    intersection_area = plot(total_dv, n_bins=10, path=fig_path, clf_metrics=clf_metrics, ratio = ratio)
+    intersection_area = plot(total_dv, n_bins=10, path=fig_path, clf_metrics=clf_metrics, removal_ratio = removal_ratio)
     return intersection_area
     # print(stat(total_dv['correct pred'], total_dv[val_key]))

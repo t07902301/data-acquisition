@@ -68,7 +68,7 @@ def main(epochs,  model_dir ='', device_id=0, base_type=''):
         shift_list.append(shift_epo)
         intersection_area_list.append(intersection_area_epo)
     # Print the table headers
-    print('{}(%), {}(%), {}(%), {}(%), {}(%),'.format('Old Data Removal from Test Set', 'Base Model Average Acc', 'SVM Precision', 'New Data Percent on Model Mistakes', 'Overlapped Area'))
+    print('{}(%), {}(%), {}(%), {}(%), {}(%),'.format('Old Data Removal Ratio', 'Base Model Average Acc', 'SVM Precision', 'New Data Percent on Model Mistakes', 'Overlapped Area'))
 
     acc_shift_list = np.round(np.mean(acc_shift_list, axis=0), decimals=3)
     detect_prec_list = np.round(np.mean(detect_prec_list, axis=0), decimals=3)
