@@ -47,8 +47,8 @@ class SVM():
         else:
             dataset_preds = None
         embedding, data_gts = self.clip_processor.evaluate_clip_images(data_loader)
-        _, dv, precision = self.fitter.predict(latents=embedding, gts=data_gts, compute_metrics=compute_metrics, preds=dataset_preds)
-        return dv, precision        
+        _, dv, metric = self.fitter.predict(latents=embedding, model_gts=data_gts, compute_metrics=compute_metrics, model_preds=dataset_preds)
+        return dv, metric        
     
 def load_clip(device):
     clip_processor = CLIPProcessor(ds_mean=config['data']['mean'], ds_std=config['data']['std'], device=device)

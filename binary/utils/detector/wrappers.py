@@ -43,14 +43,14 @@ class SVMFitter:
         self.clf = clf
         return score
     
-    def predict(self, gts, latents, compute_metrics=True, preds=None):
+    def predict(self, model_gts, latents, compute_metrics=True, model_preds=None):
         assert self.clf is not None, "must call fit first"
         latents = self.pre_process(latents).numpy()
         #gts = gts.numpy()
         #if preds is not None:
         #    preds = preds.numpy()
-        return svm_utils.predict(latents=latents, gts=gts, clf=self.clf, 
-                                     preds=preds, compute_metrics=compute_metrics) 
+        return svm_utils.predict(latents=latents, model_gts=model_gts, clf=self.clf, 
+                                     model_preds=model_preds, compute_metrics=compute_metrics) 
 
     def base_fit(self, gts, latents):
         assert self.pre_process is not None, 'run set_preprocess on a training set first'

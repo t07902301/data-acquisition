@@ -59,15 +59,13 @@ def train(latents, model_gts, model_preds, balanced=True, split_and_search=False
     # Then grid search over C = array([1.e-06, 1.e-05, 1.e-04, 1.e-03, 1.e-02, 1.e-01, 1.e+00])
     class_weight = 'balanced' if balanced else None        
     model_correct_pred_mask = (model_preds == model_gts)
-    model_predictions = np.zeros(len(model_gts))
-    model_predictions[model_correct_pred_mask] = 1
+    model_correctness = np.zeros(len(model_gts))
+    model_correctness[model_correct_pred_mask] = 1
     kernel = svm_args['kernel']
-    best_clf, best_cv = choose_svm_hpara(latents, model_predictions, class_weight, cv, kernel, split_and_search)
-    best_clf.fit(latents, model_predictions)
+    best_clf, best_cv = choose_svm_hpara(latents, model_correctness, class_weight, cv, kernel, split_and_search)
+    best_clf.fit(latents, model_correctness)
     return best_clf, best_cv  
-
 import random
-random.seed(0)
 def choose_svm_hpara(clf_input, clf_gt, class_weight, cv_splits, kernel, split_and_search):
     '''
     select the best hparameter for svm by cross validation
@@ -75,7 +73,8 @@ def choose_svm_hpara(clf_input, clf_gt, class_weight, cv_splits, kernel, split_a
     best_C, best_cv, best_clf = 1, -np.inf, None
     if split_and_search:
         shuffle_idx = np.arange(len(clf_gt))
-        random.shuffle(shuffle_idx)
+        # random.seed(0)
+        # random.shuffle(shuffle_idx)
         clf_input = clf_input[shuffle_idx]
         clf_gt = clf_gt[shuffle_idx]
         for C_ in np.logspace(-6, 0, 7, endpoint=True):
@@ -104,25 +103,28 @@ def fit_svm(C, class_weight, x, gt, cv=2, kernel='linear'):
     average_cv_scores = np.mean(cv_scores)*100
     return clf, average_cv_scores
 
-def predict(latents, clf, gts=None, preds=None, compute_metrics=False):
+def predict(latents, clf: SVC, model_preds=None, model_gts=None, compute_metrics=False):
     dataset_size = len(latents)
     out_mask, out_decision = np.zeros(dataset_size), np.zeros(dataset_size)
     dataset_idx = np.arange(dataset_size)
     out_decision = clf.decision_function(latents)
-    precision = None
+    # precision = None
+    metric = None
     
     if compute_metrics:
-        real_incorrect_mask = (gts!=preds)
-        clf_incorrect_mask = (out_decision<=0)
-        incorrect_idx = dataset_idx[clf_incorrect_mask]
-        real_incorrect_idx = dataset_idx[real_incorrect_mask]
-        if  len(incorrect_idx) == 0:
-            precision = 100
-            print('No misclassifications')
-        else:
-            precision = np.intersect1d(incorrect_idx, real_incorrect_idx).size / incorrect_idx.size * 100
+        model_correct_pred_mask = (model_preds == model_gts)
+        model_correctness = np.zeros(len(model_gts))
+        model_correctness[model_correct_pred_mask] = 1        
+        svm_preds = clf.predict(latents)
+        metric = sklearn_metrics.balanced_accuracy_score(model_correctness, svm_preds)*100
+        c_mat = sklearn_metrics.confusion_matrix(model_correctness, svm_preds)
+        print(c_mat)
+        print(metric)
+        # tn, fp = c_mat[0]
+        # fn, tp = c_mat[1]
+        # precision = tn / (tn + fn)
 
-    return out_mask, out_decision, precision
+    return out_mask, out_decision, metric
 
 def base_train(latents, gts, balanced=True, split_and_search=False, cv=2, svm_args=None):
     class_weight = 'balanced' if balanced else None        
