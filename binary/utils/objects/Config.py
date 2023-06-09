@@ -5,14 +5,12 @@ from abc import abstractmethod
 class Acquistion():
     method: str
     n_ndata:int
+    bound: float
 
     def __init__(self) -> None:
         self.method = ''
         self.n_ndata = 0
-
-    def set_items(self, method, new_data_number):
-        self.method = method
-        self.n_ndata = new_data_number
+        self.bound = None
 
     @abstractmethod
     def get_new_data_size(self):
@@ -85,11 +83,10 @@ class OldModel(ModelConfig):
         self.path = os.path.join(self.root,'{}.pt'.format(model_cnt))
 
 class NewModel(ModelConfig):
-    def __init__(self, batch_size, class_number, model_dir, device, model_cnt, pure:bool, setter, augment:bool, new_batch_size, base_type) -> None:
+    def __init__(self, batch_size, class_number, model_dir, device, model_cnt, pure:bool, setter, new_batch_size, base_type) -> None:
         super().__init__(batch_size, class_number, model_dir, device, base_type)
         self.pure = pure
         self.setter = setter
-        self.augment = augment
         self.new_batch_size = new_batch_size
         self.set_root(model_cnt)
 
@@ -98,15 +95,16 @@ class NewModel(ModelConfig):
             root = self.set_seq_root(self.root, acquistion_config)
         else:
             root = self.root
-        self.path = os.path.join(root, '{}_{}.pt'.format(acquistion_config.method, acquistion_config.n_ndata))
+        self.path = os.path.join(root, '{}_{}_{}.pt'.format(acquistion_config.method, acquistion_config.n_ndata, acquistion_config.bound))
     
     def set_root(self, model_cnt):
         pure_name = 'pure' if self.pure else 'non-pure'
-        aug_name = '' if self.augment else 'na'
-        if self.model_type != 'svm':
-            self.root = os.path.join(self.root, self.setter, pure_name, str(model_cnt), aug_name, str(self.new_batch_size)) 
+        # aug_name = '' if self.augment else 'na'
+
+        if self.base_type != 'svm':
+            self.root = os.path.join(self.root, self.setter, pure_name, str(model_cnt), str(self.new_batch_size)) 
         else:
-            self.root = os.path.join(self.root, pure_name, str(model_cnt), aug_name) 
+            self.root = os.path.join(self.root, pure_name, str(model_cnt)) 
         self.check_dir(self.root)
 
     def set_seq_root(self,root, acquistion_config:SequentialAc):
