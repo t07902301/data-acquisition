@@ -21,12 +21,9 @@ def load(log_config:Config.Log):
     print('{} log load from {}'.format(log_config.log_symbol, log_config.path))
     return data
 
-def save(data, log_config:Config.Log, augment=False):
-    if log_config.log_symbol == 'data' and augment:
-        print('Cannot save augmented data')
-    else:
-        torch.save(data, log_config.path)
-        print('{} log save to {}'.format(log_config.log_symbol, log_config.path))    
+def save(data, log_config:Config.Log):
+    torch.save(data, log_config.path)
+    print('{} log save to {}'.format(log_config.log_symbol, log_config.path))    
 
 def get_log_data(acquisition_config:Config.Acquistion, model_config:Config.NewModel, dataset_splits:Dataset.DataSplits):
     if 'seq' in acquisition_config.method:
