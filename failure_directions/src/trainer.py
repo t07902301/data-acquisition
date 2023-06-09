@@ -251,11 +251,12 @@ class LightWeightTrainer():
                 }
                 checkpoint_folder = os.path.join(self.training_dir, 'checkpoints')
                 checkpoint_path = os.path.join(checkpoint_folder, 'checkpoint_last.pt')
-                save_model(model, checkpoint_path, run_metadata)
+                # save_model(model, checkpoint_path, run_metadata)
+                torch.save(run_metadata, checkpoint_path)
                 if val_loss < best_val_loss:
                     best_val_loss = val_loss
                     checkpoint_path = os.path.join(checkpoint_folder, 'checkpoint_best.pt')
-                    save_model(model, checkpoint_path, run_metadata)
+                    # save_model(model, checkpoint_path, run_metadata)
                 if epoch % 5 == 0: # flush every 5 steps
                     self.writer.flush()
                 self.writer.close()
