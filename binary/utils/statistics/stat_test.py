@@ -54,14 +54,14 @@ def ecdf(raw_values, test_value=None):
     
 def plot(values, n_bins, path, clf_metrics, removal_ratio):
     val_key = 'correct pred'
-    bin_value, bins, _ = plt.hist(values[val_key], 
-           bins=n_bins, alpha=0.3, density=True, color='orange')
+    bin_value, bins, _ = plt.hist(values[val_key], bins=n_bins, alpha=0.3, density=True, color='orange', label=val_key)
     # pdf_x = get_val_space(values[val_key])
     # norm_pdf = get_norm_pdf(values[val_key])
     # plt.plot(pdf_x, norm_pdf.cdf(pdf_x), label=val_key, color='orange')
     # # cor_area = norm_pdf.cdf([0])
     # plt.plot(pdf_x, ecdf(values[val_key]), label=val_key, color='red')
     cor_area = ecdf(values[val_key], 0)
+    print("{}: {}".format(val_key, len(values[val_key])))
 
     # ks_result = kstest(values[val_key], norm_pdf.cdf)
     # print(ks_result.statistic, ks_result.pvalue)
@@ -70,14 +70,14 @@ def plot(values, n_bins, path, clf_metrics, removal_ratio):
     # plt.plot(pdf_x, kde.evaluate(pdf_x), label=val_key, color='orange')
 
     val_key = 'incorrect pred'
-    plt.hist(values[val_key], 
-            bins=n_bins, alpha=0.3, density=True, color='blue')
+    plt.hist(values[val_key], bins=n_bins, alpha=0.3, density=True, color='blue', label= val_key)
     # pdf_x = get_val_space(values[val_key])
     # norm_pdf = get_norm_pdf(values[val_key])
     # plt.plot(pdf_x, norm_pdf.cdf(pdf_x), label=val_key, color='blue')
     # # incor_area = 1 - norm_pdf.cdf([0])
     # plt.plot(pdf_x, ecdf(values[val_key]), label=val_key, color='purple')
     incor_area = 1 - ecdf(values[val_key], 0)
+    print("{}: {}".format(val_key, len(values[val_key])))
 
     # ks_result = kstest(values[val_key], norm_pdf.cdf)
     # print(ks_result.statistic, ks_result.pvalue)
@@ -107,7 +107,7 @@ def get_fig_name(fig_dir, model_type, model_cnt, removal_ratio):
 
 def run(clf:Detector.SVM, dataloader, base_model: Model.prototype, model_config: Config.OldModel, removal_ratio=0):
     dataset_gts, dataset_preds, _ = base_model.eval(dataloader)
-    dv, precision = clf.predict(dataloader, compute_metrics=True, base_model=base_model)
+    dv, metric= clf.predict(dataloader, compute_metrics=True, base_model=base_model)
     cor_mask = (dataset_gts == dataset_preds)
     incor_mask = ~cor_mask
     cor_dv = dv[cor_mask]
@@ -117,10 +117,9 @@ def run(clf:Detector.SVM, dataloader, base_model: Model.prototype, model_config:
         'correct pred': cor_dv,
         'incorrect pred': incor_dv
     }
-    clf_metrics = {
-        'SVM ': np.round(precision, decimals=2),
-        'Model': np.round(cor_mask.mean()*100, decimals=2)
-    }
-    intersection_area = plot(total_dv, n_bins=10, path=fig_path, clf_metrics=clf_metrics, removal_ratio = removal_ratio)
+    # clf_metrics = {
+    #     'SVM ': np.round(precision, decimals=2),
+    #     'Model': np.round(cor_mask.mean()*100, decimals=2)
+    # }
+    intersection_area = plot(total_dv, n_bins=10, path=fig_path, clf_metrics=None, removal_ratio = removal_ratio)
     return intersection_area
-    # print(stat(total_dv['correct pred'], total_dv[val_key]))
