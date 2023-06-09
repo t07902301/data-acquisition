@@ -66,21 +66,21 @@ def train(latents, model_gts, model_preds, balanced=True, split_and_search=False
     best_clf.fit(latents, model_correctness)
     return best_clf, best_cv  
 import random
-def choose_svm_hpara(clf_input, clf_gt, class_weight, cv_splits, kernel, split_and_search):
+def choose_svm_hpara(clf_input, gt, class_weight, cv_splits, kernel, split_and_search):
     '''
     select the best hparameter for svm by cross validation
     '''
     best_C, best_cv, best_clf = 1, -np.inf, None
     if split_and_search:
-        shuffle_idx = np.arange(len(clf_gt))
-        # random.seed(0)
-        # random.shuffle(shuffle_idx)
+        shuffle_idx = np.arange(len(gt))
+        random.seed(0)
+        random.shuffle(shuffle_idx)
         clf_input = clf_input[shuffle_idx]
-        clf_gt = clf_gt[shuffle_idx]
+        gt = gt[shuffle_idx]
         for C_ in np.logspace(-6, 0, 7, endpoint=True):
-            # x_resampled, clf_gt_resampled = SMOTE().fit_resample(x, clf_gt)
-            # clf, cv_score = fit_svm(C=C_, x=x_resampled, gt=clf_gt_resampled, class_weight=class_weight, cv=cv, kernel=kernel)
-            clf, cv_score = fit_svm(C=C_, x=clf_input, gt=clf_gt, class_weight=class_weight, cv=cv_splits, kernel=kernel)
+            # x_resampled, gt_resampled = SMOTE().fit_resample(x, gt)
+            # clf, cv_score = fit_svm(C=C_, x=x_resampled, gt=gt_resampled, class_weight=class_weight, cv=cv, kernel=kernel)
+            clf, cv_score = fit_svm(C=C_, x=clf_input, gt=gt, class_weight=class_weight, cv=cv_splits, kernel=kernel)
             if cv_score > best_cv:
                 best_cv = cv_score
                 best_C = C_
@@ -88,7 +88,7 @@ def choose_svm_hpara(clf_input, clf_gt, class_weight, cv_splits, kernel, split_a
     else:
         # TODO
         # Set a default C_
-        best_clf, best_cv = fit_svm(C=1.0, x=clf_input, gt=clf_gt, class_weight=class_weight, cv=cv_splits, kernel=kernel)
+        best_clf, best_cv = fit_svm(C=1.0, x=clf_input, gt=gt, class_weight=class_weight, cv=cv_splits, kernel=kernel)
     return best_clf, best_cv
 
 def fit_svm(C, class_weight, x, gt, cv=2, kernel='linear'):
@@ -106,7 +106,6 @@ def fit_svm(C, class_weight, x, gt, cv=2, kernel='linear'):
 def predict(latents, clf: SVC, model_preds=None, model_gts=None, compute_metrics=False):
     dataset_size = len(latents)
     out_mask, out_decision = np.zeros(dataset_size), np.zeros(dataset_size)
-    dataset_idx = np.arange(dataset_size)
     out_decision = clf.decision_function(latents)
     # precision = None
     metric = None
@@ -114,7 +113,7 @@ def predict(latents, clf: SVC, model_preds=None, model_gts=None, compute_metrics
     if compute_metrics:
         model_correct_pred_mask = (model_preds == model_gts)
         model_correctness = np.zeros(len(model_gts))
-        model_correctness[model_correct_pred_mask] = 1        
+        model_correctness[model_correct_pred_mask] = 1  
         svm_preds = clf.predict(latents)
         metric = sklearn_metrics.balanced_accuracy_score(model_correctness, svm_preds)*100
         c_mat = sklearn_metrics.confusion_matrix(model_correctness, svm_preds)
