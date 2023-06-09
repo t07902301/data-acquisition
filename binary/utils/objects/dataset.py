@@ -46,26 +46,23 @@ class DataSplits():
         self.dataset[split_name] = torch.utils.data.Subset(self.dataset[split_name],np.arange(original_split_len)[left_market_mask])
         self.update_dataloader(split_name) 
 
-
     def update_dataloader(self, split_name):
-        self.loader[split_name] = torch.utils.data.DataLoader(self.dataset[split_name], batch_size= self.batch_size, shuffle=(split_name=='train'), drop_last=(split_name=='train'),num_workers=config['num_workers'],generator=generator)
-        
-        
-    def update_dataloader(self, split_name):
-        self.loader[split_name] = torch.utils.data.DataLoader(self.dataset[split_name], batch_size= self.batch_size, shuffle=(split_name=='train'), drop_last=(split_name=='train'),num_workers=config['num_workers'],generator=generator)
+        generator = torch.Generator()
+        generator.manual_seed(0)        
+        self.loader[split_name] = torch.utils.data.DataLoader(self.dataset[split_name], batch_size= self.batch_size, 
+                                                              shuffle=(split_name=='train'), drop_last=(split_name=='train'),
+                                                              num_workers=config['num_workers'],generator=generator)
         
     def replace(self, replaced_split, new_data):
         self.dataset[replaced_split] = new_data
         self.update_dataloader(replaced_split)
-        
-    def update_dataloader(self, split_name):
-        self.loader[split_name] = torch.utils.data.DataLoader(self.dataset[split_name], batch_size= self.batch_size, shuffle=(split_name=='train'), drop_last=(split_name=='train'),num_workers=config['num_workers'],generator=generator)
 
     def use_new_data(self, new_data, new_model_config:Config.NewModel, acquisition_config:Config.Acquistion):
         '''
         new data to be added to train set or not, and update loader automatically
         '''
-        assert len(new_data) == acquisition_config.n_ndata, 'size error - new data: {}, required new data: {} under {}'.format(len(new_data), acquisition_config.n_ndata, acquisition_config.get_info())
+        # assert len(new_data) == acquisition_config.n_ndata, 'size error - new data: {}, required new data: {} under {}'.format(len(new_data), acquisition_config.n_ndata, acquisition_config.get_info())
+        print('In bound {}, {} new data acquired with a budget of {}'.format(acquisition_config.bound, len(new_data), acquisition_config.n_ndata))
 
         if new_model_config.pure:
             self.replace('train', new_data)
@@ -111,8 +108,8 @@ def create_dataset(ds_root, select_fine_labels, ratio):
     # ds['train'] = clip_train_ds_split
     return ds
 
-def split_dataset(dataset, target_labels, split_1_ratio):
-    dataset_labels = get_ds_labels(dataset)
+def split_dataset(dataset, target_labels, split_1_ratio, use_fine_label = True):
+    dataset_labels = get_ds_labels(dataset, use_fine_label)
     splits_1, splits_2 = get_split_indices(dataset_labels, target_labels, split_1_ratio)
     subset_1 = torch.utils.data.Subset(dataset, splits_1)
     subset_2 = torch.utils.data.Subset(dataset, splits_2)
@@ -179,11 +176,10 @@ def get_ds_labels(ds,use_fine_label=True):
     return np.array(labels)
     
 def sample_indices(indices,ratio):
-    # if type(ratio) == np.float64:
-    #     return np.random.choice(indices,int(ratio*len(indices)),replace=False)
-    # else:
-    #     return np.random.choice(indices,ratio,replace=False)
-    return np.random.choice(indices,int(ratio*len(indices)),replace=False)
+    if type(ratio) == int:
+        return np.random.choice(indices,ratio,replace=False)
+    else:
+        return np.random.choice(indices,int(ratio*len(indices)),replace=False)
 
 def complimentary_mask(mask_length, active_spot):
     '''
@@ -236,7 +232,7 @@ def get_data_splits_list(epochs, select_fine_labels, label_map, ratio):
     ds_list = []
     for epo in range(epochs):
         ds = create_dataset(data_config['ds_root'],select_fine_labels,ratio)
-        if select_fine_labels!=[] and (isinstance(label_map, dict)):
+        if len(select_fine_labels) != 0 and (isinstance(label_map, dict)):
             ds = modify_coarse_label(ds, label_map)
         ds_list.append(ds)
     return ds_list
