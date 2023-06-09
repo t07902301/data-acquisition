@@ -13,7 +13,6 @@ from utils.objects.Config import OldModel
 from utils.detector.wrappers import SVMFitter, CLIPProcessor
 from abc import abstractmethod
 
-model_env()
 hparams = config['hparams']
 
 class prototype():
@@ -78,7 +77,7 @@ class resnet(prototype):
         trainer = trainer_utils.LightWeightTrainer(training_args=hparams['training'],
                                                         exp_name=model_save_path, enable_logging=log_model,
                                                         bce=False, set_device=True)
-        best_model_chkpnt = trainer.fit(self.model, train_loader, val_loader)
+        _ = trainer.fit(self.model, train_loader, val_loader)
         # self.model = best_model_chkpnt
 
     def tune(self,train_loader,val_loader, weights=None,log_model=False,model_save_path=''):
