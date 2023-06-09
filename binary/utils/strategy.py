@@ -14,6 +14,7 @@ class Strategy():
         self.base_model = Model.resnet(2)
         self.base_model.load(old_model_config)
         self.clip_processor = Detector.load_clip(old_model_config.device)
+        Model.model_env()
     @abstractmethod
     def operate(self, acquire_instruction: Config.Acquistion, dataset: dict, new_model_config:Config.NewModel):
         '''
@@ -40,11 +41,9 @@ class Strategy():
         targeted_val = torch.utils.data.Subset(dataset_splits.dataset['val_shift'], targeted_indices)
         dataset_splits.replace('val_shift', targeted_val)   
 
-    def get_new_data(self, data_splits: Dataset.DataSplits, new_data_indices, augmentation):
-        if augmentation:
-            return torch.utils.data.Subset(data_splits.dataset['market_aug'],new_data_indices)
-        else:
-            return torch.utils.data.Subset(data_splits.dataset['market'],new_data_indices)
+    def get_new_data(self, data_splits: Dataset.DataSplits, new_data_indices):
+        return torch.utils.data.Subset(data_splits.dataset['market'],new_data_indices)
+    
 class NonSeqStrategy(Strategy):
     def __init__(self, old_model_config: Config.OldModel) -> None:
         super().__init__(old_model_config)
@@ -58,8 +57,8 @@ class NonSeqStrategy(Strategy):
     def operate(self, acquire_instruction: Config.Acquistion, dataset: dict, new_model_config:Config.NewModel):
         dataset_copy = deepcopy(dataset)
         dataset_splits = Dataset.DataSplits(dataset_copy, new_model_config.new_batch_size)
-        new_data_indices,_ = self.get_new_data_indices(acquire_instruction.n_ndata, dataset_splits)
-        new_data = self.get_new_data(dataset_splits, new_data_indices, new_model_config.augment)
+        new_data_indices,_ = self.get_new_data_indices(acquire_instruction.n_ndata, dataset_splits, acquire_instruction.bound)
+        new_data = self.get_new_data(dataset_splits, new_data_indices, )
         dataset_splits.use_new_data(new_data, new_model_config, acquire_instruction)
 
         self.log_data(new_model_config, new_data_indices, acquire_instruction)
@@ -87,14 +86,15 @@ class NonSeqStrategy(Strategy):
 class Greedy(NonSeqStrategy):
     def __init__(self, old_model_config: Config.OldModel) -> None:
         super().__init__(old_model_config)
-    def get_new_data_indices(self, n_data, data_splits: Dataset.DataSplits):
+    def get_new_data_indices(self, n_data, data_splits: Dataset.DataSplits, bound = None):
         clf = Detector.SVM(data_splits.loader['train_clip'], self.clip_processor)
         score = clf.fit(self.base_model, data_splits.loader['val_shift'])
         market_dv, _ = clf.predict(data_splits.loader['market'])
         new_data_indices_total = []
-        market_indices = np.arange(len(market_dv))
-        sorted_idx = np.argsort(market_dv) # index of images ordered by their decision values
-        new_data_indices = acquistion.get_top_values(market_indices[sorted_idx],n_data)
+        if bound == None:
+            new_data_indices = acquistion.get_top_values_indices(market_dv, n_data)
+        else:
+            new_data_indices = acquistion.get_in_bound_top_indices(market_dv, n_data, bound)
         new_data_indices_total.append(new_data_indices)
         clf_info = {
             'clf': clf,
@@ -108,8 +108,7 @@ class Sample(NonSeqStrategy):
     def get_new_data_indices(self, n_data, data_splits: Dataset.DataSplits):
         market_gts = acquistion.get_loader_labels(data_splits.loader['market'])
         new_data_indices_total = []
-        market_indices = np.arange(len(market_gts))
-        new_data_indices = acquistion.sample_acquire(market_indices,n_data)
+        new_data_indices = acquistion.sample_acquire(market_gts,n_data)
         new_data_indices_total.append(new_data_indices)
         clf_info = None
         return np.concatenate(new_data_indices_total), clf_info      
@@ -121,9 +120,7 @@ class Confidence(NonSeqStrategy):
     def get_new_data_indices(self, n_data, data_splits: Dataset.DataSplits):
         market_gts, market_preds, market_confs = self.base_model.eval(data_splits.loader['market'])
         new_data_indices_total = []
-        market_indices = np.arange(len(market_gts))
-        conf_sorted_idx = np.argsort(market_confs) 
-        new_data_indices = acquistion.get_top_values(market_indices[conf_sorted_idx],n_data)
+        new_data_indices = acquistion.get_top_values_indices(market_confs, n_data)
         new_data_indices_total.append(new_data_indices) 
         clf_info = None
         return np.concatenate(new_data_indices_total), clf_info       
@@ -136,10 +133,8 @@ class Mix(NonSeqStrategy):
         score = clf.fit(self.base_model, data_splits.loader['val_shift'])
         market_dv, _ = clf.predict(data_splits.loader['market'])
         new_data_indices_total = []
-        market_indices = np.arange(len(market_dv))
-        sorted_idx = np.argsort(market_dv) # index of images ordered by their decision values
-        greedy_results = acquistion.get_top_values(market_indices[sorted_idx],n_data-n_data//2)
-        sample_results = acquistion.sample_acquire(market_indices,n_data//2)
+        greedy_results = acquistion.get_top_values_indices(market_dv, n_data-n_data//2)
+        sample_results = acquistion.sample_acquire(market_dv,n_data//2)
         new_data_cls_indices = np.concatenate([greedy_results, sample_results])
         new_data_indices_total.append(new_data_cls_indices)
         clf_info = None
@@ -161,11 +156,11 @@ class SeqCLF(Strategy):
         for round_i in range(rounds):
             acquire_instruction.set_round(round_i)
             new_data_round_indices, clf_info = self.sub_strategy.get_new_data_indices(acquire_instruction.round_data_per_class, dataset_splits)
-            new_data_round_set_no_aug = torch.utils.data.Subset(dataset_splits.dataset['market'],new_data_round_indices)
-            new_data_round_set = self.sub_strategy.get_new_data(dataset_splits, new_data_round_indices, new_model_config.augment)
+            new_data_round_set = torch.utils.data.Subset(dataset_splits.dataset['market'],new_data_round_indices)
+            new_data_round_set = self.sub_strategy.get_new_data(dataset_splits, new_data_round_indices, )
 
             dataset_splits.reduce('market', new_data_round_indices)
-            dataset_splits.expand('val_shift', new_data_round_set_no_aug)
+            dataset_splits.expand('val_shift', new_data_round_set)
 
             new_data_total_set = new_data_round_set  if (new_data_total_set == None) else  torch.utils.data.ConcatDataset([new_data_total_set,new_data_round_set])
 
@@ -185,7 +180,7 @@ class SeqCLF(Strategy):
     def log_data(self, model_config:Config.NewModel, data, acquire_instruction: Config.SequentialAc, detector):
         data_config = model_config.get_log_config('data')
         data_config.set_path(acquire_instruction)
-        Log.save(data, data_config, model_config.augment) # Save new data
+        Log.save(data, data_config) # Save new data
         clf_config = model_config.get_log_config('clf')
         clf_config.set_path(acquire_instruction)
         Log.save(detector.fitter.clf, clf_config) # Save new clf
@@ -203,11 +198,11 @@ class Seq(Strategy):
         for round_i in range(rounds):
             acquire_instruction.set_round(round_i)
             new_data_round_indices, clf_info = self.sub_strategy.get_new_data_indices(acquire_instruction.round_data_per_class, dataset_splits, old_model_config)
-            new_data_round_set_no_aug = torch.utils.data.Subset(dataset_splits.dataset['market'],new_data_round_indices)
-            new_data_round_set = self.sub_strategy.get_new_data(dataset_splits, new_data_round_indices, new_model_config.augment)
+            new_data_round_set = torch.utils.data.Subset(dataset_splits.dataset['market'],new_data_round_indices)
+            new_data_round_set = self.sub_strategy.get_new_data(dataset_splits, new_data_round_indices, )
 
             dataset_splits.reduce('market', new_data_round_indices)
-            dataset_splits.expand('train_clip', new_data_round_set_no_aug)
+            dataset_splits.expand('train_clip', new_data_round_set)
             dataset_splits.expand('train', new_data_round_set)
 
             model = Model.get_new(new_model_config, dataset_splits.loader['train'], dataset_splits.loader['val_shift'], model)
