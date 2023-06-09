@@ -2,13 +2,11 @@ import utils.objects.model as Model
 import utils.objects.Config as Config
 import utils.objects.Detector as Detector
 import utils.objects.dataset as Dataset
-
 import utils.log as log
 from abc import abstractmethod
 import numpy as np
 import torch
 import utils.statistics.subset as Subset
-import utils.acquistion as acquistion
 class prototype():
     def __init__(self,model_config:Config.NewModel) -> None:
         self.model_config = model_config
@@ -52,18 +50,25 @@ class benchmark(DV):
         # return (data_info['dv']<0).sum()/len(data_info['dv'])     
         return np.std(data_info['dv']), np.mean(data_info['dv'])
 class subset(prototype):
+    '''
+    Split test set by a dv threshold or model mistakes, and then feed test splits into models. \n
+    If split with threshold, then test set can get dv when setting up this checker.\n
+    If split with mistakes, TBD
+    '''
     def __init__(self, model_config: Config.NewModel, clip_processor: Detector.CLIPProcessor, clip_set_up_loader) -> None:
         super().__init__(model_config)
         self.clip_processor = clip_processor
         self.clip_set_up_loader = clip_set_up_loader
-    def setup(self, old_model_config:Config.OldModel, datasplits:Dataset.DataSplits):
-        self.base_model = Model.prototype_factory(old_model_config.model_type, self.clip_set_up_loader, self.clip_processor)
-        self.base_model.load(old_model_config)
-        self.clf = Detector.SVM(self.clip_set_up_loader, self.clip_processor)
-        score = self.clf.fit(self.base_model, datasplits.loader['val_shift'])
 
+    def setup(self, old_model_config:Config.OldModel, datasplits:Dataset.DataSplits, new_model_config: Config.NewModel):
+        self.base_model = Model.prototype_factory(old_model_config.base_type, self.clip_set_up_loader, self.clip_processor)
+        self.base_model.load(old_model_config)
+        # TODO: CLF can be made temporary
+        self.clf = Detector.SVM(self.clip_set_up_loader, self.clip_processor)
+        _ = self.clf.fit(self.base_model, datasplits.loader['val_shift'])
         gt, pred, _ = self.base_model.eval(datasplits.loader['test_shift'])
-        self.base_acc = (gt == pred).mean()*100   
+        self.base_acc = (gt == pred).mean()*100 
+        self.test_info = self.get_test_info(datasplits, new_model_config)  
 
     def get_test_info(self, datasplits:Dataset.DataSplits, new_model_config: Config.NewModel):
         test_info = {}
@@ -75,24 +80,23 @@ class subset(prototype):
         test_info['loader'] = datasplits.loader['test_shift']
         return test_info
 
-    def get_subset_loader(self, threshold, acquistion_config, test_info):
-        self.model_config.set_path(acquistion_config=acquistion_config)
-        loader = Subset.threshold_subset_setter().get_subset_loders(test_info,threshold)        
+    def get_subset_loader(self, threshold):
+        loader = Subset.threshold_subset_setter().get_subset_loders(self.test_info,threshold)        
         return loader
     
     # def set_subset_loader(self, loader):
     #     self.test_info['loader'] = loader
 
-    def run(self, acquistion_config:Config.Acquistion, threshold, test_info):
-        loader = self.get_subset_loader(threshold, acquistion_config, test_info)
-        # self.set_subset_loader(loader)
+    def run(self, threshold, acquisition_config):
+        loader = self.get_subset_loader(threshold)
+        self.model_config.set_path(acquisition_config)
         return self._target_test(loader)
 
     def _target_test(self, loader):
         '''
         loader: new_model + old_model
         '''
-        new_model = Model.prototype_factory(self.model_config.model_type, self.clip_set_up_loader, self.clip_processor)
+        new_model = Model.prototype_factory(self.model_config.base_type, self.clip_set_up_loader, self.clip_processor)
         new_model.load(self.model_config)
         gt,pred,_  = new_model.eval(loader['new_model'])
         new_correct = (gt==pred)
