@@ -122,7 +122,7 @@ class CLIPProcessor:
         with torch.no_grad():
             with autocast():
                 for batch_info in dataloader:
-                    x = batch_info[0] # (image, labels)
+                    x = batch_info[0] # (image, coarse_label, fine_label)
                     x = x.to(self.device)
                     image_features = self.clip_model.encode_image(self.preprocess_clip(x))
                     clip_activations.append(image_features.cpu())
