@@ -1,3 +1,6 @@
+import binary.utils.objects.Config as Config
+import binary.utils.objects.Detector as Detector
+import binary.utils.objects.dataset as Dataset
 import utils.objects.model as Model
 import utils.objects.Config as Config
 import utils.objects.Detector as Detector
@@ -7,6 +10,7 @@ from abc import abstractmethod
 import numpy as np
 import torch
 import utils.statistics.subset as Subset
+from utils.statistics.stat_test import get_norm_pdf, dv_dstr, get_kde
 class prototype():
     def __init__(self,model_config:Config.NewModel) -> None:
         self.model_config = model_config
@@ -60,7 +64,7 @@ class subset(prototype):
         self.clip_processor = clip_processor
         self.clip_set_up_loader = clip_set_up_loader
 
-    def setup(self, old_model_config:Config.OldModel, datasplits:Dataset.DataSplits, new_model_config: Config.NewModel):
+    def setup(self, old_model_config:Config.OldModel, datasplits:Dataset.DataSplits):
         self.base_model = Model.prototype_factory(old_model_config.base_type, self.clip_set_up_loader, self.clip_processor)
         self.base_model.load(old_model_config)
         # TODO: CLF can be made temporary
@@ -68,27 +72,24 @@ class subset(prototype):
         _ = self.clf.fit(self.base_model, datasplits.loader['val_shift'])
         gt, pred, _ = self.base_model.eval(datasplits.loader['test_shift'])
         self.base_acc = (gt == pred).mean()*100 
-        self.test_info = self.get_test_info(datasplits, new_model_config)  
+        self.test_info = self._get_test_info(datasplits)  
 
-    def get_test_info(self, datasplits:Dataset.DataSplits, new_model_config: Config.NewModel):
+    def _get_test_info(self, datasplits:Dataset.DataSplits):
         test_info = {}
         test_dv, _ = self.clf.predict(datasplits.loader['test_shift'])        
         test_info['dv'] = test_dv
-        test_info['old_batch_size'] = new_model_config.batch_size
-        test_info['new_batch_size'] = new_model_config.new_batch_size
+        test_info['old_batch_size'] = self.model_config.batch_size
+        test_info['new_batch_size'] = self.model_config.new_batch_size
         test_info['dataset'] = datasplits.dataset['test_shift']
-        test_info['loader'] = datasplits.loader['test_shift']
+        # test_info['loader'] = datasplits.loader['test_shift']
         return test_info
 
     def get_subset_loader(self, threshold):
         loader = Subset.threshold_subset_setter().get_subset_loders(self.test_info,threshold)        
         return loader
-    
-    # def set_subset_loader(self, loader):
-    #     self.test_info['loader'] = loader
 
-    def run(self, threshold, acquisition_config):
-        loader = self.get_subset_loader(threshold)
+    def run(self, acquisition_config: Config.Acquistion):
+        loader = self.get_subset_loader(acquisition_config.bound)
         self.model_config.set_path(acquisition_config)
         return self._target_test(loader)
 
@@ -121,7 +122,30 @@ class subset(prototype):
             assert total_correct.size == self.test_info['gt'].size
             acc_change.append(total_correct.mean()*100-self.base_acc)
         return acc_change
-    
+
+
+class probability(subset):
+    def __init__(self, model_config: Config.NewModel, clip_processor: Detector.CLIPProcessor, clip_set_up_loader) -> None:
+        super().__init__(model_config, clip_processor, clip_set_up_loader)   
+    def setup(self, old_model_config:Config.OldModel, datasplits:Dataset.DataSplits, pdf_method = 'norm'):
+        super().setup(old_model_config, datasplits) 
+        cor_dv, incor_dv = dv_dstr(old_model_config, datasplits.loader['val_shift'], self.clf)
+        correct_prior = (len(cor_dv)) / (len(cor_dv) + len(incor_dv))
+        correct_dstr = Subset.disrtibution(correct_prior, self.get_pdf(cor_dv, pdf_method))
+        incorrect_dstr =  Subset.disrtibution(1 - correct_prior, self.get_pdf(incor_dv, pdf_method))
+        self.loader = Subset.probability_setter().get_subset_loders(self.test_info, correct_dstr, incorrect_dstr)
+    def get_pdf(self, value, method):
+        if method == 'norm':
+            return get_norm_pdf(value)
+        else:
+            return get_kde(value)
+    def run(self, acquisition_config):
+        self.model_config.set_path(acquisition_config)
+        return self._target_test(self.loader)
+
+    def _target_test(self, loader):
+        return super()._target_test(loader)
+
 class total(prototype):
     def __init__(self, model_config: Config.NewModel) -> None:
         super().__init__(model_config)
@@ -153,6 +177,8 @@ def factory(check_method, model_config,  clip_processor: Detector.CLIPProcessor,
         product = total(model_config)
     elif check_method == 'bm':
         product = benchmark(model_config)
+    elif check_method == 'prob':
+        product = probability(model_config, clip_processor, clip_set_up_loader) 
     else:
         product = subset(model_config, clip_processor, clip_set_up_loader) 
     return product
