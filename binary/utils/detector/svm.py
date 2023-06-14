@@ -4,7 +4,7 @@ import numpy as np
 from sklearn.svm import LinearSVC, SVC
 import numpy as np
 import sklearn.metrics as sklearn_metrics
-from sklearn.model_selection import cross_val_score
+from sklearn.model_selection import cross_val_score, StratifiedKFold
 import torch.nn as nn
 import torch.nn as nn
 
@@ -28,7 +28,7 @@ class SVMPreProcessing(nn.Module):
             latents = torch.tensor(latents)    
         return latents/torch.linalg.norm(latents, dim=1, keepdims=True)
     
-    def whiten(self, latents):
+    def standardize(self, latents):
         if not torch.is_tensor(latents):
             latents = torch.tensor(latents)    
         return (latents - self.mean) / self.std
@@ -37,7 +37,7 @@ class SVMPreProcessing(nn.Module):
         if not torch.is_tensor(latents):
             latents = torch.tensor(latents)    
         if self.mean is not None:
-            latents = self.whiten(latents)
+            latents = self.standardize(latents)
         if self.do_normalize:
             latents = self.normalize(latents)
         return latents
@@ -65,6 +65,18 @@ def train(latents, model_gts, model_preds, balanced=True, split_and_search=False
     best_clf, best_cv = choose_svm_hpara(latents, model_correctness, class_weight, cv, kernel, split_and_search)
     best_clf.fit(latents, model_correctness)
     return best_clf, best_cv  
+
+def shuffl_train(latents, model_gts, model_preds, balanced=True, split_and_search=False, cv=2, svm_args=None, C_ =1):
+    print(C_)
+    class_weight = 'balanced' if balanced else None        
+    model_correct_pred_mask = (model_preds == model_gts)
+    model_correctness = np.zeros(len(model_gts))
+    model_correctness[model_correct_pred_mask] = 1
+    kernel = svm_args['kernel']
+    best_clf = SVC(C= C_, kernel=kernel, class_weight=class_weight, gamma='auto')
+    best_clf.fit(latents, model_correctness)
+    return best_clf, None  
+
 import random
 def choose_svm_hpara(clf_input, gt, class_weight, cv_splits, kernel, split_and_search):
     '''
@@ -72,8 +84,8 @@ def choose_svm_hpara(clf_input, gt, class_weight, cv_splits, kernel, split_and_s
     '''
     best_C, best_cv, best_clf = 1, -np.inf, None
     if split_and_search:
-        shuffle_idx = np.arange(len(gt))
         random.seed(0)
+        shuffle_idx = np.arange(len(gt))
         random.shuffle(shuffle_idx)
         clf_input = clf_input[shuffle_idx]
         gt = gt[shuffle_idx]
@@ -85,10 +97,9 @@ def choose_svm_hpara(clf_input, gt, class_weight, cv_splits, kernel, split_and_s
                 best_cv = cv_score
                 best_C = C_
                 best_clf = clf
+        print('best C:', best_C)
     else:
-        # TODO
-        # Set a default C_
-        best_clf, best_cv = fit_svm(C=1.0, x=clf_input, gt=gt, class_weight=class_weight, cv=cv_splits, kernel=kernel)
+        best_clf = SVC(C=1, kernel=kernel, class_weight=class_weight, gamma='auto')
     return best_clf, best_cv
 
 def fit_svm(C, class_weight, x, gt, cv=2, kernel='linear'):
@@ -101,6 +112,7 @@ def fit_svm(C, class_weight, x, gt, cv=2, kernel='linear'):
     clf = SVC(C=C, kernel=kernel, class_weight=class_weight, gamma='auto')
     cv_scores = cross_val_score(clf, x, gt, cv=cv, scoring=scorer)
     average_cv_scores = np.mean(cv_scores)*100
+    print('cv scores',cv_scores)
     return clf, average_cv_scores
 
 def predict(latents, clf: SVC, model_preds=None, model_gts=None, compute_metrics=False):
