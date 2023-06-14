@@ -28,28 +28,47 @@ def precision(clf, clip_processor, dataloader, base_model):
     return np.intersect1d(clf_cls_incorrect, real_cls_incorrect).size / clf_cls_incorrect.size
 
 class SVM():
-    def __init__(self, set_up_dataloader, clip_processor:CLIPProcessor, split_and_search=False) -> None:
+    def __init__(self, set_up_dataloader, clip_processor:CLIPProcessor, split_and_search=False, embedding = True) -> None:
         self.clip_processor = clip_processor
-        set_up_embedding, _ = self.clip_processor.evaluate_clip_images(set_up_dataloader)        
+        self.embedding = embedding
         self.fitter = SVMFitter(method=config['clf'], svm_args=config['clf_args'],cv=config['clf_args']['k-fold'], split_and_search = split_and_search)
-        self.fitter.set_preprocess(set_up_embedding) 
+        set_up_latent = self.get_latent(set_up_dataloader)
+        self.fitter.set_preprocess(set_up_latent) 
+        # plt.hist(set_up_img[0], 50)
+        # plt.savefig('figure/img.png')
+        # plt.close()
 
-    def fit(self, base_model:Model.prototype, fit_data):
-        fit_gts, fit_preds, _ = base_model.eval(fit_data)
-        fit_embedding, fit_gts_clip = self.clip_processor.evaluate_clip_images(fit_data)
-        assert (fit_gts_clip == fit_gts).sum() == len(fit_gts)
-        score = self.fitter.fit(model_preds=fit_preds, model_gts=fit_gts, latents=fit_embedding)        
+    def get_latent(self, data_loader):
+        if self.embedding:
+            latent, _ = self.clip_processor.evaluate_clip_images(data_loader)  
+        else:
+            latent = get_flattened(data_loader) 
+        return latent
+    
+    def fit(self, base_model:Model.prototype, fit_loader, C=1):
+        fit_gts, fit_preds, _ = base_model.eval(fit_loader)
+        fit_latent = self.get_latent(fit_loader)
+        score = self.fitter.fit(model_preds=fit_preds, model_gts=fit_gts, latents=fit_latent, C=C)        
         return score
     
     def predict(self, data_loader, compute_metrics=False, base_model:Model.prototype=None):
         if compute_metrics:
-            _, dataset_preds, _ = base_model.eval(data_loader)
+            data_gts, dataset_preds, _ = base_model.eval(data_loader)
         else:
-            dataset_preds = None
-        embedding, data_gts = self.clip_processor.evaluate_clip_images(data_loader)
-        _, dv, metric = self.fitter.predict(latents=embedding, model_gts=data_gts, compute_metrics=compute_metrics, model_preds=dataset_preds)
+            data_gts, dataset_preds = None, None
+        latent = self.get_latent(data_loader)
+        _, dv, metric = self.fitter.predict(latents=latent, model_gts=data_gts, compute_metrics=compute_metrics, model_preds=dataset_preds)
         return dv, metric        
     
 def load_clip(device):
     clip_processor = CLIPProcessor(ds_mean=config['data']['mean'], ds_std=config['data']['std'], device=device)
     return clip_processor
+
+import torch
+def get_flattened(loader):
+    img = []
+    for x, y,fine_y in loader:
+        # tmp = torch.flatten(x, start_dim=1)
+        # print(tmp.shape)
+        img.append(torch.flatten(x, start_dim=1))
+    return torch.cat(img, dim=0)
