@@ -34,9 +34,12 @@ class SVMFitter:
         else:
             print("No whitening")
         
-    def fit(self, model_preds, model_gts, latents):
+    def fit(self, model_preds, model_gts, latents, C):
         assert self.pre_process is not None, 'run set_preprocess on a training set first'
         latents = self.pre_process(latents).numpy()
+        # clf, score = svm_utils.shuffl_train(latents=latents, model_gts=model_gts, 
+        #                                                 model_preds=model_preds, balanced=self.balanced, 
+        #                                                 split_and_search=self.split_and_search,svm_args=self.svm_args, C_=C)
         clf, score = svm_utils.train(latents=latents, model_gts=model_gts, 
                                                         model_preds=model_preds, balanced=self.balanced, 
                                                         split_and_search=self.split_and_search,svm_args=self.svm_args)
