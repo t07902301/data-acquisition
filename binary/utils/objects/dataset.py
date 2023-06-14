@@ -11,8 +11,9 @@ data_config = config['data']
 max_subclass_num = config['hparams']['subclass']
 base_transform = transforms.Compose([
     transforms.ToTensor(),
-    transforms.Normalize(mean=np.array(data_config['mean'])/255, std=np.array(data_config['std'])/255)])
-train_transform = transforms.Compose([
+    transforms.Normalize(mean=np.array(data_config['mean'])/255, std=np.array(data_config['std'])/255),
+    ])
+augment_transform = transforms.Compose([
     transforms.RandomCrop(32, padding=4),
     transforms.RandomHorizontalFlip(),
     base_transform
@@ -149,7 +150,7 @@ def get_vis_transform(std,mean):
 
 def get_raw_ds(ds_root):
     train_ds = cifar.CIFAR100(ds_root, train=True,transform=base_transform,coarse=True)
-    # aug_train_ds = cifar.CIFAR100(ds_root, train=True,transform=train_transform,coarse=True)
+    # aug_train_ds = cifar.CIFAR100(ds_root, train=True,transform=augment_transform,coarse=True)
     test_ds = cifar.CIFAR100(ds_root, train=False,transform=base_transform,coarse=True)
     return train_ds,test_ds
 
