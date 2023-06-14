@@ -95,7 +95,8 @@ class NewModel(ModelConfig):
             root = self.set_seq_root(self.root, acquistion_config)
         else:
             root = self.root
-        self.path = os.path.join(root, '{}_{}_{}.pt'.format(acquistion_config.method, acquistion_config.n_ndata, acquistion_config.bound))
+        bound_name = '_{}'.format(acquistion_config.bound) if acquistion_config.bound != None else ''
+        self.path = os.path.join(root, '{}_{}{}.pt'.format(acquistion_config.method, acquistion_config.n_ndata, bound_name))
     
     def set_root(self, model_cnt):
         pure_name = 'pure' if self.pure else 'non-pure'
