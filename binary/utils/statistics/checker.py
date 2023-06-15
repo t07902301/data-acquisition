@@ -107,6 +107,8 @@ class subset(prototype):
             gt,pred,_  = self.base_model.eval(loader['old_model'])
             old_correct = (gt==pred)
             total_correct = np.concatenate((old_correct,new_correct))
+        print('old model Incorrect predictions in selected test images:', Subset.incorrect_pred_stat(loader['new_model'], self.base_model))
+        
         return total_correct.mean()*100 - self.base_acc 
     
     def iter_test(self):
@@ -127,13 +129,13 @@ class subset(prototype):
 class probability(subset):
     def __init__(self, model_config: Config.NewModel, clip_processor: Detector.CLIPProcessor, clip_set_up_loader) -> None:
         super().__init__(model_config, clip_processor, clip_set_up_loader)   
-    def setup(self, old_model_config:Config.OldModel, datasplits:Dataset.DataSplits, pdf_method = 'norm'):
+    def setup(self, old_model_config:Config.OldModel, datasplits:Dataset.DataSplits, bound,  pdf_method = 'norm'):
         super().setup(old_model_config, datasplits) 
         cor_dv, incor_dv = dv_dstr(old_model_config, datasplits.loader['val_shift'], self.clf)
         correct_prior = (len(cor_dv)) / (len(cor_dv) + len(incor_dv))
         correct_dstr = Subset.disrtibution(correct_prior, self.get_pdf(cor_dv, pdf_method))
         incorrect_dstr =  Subset.disrtibution(1 - correct_prior, self.get_pdf(incor_dv, pdf_method))
-        self.loader = Subset.probability_setter().get_subset_loders(self.test_info, correct_dstr, incorrect_dstr)
+        self.loader = Subset.probability_setter().get_subset_loders(self.test_info, correct_dstr, incorrect_dstr, bound)
     def get_pdf(self, value, method):
         if method == 'norm':
             return get_norm_pdf(value)
@@ -169,16 +171,3 @@ class total(prototype):
             base_acc = (base_gt==base_pred).mean()*100
             acc = (new_gt==new_pred).mean()*100
             return acc - base_acc
-
-def factory(check_method, model_config,  clip_processor: Detector.CLIPProcessor, clip_set_up_loader):
-    if check_method == 'dv':
-        product = DV(model_config)
-    elif check_method == 'total':
-        product = total(model_config)
-    elif check_method == 'bm':
-        product = benchmark(model_config)
-    elif check_method == 'prob':
-        product = probability(model_config, clip_processor, clip_set_up_loader) 
-    else:
-        product = subset(model_config, clip_processor, clip_set_up_loader) 
-    return product

@@ -27,17 +27,17 @@ class probability_setter(subset_setter):
     def __init__(self) -> None:
         super().__init__()
 
-    def go_to_dstr(self, value, target_dstr: disrtibution, other_dstr:disrtibution):
+    def go_to_dstr(self, value, target_dstr: disrtibution, other_dstr:disrtibution, bound):
         probability_1 = (target_dstr.prior * target_dstr.dstr.pdf(value)) / (target_dstr.prior * target_dstr.dstr.pdf(value) + other_dstr.prior * other_dstr.dstr.pdf(value))
-        if probability_1 >= 0.5:
+        if probability_1 >= bound:
             return True
         else:
             return False
 
-    def get_subset_loders(self, data_info, correct_dstr: disrtibution, incorrect_dstr: disrtibution):
+    def get_subset_loders(self, data_info, correct_dstr: disrtibution, incorrect_dstr: disrtibution, bound):
         selected_mask = []
         for value in data_info['dv']:
-            selected_decision = self.go_to_dstr(value, incorrect_dstr, correct_dstr)
+            selected_decision = self.go_to_dstr(value, incorrect_dstr, correct_dstr, bound)
             selected_mask.append(selected_decision)
         selected_mask = np.array(selected_mask)
         dataset_indices = np.arange(len(data_info['dataset']))
@@ -49,9 +49,9 @@ class probability_setter(subset_setter):
             'new_model':test_selected_loader,
             'old_model': remained_test_loader
         }   
-        print('selected test images: {}%'.format(np.round(len(test_selected)/len(data_info['dv']), decimals=3)*100))
-        print('new cls percent:', new_cls_stat(test_selected))
-        print('the max dv:', np.max(data_info['dv'][dataset_indices[selected_mask]]))
+        # print('selected test images: {}%'.format(np.round(len(test_selected)/len(data_info['dv']), decimals=3)*100))
+        # print('new cls percent:', new_cls_stat(test_selected))
+        # print('the max dv:', np.max(data_info['dv'][dataset_indices[selected_mask]]))
         return test_loader
     
 class threshold_subset_setter(subset_setter):
@@ -123,3 +123,10 @@ def new_cls_stat(dataset):
         check_labels_cnt += (label==ds_labels).sum()
     check_labels_cnt = check_labels_cnt/len(ds_labels) * 100
     return check_labels_cnt
+
+def incorrect_pred_stat(dataloader, model:Model.prototype):
+    '''
+    Get misclassification proportion on some labels
+    '''
+    gt,pred,_  = model.eval(dataloader)
+    return (gt != pred).sum() / len(gt) *100
