@@ -42,6 +42,7 @@ def main(epochs, new_model_setter='retrain', pure=False, model_dir ='', strategy
 
     # method_list, new_img_num_list = ['dv','sm'], [150,200]
     # new_img_num_list = [150,200,]
+    bounds = [None]
     for bound in bounds:
         parse_para = (batch_size, superclass_num,model_dir, device_config, base_type, pure, new_model_setter, seq_rounds_config)
         bound_run(parse_para, epochs, ds_list, strategy, method_list, new_img_num_list, bound)
