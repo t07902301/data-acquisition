@@ -7,7 +7,7 @@ def remove_old_data(dataset, sample_ratio):
     _, left_data = Dataset.split_dataset(dataset, old_labels, sample_ratio)
     return left_data
 
-def run(ds:Dataset.DataSplits, model_config:Config.OldModel, clip_processor, old_data_ratio):
+def run(ds:Dataset.DataSplits, model_config:Config.OldModel, clip_processor, old_data_ratio, clf_fit_ds, clf_check_ds):
     if model_config.base_type == 'svm':
         base_model = Model.svm(ds.loader['train_clip'], clip_processor)
     else:
@@ -20,24 +20,24 @@ def run(ds:Dataset.DataSplits, model_config:Config.OldModel, clip_processor, old
     gt,pred,_  = base_model.eval(ds.loader['test_shift'])
     acc_shift = (gt==pred).mean()*100
 
-    clf = Detector.SVM(ds.loader['train_clip'], clip_processor)
-    score = clf.fit(base_model, ds.loader['test_shift'])
-    _, detect_prec = clf.predict(ds.loader['test_shift'], compute_metrics=True, base_model=base_model)
+    clf = Detector.SVM(ds.loader['train_clip'], clip_processor, split_and_search=False)
+    score = clf.fit(base_model, ds.loader[clf_fit_ds], 1)
+    _, detect_prec = clf.predict(ds.loader[clf_check_ds], compute_metrics=True, base_model=base_model)
 
-    shift_score = Subset.mis_cls_stat('test_shift', ds, base_model)
+    shift_score = Subset.mis_cls_stat(clf_fit_ds, ds, base_model)
 
-    intersection_area = stat_test.run(clf, ds.loader['test_shift'], base_model, model_config, old_data_ratio)
+    # intersection_area = stat_test.run(clf, ds.loader['market'], base_model, model_config, old_data_ratio)
+    intersection_area = stat_test.run(clf, ds.loader[clf_check_ds], model_config, old_data_ratio)
 
     return acc, acc_shift, detect_prec, shift_score, intersection_area
 
-def ratio_run(ratio, dataset, old_model_config, clip_processor):
+def ratio_run(ratio, dataset, old_model_config, clip_processor, clf_fit_ds = 'val_shift', clf_check_ds='test_shift'):
     ds = deepcopy(dataset)
-    ds['test_shift'] = remove_old_data(ds['test_shift'], ratio)
+    ds[clf_fit_ds] = remove_old_data(ds[clf_fit_ds], ratio)
+    print(clf_fit_ds, len(ds[clf_fit_ds]))
     ds = Dataset.DataSplits(ds, old_model_config.batch_size)
-    acc, acc_shift, detect_prec, shift_score, intersection_area = run(ds, old_model_config, clip_processor, ratio)
-    print(len(ds.dataset['test_shift']))
+    acc, acc_shift, detect_prec, shift_score, intersection_area = run(ds, old_model_config, clip_processor, ratio, clf_fit_ds, clf_check_ds)
     return acc, acc_shift, detect_prec, shift_score, intersection_area.tolist()[0]*100
-
 
 def epoch_run(old_model_config: Config.OldModel, dataset, old_data_ratio_list, clip_processor):
     acc_epo, acc_shift_epo, detect_prec_epo, shift_epo, intersection_area_epo = [], [], [], [], []
@@ -54,7 +54,8 @@ def main(epochs,  model_dir ='', device_id=0, base_type=''):
     batch_size, label_map, new_img_num_list, superclass_num, ratio, seq_rounds_config, ds_list, device_config = set_up(epochs, False, device_id)
     clip_processor = Detector.load_clip(device_config)
 
-    old_data_ratio_list, _ = np.linspace(0, 1, retstep=True, num=5)
+    # old_data_ratio_list, _ = np.linspace(0, 1, retstep=True, num=5)
+    old_data_ratio_list = [0]
     acc_list, acc_shift_list, detect_prec_list, shift_list, intersection_area_list = [], [], [], [], []
 
     for epo in range(epochs):
@@ -67,8 +68,9 @@ def main(epochs,  model_dir ='', device_id=0, base_type=''):
         detect_prec_list.append(detect_prec_epo)
         shift_list.append(shift_epo)
         intersection_area_list.append(intersection_area_epo)
+        
     # Print the table headers
-    print('{}(%), {}(%), {}(%), {}(%), {}(%),'.format('Old Data Removal Ratio', 'Base Model Average Acc', 'SVM Precision', 'New Data Percent on Model Mistakes', 'Overlapped Area'))
+    print('{}(%), {}(%), {}(%), {}(%), {}(%),'.format('Old Data Removal Ratio', 'Base Model Average Acc', 'SVM Balanced Acc', 'New Data Percent on Model Mistakes', 'Overlapped Area'))
 
     acc_shift_list = np.round(np.mean(acc_shift_list, axis=0), decimals=3)
     detect_prec_list = np.round(np.mean(detect_prec_list, axis=0), decimals=3)
