@@ -6,10 +6,7 @@ import failure_directions.src.trainer as trainer_utils
 import torch
 from torch.cuda.amp import autocast
 import torch.nn as nn
-from utils.env import model_env
 from utils import config
-from utils.objects.Config import OldModel
-# from utils.objects.dataset import DataSplits
 from utils.detector.wrappers import SVMFitter, CLIPProcessor
 from abc import abstractmethod
 
