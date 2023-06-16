@@ -1,27 +1,18 @@
+from tools import epoch_run, get_probab_checker
 from utils.strategy import *
 from utils.set_up import set_up
-import utils.statistics.checker as Checker
-from tools import epoch_run
 
-def bound_run(epochs, parse_para, dataset, new_img_num_list, method_list, acquire_instruction:Config.Acquistion):
+def bound_run(epochs, parse_para, dataset_list, new_img_num_list, method_list, clip_processor, acquire_instruction:Config.Acquistion, stream_instruction:Config.Stream):
     results = []
     bound_stat_list = []
     for epo in range(epochs):
         print('in epoch {}'.format(epo))
-        checker = get_probab_checker(epo, parse_para, dataset)
+        checker = get_probab_checker(epo, parse_para, dataset_list[epo], clip_processor, stream_instruction)
         result_epoch, bound_stat = epoch_run(new_img_num_list, method_list, acquire_instruction, checker)
         results.append(result_epoch)
         bound_stat_list.append(bound_stat)
     return results, bound_stat_list
 
-def get_probab_checker(epoch, parse_para, dataset, clip_processor, bound, pdf_method = 'norm'):
-    batch_size, superclass_num, model_dir, device_config, pure, new_model_setter, seq_rounds_config = parse_para
-    old_model_config = Config.OldModel(batch_size['base'], superclass_num, model_dir, device_config, epoch, base_type='resnet')
-    new_model_config = Config.NewModel(batch_size['base'], superclass_num, model_dir, device_config, epoch, pure, new_model_setter, batch_size['new'], base_type='resnet')
-    dataset_splits = Dataset.DataSplits(dataset, old_model_config.batch_size)
-    checker = Checker.probability(new_model_config, clip_processor, dataset_splits.loader['train_clip']) 
-    checker.setup(old_model_config, dataset_splits, bound, pdf_method)
-    return checker
 
 def main(epochs, new_model_setter='retrain', pure=False, model_dir ='', device=0):
     print('Use pure: ',pure)
@@ -36,16 +27,16 @@ def main(epochs, new_model_setter='retrain', pure=False, model_dir ='', device=0
     clip_processor = Detector.load_clip(device_config)
     parse_para = (batch_size, superclass_num, model_dir, device_config, pure, new_model_setter, seq_rounds_config)
     acquire_instruction = Config.AcquistionFactory('seq',seq_rounds_config) 
-
+    stream_instruction = Config.ProbabStream(bound=0.7, pdf='kde')
     # bounds = [-1.5, -1, -0.8, -0.5, 0, 0.5]
     bounds = [ None]
-    new_img_num_list = [100]
+    # new_img_num_list = [100]
     bound_stat_list = []
     average_results = []
     for bound in bounds:
         print('In treshold: {}'.format(bound))
         acquire_instruction.bound = bound
-        result, bound_stat = bound_run(epochs, parse_para, ds_list, clip_processor, new_img_num_list, method_list, acquire_instruction)
+        result, bound_stat = bound_run(epochs, parse_para, ds_list, new_img_num_list, method_list, clip_processor, acquire_instruction, stream_instruction)
         method_result = np.array(result)[:, 0, :]
         average_results.append(np.round(np.mean(method_result, axis=0), decimals=3).tolist())
         bound_stat_list.append(bound_stat)
@@ -53,7 +44,7 @@ def main(epochs, new_model_setter='retrain', pure=False, model_dir ='', device=0
     for i in average_results:
         print(*i, sep=',')
 
-    print(np.round(np.mean(bound_stat_list, axis=1), decimals=2))
+    # print(np.round(np.mean(bound_stat_list, axis=1), decimals=2))
 
 import argparse
 if __name__ == '__main__':
