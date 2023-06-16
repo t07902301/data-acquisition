@@ -25,7 +25,11 @@ def save(data, log_config:Config.Log):
     torch.save(data, log_config.path)
     print('{} log save to {}'.format(log_config.log_symbol, log_config.path))    
 
-def get_log_data(acquisition_config:Config.Acquistion, model_config:Config.NewModel, dataset_splits:Dataset.DataSplits):
+def get_log_data(acquisition_config:Config.Acquistion, model_config:Config.NewModel, dataset):
+    '''
+    The dataset and log need to be consistent. 
+    '''
+
     if 'seq' in acquisition_config.method:
         log_symbol = 'data'
     else:
@@ -37,7 +41,7 @@ def get_log_data(acquisition_config:Config.Acquistion, model_config:Config.NewMo
 
     if log_symbol == 'indices':
         new_data_indices = log_content
-        new_data = torch.utils.data.Subset(dataset_splits.dataset['market'], new_data_indices)
+        new_data = torch.utils.data.Subset(dataset, new_data_indices)
     else:
         new_data = log_content
 
