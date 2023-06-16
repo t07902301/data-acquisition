@@ -2,6 +2,19 @@ import os
 from utils import config
 from abc import abstractmethod
 
+class Stream():
+    def __init__(self, bound) -> None:
+        self.bound = bound
+
+class ProbabStream(Stream):
+    def __init__(self, bound, pdf) -> None:
+        super().__init__(bound)
+        self.pdf = pdf
+
+class DVStream(Stream):
+    def __init__(self, bound) -> None:
+        super().__init__(bound)
+
 class Acquistion():
     method: str
     n_ndata:int
