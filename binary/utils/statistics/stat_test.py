@@ -52,7 +52,7 @@ def ecdf(raw_values, test_value=None):
     else:
         return np.array([np.sum(raw_values <= test_value) / n_raw_vals])
     
-def plot(values, n_bins, path, clf_metrics, removal_ratio):
+def overlap_plot(values, n_bins, path, clf_metrics, removal_ratio):
     val_key = 'correct pred'
     bin_value, bins, _ = plt.hist(values[val_key], bins=n_bins, alpha=0.3, density=True, color='orange', label=val_key)
     pdf_x = get_val_space(values[val_key])
@@ -113,10 +113,8 @@ def get_fig_name(fig_dir, model_type, model_cnt, removal_ratio):
     fig_path = os.path.join(fig_root, '{}.png'.format(removal_ratio))
     return fig_path
 
-def dv_dstr(model_config: Config.OldModel, dataloader, clf:Detector.SVM, clip_processor=None, clip_set_up_loader=None):
-    base_model = Model.prototype_factory(model_config.base_type, clip_set_up_loader, clip_processor)
-    base_model.load(model_config)
-    dataset_gts, dataset_preds, _ = base_model.eval(dataloader)
+def get_dv_dstr(model: Model.prototype, dataloader, clf:Detector.SVM):
+    dataset_gts, dataset_preds, _ = model.eval(dataloader)
     dv, _ = clf.predict(dataloader, compute_metrics=False)
     cor_mask = (dataset_gts == dataset_preds)
     incor_mask = ~cor_mask
@@ -125,7 +123,7 @@ def dv_dstr(model_config: Config.OldModel, dataloader, clf:Detector.SVM, clip_pr
     return cor_dv, incor_dv
     
 def run(clf:Detector.SVM, dataloader, model_config: Config.OldModel, removal_ratio=0, n_bins = 20):
-    cor_dv, incor_dv = dv_dstr(model_config, dataloader, clf)
+    cor_dv, incor_dv = get_dv_dstr(model_config, dataloader, clf)
     total_dv = {
         'correct pred': cor_dv,
         'incorrect pred': incor_dv
@@ -136,5 +134,21 @@ def run(clf:Detector.SVM, dataloader, model_config: Config.OldModel, removal_rat
     #     'SVM ': np.round(precision, decimals=2),
     #     'Model': np.round(cor_mask.mean()*100, decimals=2)
     # }
-    intersection_area = plot(total_dv, n_bins=n_bins, path=fig_path, clf_metrics=None, removal_ratio = removal_ratio)
+    intersection_area = overlap_plot(total_dv, n_bins=n_bins, path=fig_path, clf_metrics=None, removal_ratio = removal_ratio)
     return intersection_area
+
+def base_plot(value, label, color, pdf_method=None, range=None):
+    plt.hist(value, bins= 10 , alpha=0.3, density=True, color=color, label=label, range=range)
+    if pdf_method != None:
+        dstr = get_pdf(value, pdf_method)
+        pdf_x = get_val_space(value)
+        if pdf_method == 'norm':
+            plt.plot(pdf_x, dstr.pdf(pdf_x), color=color)
+        else:
+            plt.plot(pdf_x, dstr.evaluate(pdf_x), color=color)
+
+def get_pdf(value, method):
+    if method == 'norm':
+        return get_norm_pdf(value)
+    else:
+        return get_kde(value)
