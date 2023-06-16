@@ -27,19 +27,27 @@ class probability_setter(subset_setter):
     def __init__(self) -> None:
         super().__init__()
 
-    def go_to_dstr(self, value, target_dstr: disrtibution, other_dstr:disrtibution, bound):
-        probability_1 = (target_dstr.prior * target_dstr.dstr.pdf(value)) / (target_dstr.prior * target_dstr.dstr.pdf(value) + other_dstr.prior * other_dstr.dstr.pdf(value))
-        if probability_1 >= bound:
-            return True
-        else:
-            return False
+    def norm_probab_target(self, value, target_dstr: disrtibution, other_dstr:disrtibution):
+        probability_target = (target_dstr.prior * target_dstr.dstr.pdf(value)) / (target_dstr.prior * target_dstr.dstr.pdf(value) + other_dstr.prior * other_dstr.dstr.pdf(value))
+        
+        return probability_target
+   
+    def kde_probab_target(self, value, target_dstr: disrtibution, other_dstr:disrtibution):
+        probability_target = (target_dstr.prior * target_dstr.dstr.evaluate(value)) / (target_dstr.prior * target_dstr.dstr.evaluate(value) + other_dstr.prior * other_dstr.dstr.evaluate(value))
+        # probability_target = (target_dstr.prior * target_dstr.dstr.pdf(value)) / (target_dstr.prior * target_dstr.dstr.pdf(value) + other_dstr.prior * other_dstr.dstr.pdf(value))
 
-    def get_subset_loders(self, data_info, correct_dstr: disrtibution, incorrect_dstr: disrtibution, bound):
-        selected_mask = []
+        return probability_target
+
+    def get_subset_loders(self, data_info, correct_dstr: disrtibution, incorrect_dstr: disrtibution, stream_instruction:Config.ProbabStream):
+        selected_probab = []
         for value in data_info['dv']:
-            selected_decision = self.go_to_dstr(value, incorrect_dstr, correct_dstr, bound)
-            selected_mask.append(selected_decision)
-        selected_mask = np.array(selected_mask)
+            if stream_instruction.pdf == 'norm':
+                probab_target = self.norm_probab_target(value, incorrect_dstr, correct_dstr)  
+            else:
+                probab_target = self.kde_probab_target(value, incorrect_dstr, correct_dstr)
+            selected_probab.append(probab_target)
+        selected_probab = np.array(selected_probab).reshape((len(selected_probab),))
+        selected_mask = (selected_probab >= stream_instruction.bound)
         dataset_indices = np.arange(len(data_info['dataset']))
         test_selected = torch.utils.data.Subset(data_info['dataset'],dataset_indices[selected_mask])
         remained_test = torch.utils.data.Subset(data_info['dataset'],dataset_indices[~selected_mask])
@@ -52,7 +60,7 @@ class probability_setter(subset_setter):
         # print('selected test images: {}%'.format(np.round(len(test_selected)/len(data_info['dv']), decimals=3)*100))
         # print('new cls percent:', new_cls_stat(test_selected))
         # print('the max dv:', np.max(data_info['dv'][dataset_indices[selected_mask]]))
-        return test_loader
+        return test_loader, selected_probab
     
 class threshold_subset_setter(subset_setter):
     def __init__(self) -> None:
@@ -125,8 +133,29 @@ def new_cls_stat(dataset):
     return check_labels_cnt
 
 def incorrect_pred_stat(dataloader, model:Model.prototype):
-    '''
-    Get misclassification proportion on some labels
-    '''
     gt,pred,_  = model.eval(dataloader)
     return (gt != pred).sum() / len(gt) *100
+
+def pred_stat(dataloader, old_model:Model.prototype, new_model:Model.prototype):
+    gt,pred,_  = old_model.eval(dataloader)
+    indices = np.arange(len(gt))
+    old_correct_mask = (gt == pred)
+    old_incorrect_mask = ~old_correct_mask
+    old_correct_indices = indices[old_correct_mask]
+    old_incorrect_indices = indices[old_incorrect_mask]
+
+    gt,pred,_  = new_model.eval(dataloader)
+    new_correct_mask = (gt == pred)
+    new_incorrect_mask = ~new_correct_mask
+    new_correct_indices = indices[new_correct_mask]
+    new_incorrect_indices = indices[new_incorrect_mask]
+
+    # print(old_correct_mask.sum(), old_incorrect_mask.sum())
+    # print(new_correct_mask.sum(), new_incorrect_mask.sum())
+
+    tn = len(np.intersect1d(new_incorrect_indices, old_incorrect_indices))
+    fn = len(np.intersect1d(new_incorrect_indices, old_correct_indices))
+    tp = len(np.intersect1d(new_correct_indices, old_incorrect_indices))
+    fp = len(np.intersect1d(new_correct_indices, old_correct_indices))
+    print(tn, tp)
+    print(fn, fp)
