@@ -1,3 +1,5 @@
+import sys
+sys.path.append('/home/yiwei/data-acquisition/binary/')
 from utils.strategy import *
 import utils.statistics.checker as Checker
 
@@ -24,15 +26,24 @@ def run(acquisition_config:Config.Acquistion, methods, new_img_num_list, checker
         result_list.append(result_method)
     return result_list
 
-def check_bound(old_model_config: Config.OldModel, datasplit: Dataset.DataSplits, acquire_instruction: Config.Acquistion, clip_processor):
-    base_model = Model.resnet(2)
-    base_model.load(old_model_config)
-    clf = Detector.SVM(datasplit.loader['train_clip'], clip_processor)
-    _ = clf.fit(base_model, datasplit.loader['val_shift'])
-    market_dv, _ = clf.predict(datasplit.loader['market'])
-    return (market_dv <= acquire_instruction.bound).sum()
+# def check_bound(old_model_config: Config.OldModel, datasplit: Dataset.DataSplits, acquire_instruction: Config.Acquistion, clip_processor):
+#     base_model = Model.resnet(2)
+#     base_model.load(old_model_config)
+#     clf = Detector.SVM(datasplit.loader['train_clip'], clip_processor)
+#     _ = clf.fit(base_model, datasplit.loader['val_shift'])
+#     market_dv, _ = clf.predict(datasplit.loader['market'])
+#     return (market_dv <= acquire_instruction.bound).sum()
 
 def epoch_run(new_img_num_list, method_list, acquire_instruction:Config.Acquistion, checker: Checker.prototype):
     result_epoch = run(acquire_instruction, method_list, new_img_num_list, checker)
     # bound_stat = check_bound(old_model_config, dataset_splits,acquire_instruction, clip_processor)
     return result_epoch, 0
+
+def get_probab_checker(epoch, parse_para, dataset, clip_processor, stream_instruction:Config.Stream, plot=True):
+    batch_size, superclass_num, model_dir, device_config, pure, new_model_setter, seq_rounds_config = parse_para
+    old_model_config = Config.OldModel(batch_size['base'], superclass_num, model_dir, device_config, epoch, base_type='resnet')
+    new_model_config = Config.NewModel(batch_size['base'], superclass_num, model_dir, device_config, epoch, pure, new_model_setter, batch_size['new'], base_type='resnet')
+    dataset_splits = Dataset.DataSplits(dataset, old_model_config.batch_size)
+    checker = Checker.probability(new_model_config, clip_processor, dataset_splits.loader['train_clip']) 
+    checker.setup(old_model_config, dataset_splits, stream_instruction, plot)
+    return checker
