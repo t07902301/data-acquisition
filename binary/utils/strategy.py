@@ -33,8 +33,8 @@ class Strategy():
         if clf is None:
             clf = Detector.SVM(dataset_splits.loader['train_clip'], self.clip_processor)
             score = clf.fit(self.base_model, dataset_splits.loader['val_shift']) 
-        val_dv, _ = clf.predict(dataset_splits.loader['val_shift'])
-        new_data_dv, _ = clf.predict(dataset_splits.loader['new_data'])
+        val_dv, _ = clf.predict(dataset_splits.loader['val_shift'], self.base_model)
+        new_data_dv, _ = clf.predict(dataset_splits.loader['new_data'], self.base_model)
         bound = np.max(new_data_dv)
         val_indices = np.arange(len(dataset_splits.dataset['val_shift']))
         targeted_indices = val_indices[val_dv <= bound]
@@ -89,7 +89,7 @@ class Greedy(NonSeqStrategy):
     def get_new_data_indices(self, n_data, data_splits: Dataset.DataSplits, bound = None):
         clf = Detector.SVM(data_splits.loader['train_clip'], self.clip_processor)
         score = clf.fit(self.base_model, data_splits.loader['val_shift'])
-        market_dv, _ = clf.predict(data_splits.loader['market'])
+        market_dv, _ = clf.predict(data_splits.loader['market'], self.base_model)
         new_data_indices_total = []
         if bound == None:
             new_data_indices = acquistion.get_top_values_indices(market_dv, n_data)
@@ -131,7 +131,7 @@ class Mix(NonSeqStrategy):
     def get_new_data_indices(self, n_data, data_splits: Dataset.DataSplits):
         clf = Detector.SVM(data_splits.loader['train_clip'], self.clip_processor)
         score = clf.fit(self.base_model, data_splits.loader['val_shift'])
-        market_dv, _ = clf.predict(data_splits.loader['market'])
+        market_dv, _ = clf.predict(data_splits.loader['market'], self.base_model)
         new_data_indices_total = []
         greedy_results = acquistion.get_top_values_indices(market_dv, n_data-n_data//2)
         sample_results = acquistion.sample_acquire(market_dv,n_data//2)

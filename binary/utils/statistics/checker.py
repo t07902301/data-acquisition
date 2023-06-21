@@ -77,7 +77,7 @@ class subset(prototype):
 
     def _get_test_info(self, datasplits:Dataset.DataSplits):
         test_info = {}
-        test_dv, _ = self.clf.predict(datasplits.loader['test_shift'])        
+        test_dv, _ = self.clf.predict(datasplits.loader['test_shift'], self.base_model)        
         test_info['dv'] = test_dv
         test_info['old_batch_size'] = self.model_config.batch_size
         test_info['new_batch_size'] = self.model_config.new_batch_size
@@ -167,9 +167,9 @@ class probability(subset):
         test_loader = torch.utils.data.DataLoader(self.test_info['dataset'], batch_size=self.model_config.batch_size)
         dataset_gts, dataset_preds, _ = self.base_model.eval(test_loader)
         correct_mask = (dataset_gts == dataset_preds)
-        Plot_stat.base_plot(probab[correct_mask], 'correct', 'orange', pdf_method)        
+        Plot_stat.base_plot(probab[correct_mask], 'correct', 'green', pdf_method)        
         incorrect_mask = ~correct_mask
-        Plot_stat.base_plot(probab[incorrect_mask], 'incorrect', 'blue', pdf_method)        
+        Plot_stat.base_plot(probab[incorrect_mask], 'incorrect', 'red', pdf_method)        
         Plot_stat.plt.savefig(fig_name)
         Plot_stat.plt.close()
         print('Save fig to {}'.format(fig_name))

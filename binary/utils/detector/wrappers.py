@@ -34,26 +34,44 @@ class SVMFitter:
         else:
             print("No whitening")
         
-    def fit(self, model_preds, model_gts, latents, C):
+    # def fit(self, model_preds, model_gts, latents, C):
+    #     assert self.pre_process is not None, 'run set_preprocess on a training set first'
+    #     latents = self.pre_process(latents).numpy()
+    #     # clf, score = svm_utils.shuffl_train(latents=latents, model_gts=model_gts, 
+    #     #                                                 model_preds=model_preds, balanced=self.balanced, 
+    #     #                                                 split_and_search=self.split_and_search,svm_args=self.svm_args, C_=C)
+    #     clf, score = svm_utils.train(latents=latents, model_gts=model_gts, 
+    #                                                     model_preds=model_preds, balanced=self.balanced, 
+    #                                                     split_and_search=self.split_and_search,svm_args=self.svm_args)
+    #     self.clf = clf
+    #     return score
+
+    def fit(self, latents, gts):
         assert self.pre_process is not None, 'run set_preprocess on a training set first'
+        # latents = [data[0].reshape(1, 512) for data in model_correctness]
         latents = self.pre_process(latents).numpy()
-        # clf, score = svm_utils.shuffl_train(latents=latents, model_gts=model_gts, 
-        #                                                 model_preds=model_preds, balanced=self.balanced, 
-        #                                                 split_and_search=self.split_and_search,svm_args=self.svm_args, C_=C)
-        clf, score = svm_utils.train(latents=latents, model_gts=model_gts, 
-                                                        model_preds=model_preds, balanced=self.balanced, 
-                                                        split_and_search=self.split_and_search,svm_args=self.svm_args)
+        # gts = np.array([data[1] for data in model_correctness])
+        clf, score = svm_utils.train(latents, gts, balanced=self.balanced, 
+                                    split_and_search=self.split_and_search,svm_args=self.svm_args)
         self.clf = clf
         return score
     
-    def predict(self, model_gts, latents, compute_metrics=True, model_preds=None):
+    # def predict(self, model_gts, latents, compute_metrics=True, model_preds=None):
+    #     assert self.clf is not None, "must call fit first"
+    #     latents = self.pre_process(latents).numpy()
+    #     #gts = gts.numpy()
+    #     #if preds is not None:
+    #     #    preds = preds.numpy()
+    #     return svm_utils.predict(latents=latents, model_gts=model_gts, clf=self.clf, 
+    #                                  model_preds=model_preds, compute_metrics=compute_metrics) 
+
+    def predict(self, latents, gts=None, compute_metrics=False):
         assert self.clf is not None, "must call fit first"
         latents = self.pre_process(latents).numpy()
         #gts = gts.numpy()
         #if preds is not None:
         #    preds = preds.numpy()
-        return svm_utils.predict(latents=latents, model_gts=model_gts, clf=self.clf, 
-                                     model_preds=model_preds, compute_metrics=compute_metrics) 
+        return svm_utils.predict(self.clf, latents, gts, compute_metrics) 
 
     def base_fit(self, gts, latents):
         assert self.pre_process is not None, 'run set_preprocess on a training set first'
