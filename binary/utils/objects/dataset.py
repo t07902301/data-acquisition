@@ -24,6 +24,7 @@ class DataSplits():
     loader: dict
     def __init__(self, dataset, batch_size) -> None:
         self.dataset = dataset
+        generator.manual_seed(0)    
         self.loader = {
             k: torch.utils.data.DataLoader(self.dataset[k], batch_size=batch_size, 
                                         shuffle=(k=='train'), drop_last=(k=='train'),num_workers=config['num_workers'],generator=generator)
@@ -48,15 +49,14 @@ class DataSplits():
         self.update_dataloader(split_name) 
 
     def update_dataloader(self, split_name):
-        generator = torch.Generator()
         generator.manual_seed(0)        
         self.loader[split_name] = torch.utils.data.DataLoader(self.dataset[split_name], batch_size= self.batch_size, 
                                                               shuffle=(split_name=='train'), drop_last=(split_name=='train'),
                                                               num_workers=config['num_workers'],generator=generator)
         
-    def replace(self, replaced_split, new_data):
-        self.dataset[replaced_split] = new_data
-        self.update_dataloader(replaced_split)
+    def replace(self, replaced_name, new_data):
+        self.dataset[replaced_name] = new_data
+        self.update_dataloader(replaced_name)
 
     def use_new_data(self, new_data, new_model_config:Config.NewModel, acquisition_config:Config.Acquistion):
         '''
@@ -106,7 +106,7 @@ def create_dataset(ds_root, select_fine_labels, ratio):
     ds['market'] =  market_ds
     ds['test_shift'] = test_ds
     ds['train_clip'] =  left_clip_train
-    # ds['train'] = clip_train_ds_split
+    ds['val_mar'] = val_market_set
     return ds
 
 def split_dataset(dataset, target_labels, split_1_ratio, use_fine_label = True):

@@ -21,8 +21,8 @@ def run(ds:Dataset.DataSplits, model_config:Config.OldModel, train_flag:bool, cl
     gt,pred,_  = base_model.eval(ds.loader['test_shift'])
     acc_shift = (gt==pred).mean()*100
 
-    clf = Detector.SVM(ds.loader['train_clip'], clip_processor)
-    score = clf.fit(base_model, ds.loader['val_shift'])
+    clf = Detector.SVM(ds.loader['train_clip'], clip_processor, split_and_search=True)
+    _ = clf.fit(base_model, ds.loader['val_shift'])
     _, detect_prec = clf.predict(ds.loader['val_shift'], compute_metrics=True, base_model=base_model)
     if train_flag:
         base_model.save(model_config.path)
@@ -40,7 +40,7 @@ def main(epochs,  model_dir ='', train_flag=False, device_id=0, base_type=''):
         old_model_config = Config.OldModel(batch_size['base'],superclass_num,model_dir, device_config, epo, base_type)
         ds = ds_list[epo]
         ds = Dataset.DataSplits(ds, old_model_config.batch_size)
-        prec, acc_shift, detect_prec, shift_score = run(ds, old_model_config, train_flag, base_type, clip_processor)
+        prec, acc_shift, detect_prec, shift_score = run(ds, old_model_config, train_flag, clip_processor)
         acc_list.append(prec)
         acc_shift_list.append(acc_shift)
         detect_prec_list.append(detect_prec)

@@ -9,6 +9,7 @@ import torch.nn as nn
 from utils import config
 from utils.detector.wrappers import SVMFitter, CLIPProcessor
 from abc import abstractmethod
+from utils.env import model_env
 
 hparams = config['hparams']
 
@@ -38,6 +39,7 @@ class prototype():
 class resnet(prototype):
     def __init__(self, num_class, use_pretrained=False) -> None:
         super().__init__()
+        model_env()
         build_fn = model_utils.BUILD_FUNCTIONS[hparams['arch_type']]
         self.model = build_fn(hparams['arch'], num_class,use_pretrained)
         self.model = self.model.cuda()
