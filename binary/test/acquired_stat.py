@@ -5,8 +5,8 @@ import utils.statistics.checker as Checker
 import utils.statistics.subset as Subset
 import utils.statistics.stat_test as Plot_stat
 
-def n_data_run(acquisition_config, checker: Checker.subset, dataset, pdf_method):
-    check_result = check_data(acquisition_config, dataset, checker, pdf_method)
+def n_data_run(acquisition_config, checker: Checker.subset, data_split, pdf_method):
+    check_result = check_data(acquisition_config, data_split, checker, pdf_method)
     return check_result
 
 def dv_dstr_plot(cor_dv, incor_dv, n_data, pdf_method=None, range=None):
@@ -17,43 +17,48 @@ def dv_dstr_plot(cor_dv, incor_dv, n_data, pdf_method=None, range=None):
     Plot_stat.plt.close()
     print('Save fig to figure/train/dv{}_{}.png'.format(pdf_name, n_data))
     
-def method_run(n_img_list, acquisition_config:Config.Acquistion, checker: Checker.subset, dataset, pdf_method):
+def method_run(n_img_list, acquisition_config:Config.Acquistion, checker: Checker.subset, data_split, pdf_method):
     acc_change_list = []
     for n_img in n_img_list:
         acquisition_config.n_ndata = n_img
-        acc_change = n_data_run(acquisition_config, checker, dataset, pdf_method)
+        acc_change = n_data_run(acquisition_config, checker, data_split, pdf_method)
         acc_change_list.append(acc_change)
     return acc_change_list
 
-def run(acquisition_config:Config.Acquistion, methods, new_img_num_list, checker:Checker.subset, dataset, pdf_method):
+def run(acquisition_config:Config.Acquistion, methods, new_img_num_list, checker:Checker.subset, data_split, pdf_method):
     result_list = []
     for method in methods:
         print('In method', method)
         acquisition_config.method = method
         if 'seq' in method:
             checker.clf = Log.get_log_clf(acquisition_config, checker.model_config, checker.clip_set_up_loader, checker.clip_processor)
-        result_method = method_run(new_img_num_list, acquisition_config, checker, dataset, pdf_method)
+        result_method = method_run(new_img_num_list, acquisition_config, checker, data_split, pdf_method)
         result_list.append(result_method)
     return result_list
 
-def epoch_run(new_img_num_list, method_list, acquire_instruction:Config.Acquistion, checker: Checker.subset, dataset, pdf_method):
-    result_epoch = run(acquire_instruction, method_list, new_img_num_list, checker, dataset, pdf_method)
+def epoch_run(new_img_num_list, method_list, acquire_instruction:Config.Acquistion, checker: Checker.subset, data_split, pdf_method):
+    result_epoch = run(acquire_instruction, method_list, new_img_num_list, checker, data_split, pdf_method)
     return result_epoch
 
-def check_data(acquisition_config:Config.Acquistion, dataset, checker:Checker.subset, pdf_method):
+def check_data(acquisition_config:Config.Acquistion, data_split, checker:Checker.subset, pdf_method):
     model_config = checker.model_config
     model_config.set_path(acquisition_config)
-    new_data = Log.get_log_data(acquisition_config, model_config, dataset)
+    new_data, indices = Log.get_log_data(acquisition_config, model_config, data_split.dataset['market'])
     new_data_loader = torch.utils.data.DataLoader(new_data, batch_size= model_config.new_batch_size)
-    cor_dv, incor_dv = Plot_stat.get_dv_dstr(checker.base_model, new_data_loader, checker.clf)
-    plot_range = (-2.2312224442362742, -0.35740602488727813)
-    dv_dstr_plot(cor_dv, incor_dv, acquisition_config.n_ndata, pdf_method, plot_range)
-    total_dv = np.concatenate((cor_dv, incor_dv))
-    dv_range = (min(total_dv), max(total_dv))
-    print(dv_range)
-    # ks_result = Plot_stat.kstest(cor_dv, Plot_stat.ecdf(incor_dv))
+    old_labels = set(Subset.config['data']['train_label']) - set(Subset.config['data']['remove_fine_labels'])
+    print(Subset.label_stat(new_data, Subset.config['data']['remove_fine_labels']), Subset.label_stat(new_data, old_labels))
+    # cor_dv, incor_dv = Plot_stat.get_dv_dstr(checker.base_model, new_data_loader, checker.clf)
+    # plot_range = (-2.20255523463167, -0.48397627974006063) # test_dv
+    # dv_dstr_plot(cor_dv, incor_dv, acquisition_config.n_ndata, pdf_method, plot_range)
+
+    # market_dv, _ = checker.clf.predict(data_split.loader['market'], checker.base_model)
+    # test_dv, _ = checker.clf.predict(data_split.loader['test_shift'], checker.base_model)
+    # new_data_dv = market_dv[indices]
+    # new_data_dv, _ = checker.clf.predict(new_data_loader, checker.base_model)
+    # ks_result = Plot_stat.kstest(new_data_dv, test_dv)
     # return ks_result.pvalue
     # incor_pred_stat = Subset.incorrect_pred_stat(new_data_loader, checker.base_model)
+    # print(Subset.new_cls_stat(new_data))
     # return incor_pred_stat
 
 
@@ -71,14 +76,14 @@ def main(epochs, new_model_setter='retrain', pure=False, model_dir ='', device=0
     clip_processor = Detector.load_clip(device_config)
     parse_para = (batch_size, superclass_num, model_dir, device_config, pure, new_model_setter, seq_rounds_config)
     acquire_instruction = Config.AcquistionFactory('seq',seq_rounds_config) 
-    stream_instruction = Config.ProbabStream(bound=0.5, pdf='kde')
+    stream_instruction = Config.ProbabStream(bound=0.7, pdf='kde')
 
     results = []
     for epo in range(epochs):
         print('in epoch {}'.format(epo))
         checker = tools.get_probab_checker(epo, parse_para, ds_list[epo], clip_processor, stream_instruction, plot=False)
         data_splits = Dataset.DataSplits(ds_list[0], 10)
-        result_epoch = epoch_run(new_img_num_list, method_list, acquire_instruction, checker, data_splits.dataset['market'], stream_instruction.pdf)
+        result_epoch = epoch_run(new_img_num_list, method_list, acquire_instruction, checker, data_splits, stream_instruction.pdf)
         results.append(result_epoch)
     
     print(results)
