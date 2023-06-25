@@ -6,12 +6,11 @@ import utils.objects.Config as Config
 import utils.objects.Detector as Detector
 import utils.objects.dataset as Dataset
 import utils.log as log
-import utils.statistics.stat_test as Plot_stat
+import utils.statistics.stat_test as Plot_Stat
 from abc import abstractmethod
 import numpy as np
 import torch
 import utils.statistics.subset as Subset
-from utils.statistics.stat_test import get_norm_pdf, get_dv_dstr, get_kde
 class prototype():
     def __init__(self,model_config:Config.NewModel) -> None:
         self.model_config = model_config
@@ -132,23 +131,23 @@ class probability(subset):
         super().__init__(model_config, clip_processor, clip_set_up_loader)   
     def setup(self, old_model_config:Config.OldModel, datasplits:Dataset.DataSplits,  stream_instruction:Config.ProbabStream, plot:bool):
         super().setup(old_model_config, datasplits) 
-        cor_dv, incor_dv = get_dv_dstr(self.base_model, datasplits.loader['val_shift'], self.clf)
+        cor_dv, incor_dv = Plot_Stat.get_dv_dstr(self.base_model, datasplits.loader['val_shift'], self.clf)
         correct_prior = (len(cor_dv)) / (len(cor_dv) + len(incor_dv))
-        correct_dstr = Subset.disrtibution(correct_prior, Plot_stat.get_pdf(cor_dv, stream_instruction.pdf))
-        incorrect_dstr =  Subset.disrtibution(1 - correct_prior, Plot_stat.get_pdf(incor_dv, stream_instruction.pdf))
+        correct_dstr = Subset.disrtibution(correct_prior, Plot_Stat.get_pdf(cor_dv, stream_instruction.pdf))
+        incorrect_dstr =  Subset.disrtibution(1 - correct_prior, Plot_Stat.get_pdf(incor_dv, stream_instruction.pdf))
         self.loader, selected_probab = Subset.probability_setter().get_subset_loders(self.test_info, correct_dstr, incorrect_dstr, stream_instruction)
         if plot:
             pdf_name = self.get_pdf_name(stream_instruction.pdf)
             fig_name = 'figure/test/probab.png'
             self.probab_dstr_plot(selected_probab, fig_name)
             fig_name = 'figure/test/dv.png'
-            cor_dv, incor_dv = get_dv_dstr(self.base_model, datasplits.loader['test_shift'], self.clf)
+            cor_dv, incor_dv = Plot_Stat.get_dv_dstr(self.base_model, datasplits.loader['test_shift'], self.clf)
             self.dv_dstr_plot(cor_dv, incor_dv, fig_name, stream_instruction.pdf)
             fig_name = 'figure/test/selected_{}{}.png'.format(stream_instruction.bound, pdf_name)
             self.selected_dstr_plot(self.loader['new_model'], fig_name, stream_instruction.pdf)
 
     def selected_dstr_plot(self, selected_loader, fig_name, pdf=None):
-        cor_dv, incor_dv = get_dv_dstr(self.base_model, selected_loader, self.clf)
+        cor_dv, incor_dv = Plot_Stat.get_dv_dstr(self.base_model, selected_loader, self.clf)
         selected_dv = np.concatenate((cor_dv, incor_dv))
         print('In selected:', min(selected_dv), max(selected_dv))
         self.dv_dstr_plot(cor_dv, incor_dv, fig_name, pdf)
@@ -167,30 +166,30 @@ class probability(subset):
         test_loader = torch.utils.data.DataLoader(self.test_info['dataset'], batch_size=self.model_config.batch_size)
         dataset_gts, dataset_preds, _ = self.base_model.eval(test_loader)
         correct_mask = (dataset_gts == dataset_preds)
-        Plot_stat.base_plot(probab[correct_mask], 'correct', 'green', pdf_method)        
+        Plot_Stat.base_plot(probab[correct_mask], 'correct', 'green', pdf_method)        
         incorrect_mask = ~correct_mask
-        Plot_stat.base_plot(probab[incorrect_mask], 'incorrect', 'red', pdf_method)        
-        Plot_stat.plt.savefig(fig_name)
-        Plot_stat.plt.close()
+        Plot_Stat.base_plot(probab[incorrect_mask], 'incorrect', 'red', pdf_method)        
+        Plot_Stat.plt.savefig(fig_name)
+        Plot_Stat.plt.close()
         print('Save fig to {}'.format(fig_name))
 
     def dv_dstr_plot(self, cor_dv, incor_dv, fig_name, pdf_method=None):
-        Plot_stat.base_plot(cor_dv, 'correct', 'orange', pdf_method)
-        Plot_stat.base_plot(incor_dv, 'incorrect', 'blue', pdf_method)
-        # Plot_stat.plt.savefig()
-        Plot_stat.plt.savefig(fig_name)
-        Plot_stat.plt.close()
+        Plot_Stat.base_plot(cor_dv, 'correct', 'orange', pdf_method)
+        Plot_Stat.base_plot(incor_dv, 'incorrect', 'blue', pdf_method)
+        # Plot_Stat.plt.savefig()
+        Plot_Stat.plt.savefig(fig_name)
+        Plot_Stat.plt.close()
         print('Save fig to {}'.format(fig_name))
 
     # def plot(self, value, label, color, pdf_method=None):
-    #     Plot_stat.plt.hist(value, bins= 10 , alpha=0.3, density=True, color=color, label=label)
+    #     Plot_Stat.plt.hist(value, bins= 10 , alpha=0.3, density=True, color=color, label=label)
     #     if pdf_method != None:
-    #         dstr = Plot_stat.get_pdf(value, pdf_method)
-    #         pdf_x = Plot_stat.get_val_space(value)
+    #         dstr = Plot_Stat.get_pdf(value, pdf_method)
+    #         pdf_x = Plot_Stat.get_val_space(value)
     #         if pdf_method == 'norm':
-    #             Plot_stat.plt.plot(pdf_x, dstr.pdf(pdf_x), color=color)
+    #             Plot_Stat.plt.plot(pdf_x, dstr.pdf(pdf_x), color=color)
     #         else:
-    #             Plot_stat.plt.plot(pdf_x, dstr.evaluate(pdf_x), color=color)
+    #             Plot_Stat.plt.plot(pdf_x, dstr.evaluate(pdf_x), color=color)
 
 class total(prototype):
     def __init__(self, model_config: Config.NewModel) -> None:
