@@ -149,6 +149,9 @@ def str2bool(value):
         return value
     else:
         return False if value=='0' else True
+    
+def str2float(value):
+    return float(value)
 
 def parse(pure:bool):
     pure_name = 'pure' if pure else 'non-pure'
