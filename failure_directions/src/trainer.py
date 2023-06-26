@@ -156,7 +156,7 @@ class LightWeightTrainer():
             scaler.scale(loss).backward()
             scaler.step(opt)
             scaler.update()
-            scheduler.step()   # TODO Does scheduler change optmizer here? Or is the changed one equeal to that in training?
+        scheduler.step()   # TODO Does scheduler update optmizer per batch or per epoch? Per
                
         # with tqdm(train_dataloader) as t:
         #     t.set_description(f"Train Epoch: {epoch_num}")
@@ -203,21 +203,7 @@ class LightWeightTrainer():
         best_model_chkpnt = None
         for epoch in range(epochs):
             train_loss, train_acc = self.train_epoch(epoch, model, train_dataloader, opt, scaler, scheduler)
-
-            # model.train()
-            # loss_meter = AverageMeter()
-            # acc_meter = AverageMeter()
-            # for batch in train_dataloader:
-            #     opt.zero_grad(set_to_none=True)
-            #     with autocast():
-            #         loss, acc, sz = self.training_step(model, batch)
-            #     # t.set_postfix({'loss': loss.item(), 'acc': acc.item()})
-            #     loss_meter.update(loss.item(), sz)
-            #     acc_meter.update(acc.item(), sz)
-            #     scaler.scale(loss).backward()
-            #     scaler.step(opt)
-            #     scaler.update()   
-            # train_loss, train_acc = loss_meter.calculate(), acc_meter.calculate()
+            # print('In epoch {}'.format(epoch), scheduler.get_last_lr())
 
             val_loss, val_acc = self.val_epoch(epoch, model, val_dataloader)
             # if self.training_args['lr_scheduler']['type'] == 'ReduceLROnPlateau': # Early Stopping
