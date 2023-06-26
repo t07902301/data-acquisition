@@ -81,7 +81,6 @@ class subset(prototype):
         test_info['old_batch_size'] = self.model_config.batch_size
         test_info['new_batch_size'] = self.model_config.new_batch_size
         test_info['dataset'] = datasplits.dataset['test_shift']
-        # test_info['loader'] = datasplits.loader['test_shift']
         return test_info
 
     def get_subset_loader(self, threshold):
@@ -168,7 +167,8 @@ class probability(subset):
         correct_mask = (dataset_gts == dataset_preds)
         Plot_Stat.base_plot(probab[correct_mask], 'correct', 'green', pdf_method)        
         incorrect_mask = ~correct_mask
-        Plot_Stat.base_plot(probab[incorrect_mask], 'incorrect', 'red', pdf_method)        
+        Plot_Stat.base_plot(probab[incorrect_mask], 'incorrect', 'red', pdf_method)  
+        Plot_Stat.plt.xlabel('Probability')
         Plot_Stat.plt.savefig(fig_name)
         Plot_Stat.plt.close()
         print('Save fig to {}'.format(fig_name))
