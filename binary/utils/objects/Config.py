@@ -15,6 +15,14 @@ class DVStream(Stream):
     def __init__(self, bound) -> None:
         super().__init__(bound)
 
+class Dectector():
+    def __init__(self) -> None:
+        self.name = ''
+        self.vit = ''
+    def __init__(self, name, vit_mounted) -> None:
+        self.name = name
+        self.vit = vit_mounted
+
 class Acquistion():
     method: str
     n_ndata:int
@@ -24,6 +32,7 @@ class Acquistion():
         self.method = ''
         self.n_ndata = 0
         self.bound = None
+        self.detector = Dectector()
 
     @abstractmethod
     def get_new_data_size(self):
@@ -162,7 +171,7 @@ def parse(pure:bool):
     label_map = data_config['label_map']
     n_new_data = data_config['n_new_data']
     img_per_cls_list = n_new_data
-    superclass_num = 2
+    superclass_num = hparams['superclass']
     ratio = data_config['ratio']
     seq_rounds = 2
     train_labels = data_config['train_label']
