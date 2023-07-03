@@ -34,57 +34,49 @@ class Prototype():
     def __init__(self, data_transform:str) -> None:
         self.transform = data_transform
     @abstractmethod
-    def fit(self, base_model:Model.prototype, data_loader):
+    def fit(self, base_model:Model.prototype, data_loader, data=None, batch_size = None):
         pass
     @abstractmethod
     def predict(self, data_loader, base_model:Model.prototype, compute_metrics=False):
+        '''
+        Decision Scores + Performance Metrics
+        '''
         pass
 
 class SVM(Prototype):
     def __init__(self, set_up_dataloader, clip_processor:CLIPProcessor, split_and_search=False, data_transform = 'clip') -> None:
         super().__init__(data_transform)
         self.clip_processor = clip_processor
-        self.fitter = SVMFitter(method=config['clf'], svm_args=config['clf_args'],cv=config['clf_args']['k-fold'], split_and_search = split_and_search)
+        self.model = SVMFitter(method=config['clf'], svm_args=config['clf_args'],cv=config['clf_args']['k-fold'], split_and_search = split_and_search)
+        #TODO take the mean adn stf of svm fit set for norm
         set_up_latent = get_latent(set_up_dataloader, clip_processor, self.transform)
-        self.fitter.set_preprocess(set_up_latent) 
+        self.model.set_preprocess(set_up_latent) 
         # plt.hist(set_up_img[0], 50)
         # plt.savefig('figure/img.png')
         # plt.close()
     
-    def fit(self, base_model:Model.prototype, data_loader):
+    def fit(self, base_model:Model.prototype, data_loader, data=None, batch_size = None):
         latent, correctness, _ = get_correctness(data_loader, base_model, self.transform, self.clip_processor)
-        score = self.fitter.fit(latent, correctness)
+        score = self.model.fit(latent, correctness)
         return score
-        # fit_gts, fit_preds, _ = base_model.eval(fit_loader)
-        # fit_latent = self.get_latent(fit_loader)
-        # score = self.fitter.fit(model_preds=fit_preds, model_gts=fit_gts, latents=fit_latent, C=C)        
-        # return score
     
     def predict(self, data_loader, base_model:Model.prototype, compute_metrics=False):
         latent, correctness, _ = get_correctness(data_loader, base_model, self.transform, self.clip_processor)
-        _, dv, metric = self.fitter.predict(latent, correctness, compute_metrics)
+        _, dv, metric = self.model.predict(latent, correctness, compute_metrics)
         return dv, metric 
 
-        # if compute_metrics:
-        #     data_gts, dataset_preds, _ = base_model.eval(data_loader)
-        # else:
-        #     data_gts, dataset_preds = None, None
-        # latent = self.get_latent(data_loader)
-        # _, dv, metric = self.fitter.predict(latents=latent, model_gts=data_gts, compute_metrics=compute_metrics, model_preds=dataset_preds)
-        # return dv, metric 
-
 class resnet(Prototype):
-    def __init__(self, num_class, use_pretrained=False, data_transform: str = None) -> None:
+    def __init__(self, data_transform: str = None) -> None:
         super().__init__(data_transform)
-        self.model = Model.resnet(num_class, use_pretrained)
+        self.model = Model.resnet(num_class=2, use_pretrained=False)
 
-    def fit(self, base_model:Model.prototype, data, data_loader, batch_size):
+    def fit(self, base_model:Model.prototype, data_loader, data=None, batch_size = None):
         split_labels = Dataset.data_config['train_label']
         train_indices, val_indices = Dataset.get_split_indices(Dataset.get_ds_labels(data), split_labels, 0.8)
         _, _, data_correctness = get_correctness(data_loader, base_model, self.transform)
         train_ds = torch.utils.data.Subset(data_correctness, train_indices)
         val_ds = torch.utils.data.Subset(data_correctness, val_indices)   
-        print('Dstr CLF training : validation', len(train_ds), len(val_ds))
+        print('Dstr CLF - training : validation =', len(train_ds), len(val_ds))
         generator = torch.Generator()
         generator.manual_seed(0)    
         train_loader = torch.utils.data.DataLoader(train_ds, batch_size = batch_size, shuffle=True, drop_last=True)
@@ -129,7 +121,7 @@ def loader2data(loader):
 def get_correctness(data_loader, model:Model.prototype, transform: str = None, clip_processor:CLIPProcessor = None):
     '''
     Return : \n 
-    Data in Latent Space, Model Prediction Correctness of Data, Combined Latent Data and Model Correctness
+    Data in Latent Space, Base Model Prediction Correctness of Data, Combined Latent Data and Model Correctness
     ''' 
     gts, preds, _ = model.eval(data_loader)
     data = get_latent(data_loader, clip_processor, transform)
@@ -140,3 +132,63 @@ def get_correctness(data_loader, model:Model.prototype, transform: str = None, c
     for idx in range(len(data)):
         combined.append((data[idx], correctness[idx], correctness[idx]))
     return data, correctness, combined 
+
+from sklearn.linear_model import LogisticRegression
+
+class LogRegressor(Prototype):
+    def __init__(self, data_transform: str, clip_processor:CLIPProcessor) -> None:
+        super().__init__(data_transform)
+        self.clip_processor = clip_processor
+        self.model = LogisticRegression(random_state=0, max_iter=50, solver='liblinear')
+
+    def fit(self, base_model:Model.prototype, data_loader, data=None, batch_size = None):
+        # random.seed(1)
+        # shuffle_idx = np.arange(len(gt))
+        # random.shuffle(shuffle_idx)
+        data_latent, correctness, _ = get_correctness(data_loader, base_model, self.transform, self.clip_processor)
+        self.model = self.model.fit(data_latent, correctness)
+        
+    def predict(self, data_loader, base_model: Model.prototype, compute_metrics=False):
+        data = get_latent(data_loader, self.clip_processor, self.transform)
+        dv = self.model.decision_function(data)
+        preds = self.model.predict(data)
+        metrics = None
+        if compute_metrics:
+            _, gts, _ = get_correctness(data_loader, base_model, self.transform, self.clip_processor)
+            metrics = balanced_accuracy_score(gts, preds) * 100
+        return dv, metrics      
+
+from sklearn.ensemble import RandomForestClassifier
+class RandomForest(Prototype):
+    def __init__(self, data_transform: str, clip_processor:CLIPProcessor) -> None:
+        super().__init__(data_transform)
+        self.clip_processor = clip_processor
+        self.model = RandomForestClassifier(n_estimators=5)
+    def fit(self, base_model: Model.prototype, data_loader, data=None, batch_size=None):
+        data_latent, correctness, _ = get_correctness(data_loader, base_model, self.transform, self.clip_processor)
+        self.model = self.model.fit(data_latent, correctness)
+    def predict(self, data_loader, base_model: Model.prototype, compute_metrics=False):
+        data = get_latent(data_loader, self.clip_processor, self.transform)
+        preds = self.model.predict(data)
+        dataset = Dataset.loader2dataset(data_loader)
+        gt_labels = Dataset.get_ds_labels(dataset)
+        # TODO 
+        confs = self.model.predict_proba(data)
+        cls_conf = []
+        for idx in (range(data)):
+            cls_conf.append(confs[idx][gt_labels[idx]])
+        metrics = None
+        if compute_metrics:
+            _, gts, _ = get_correctness(data_loader, base_model, self.transform, self.clip_processor)
+            metrics = balanced_accuracy_score(gts, preds) * 100
+        return np.array(cls_conf), metrics  
+
+def factory(detector_type, set_up_dataloader, clip_processor:CLIPProcessor, split_and_search=False, data_transform = 'clip'):
+    if detector_type == 'svm':
+        return SVM(set_up_dataloader, clip_processor, split_and_search, data_transform)
+    elif detector_type == 'resnet':
+        return resnet()
+    elif detector_type == 'log_regression':
+        return LogRegressor(data_transform, clip_processor)
+    else:
+        return RandomForest(data_transform, clip_processor)
