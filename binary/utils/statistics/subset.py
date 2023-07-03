@@ -58,7 +58,7 @@ class probability_setter(subset_setter):
             'old_model': remained_test_loader
         }   
         # print('selected test images: {}%'.format(np.round(len(test_selected)/len(data_info['dv']), decimals=3)*100))
-        # print('new cls percent:', new_cls_stat(test_selected))
+        # print('new cls percent:', new_label_stat(test_selected))
         # print('the max dv:', np.max(data_info['dv'][dataset_indices[selected_mask]]))
         return test_loader, selected_probab
     
@@ -105,9 +105,18 @@ def get_threshold(clf:Detector.SVM , acquisition_config:Config.Acquistion, model
     train_dv, _ = clf.predict(train_data_loader)
     return np.max(train_dv)
 
-def mis_cls_stat(split_name, data_split:Dataset.DataSplits, model:Model.prototype):
+def label_stat(dataset, checked_labels):
+    ds_labels = Dataset.get_ds_labels(dataset, use_fine_label=True)
+    check_labels_cnt = 0
+    for label in checked_labels:
+        check_labels_cnt += (label==ds_labels).sum()
+    # check_labels_cnt = check_labels_cnt/len(ds_labels) * 100
+    # return check_labels_cnt
+    return check_labels_cnt
+
+def mis_label_stat(split_name, data_split:Dataset.DataSplits, model:Model.prototype):
     '''
-    Get misclassification proportion on some labels
+    Get misclassification proportion on target labels
     '''
     check_labels = config['data']['remove_fine_labels']
     gt,pred,_  = model.eval(data_split.loader[split_name])
@@ -116,27 +125,9 @@ def mis_cls_stat(split_name, data_split:Dataset.DataSplits, model:Model.prototyp
     incor_mask = (gt!=pred)
     incor_idx = dataset_idx[incor_mask]
     incor_dataset = torch.utils.data.Subset(dataset,incor_idx)
-    incor_fine_labels = Dataset.get_ds_labels(incor_dataset, use_fine_label=True)
-    check_labels_cnt = 0
-    for label in check_labels:
-        check_labels_cnt += (label==incor_fine_labels).sum()
-    check_labels_cnt = check_labels_cnt/len(incor_fine_labels) * 100
-    return check_labels_cnt
+    return label_stat(incor_dataset, check_labels) / len(incor_dataset) * 100
 
-def new_cls_stat(dataset):
-    check_labels = config['data']['remove_fine_labels']
-    ds_labels = Dataset.get_ds_labels(dataset, use_fine_label=True)
-    check_labels_cnt = 0
-    for label in check_labels:
-        check_labels_cnt += (label==ds_labels).sum()
-    check_labels_cnt = check_labels_cnt/len(ds_labels) * 100
-    return check_labels_cnt
-
-def incorrect_pred_stat(dataloader, model:Model.prototype):
-    gt,pred,_  = model.eval(dataloader)
-    return (gt != pred).sum() / len(gt) *100
-
-def pred_stat(dataloader, old_model:Model.prototype, new_model:Model.prototype):
+def pred_metric(dataloader, old_model:Model.prototype, new_model:Model.prototype):
     gt,pred,_  = old_model.eval(dataloader)
     indices = np.arange(len(gt))
     old_correct_mask = (gt == pred)
@@ -159,3 +150,12 @@ def pred_stat(dataloader, old_model:Model.prototype, new_model:Model.prototype):
     fp = len(np.intersect1d(new_correct_indices, old_correct_indices))
     print(tn, tp)
     print(fn, fp)
+
+    # dataset = loader2dataset(dataloader)
+    # old_incor_data = torch.utils.data.Subset(dataset, old_incorrect_indices)
+    # new_cor_data = torch.utils.data.Subset(dataset, new_correct_indices)
+    # new_cor_old_incor_data = torch.utils.data.Subset(dataset, np.intersect1d(new_correct_indices, old_incorrect_indices))
+    # print(label_stat(old_incor_data, config['data']['remove_fine_labels']), label_stat(new_cor_old_incor_data, config['data']['remove_fine_labels']), label_stat(new_cor_data, config['data']['remove_fine_labels']))
+
+    # old_labels = set(config['data']['train_label']) - set(config['data']['remove_fine_labels'])
+    # print(label_stat(old_incor_data, old_labels), label_stat(new_cor_old_incor_data, old_labels), label_stat(new_cor_data, old_labels))

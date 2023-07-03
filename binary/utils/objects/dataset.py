@@ -242,3 +242,18 @@ def get_shuffle_idx(dataset):
     shuffle_idx = np.arange(len(dataset))
     random.shuffle(shuffle_idx)    
     return shuffle_idx
+
+def loader2dataset(dataloader):
+    img, coarse_labels, fine_labels = [], [], []
+    for x, y,fine_y in dataloader:
+        img.append(x)
+        coarse_labels.append(y)
+        fine_labels.append(fine_y)
+    img = torch.cat(img)
+    coarse_labels = torch.cat(coarse_labels)
+    fine_labels = torch.cat(fine_labels)
+
+    data = []
+    for i in range(len(img)):
+        data.append((img[i], coarse_labels[i], fine_labels[i]))
+    return data
