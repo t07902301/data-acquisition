@@ -9,12 +9,11 @@ import utils.objects.Detector as Detector
 import torch
 import numpy as np
 class Strategy():
-    base_model:Model.resnet
-    def __init__(self, old_model_config:Config.OldModel) -> None:
-        self.base_model = Model.resnet(2)
+    base_model:Model.prototype
+    def __init__(self, old_model_config:Config.OldModel, clip_set_up=None, clip_processor=None) -> None:
+        self.base_model = Model.prototype_factory(old_model_config.base_type, old_model_config.class_number, clip_set_up, clip_processor)
         self.base_model.load(old_model_config)
-        self.clip_processor = Detector.load_clip(old_model_config.device)
-        Model.model_env()
+
     @abstractmethod
     def operate(self, acquire_instruction: Config.Acquistion, dataset: dict, new_model_config:Config.NewModel):
         '''
@@ -45,8 +44,8 @@ class Strategy():
         return torch.utils.data.Subset(data_splits.dataset['market'],new_data_indices)
     
 class NonSeqStrategy(Strategy):
-    def __init__(self, old_model_config: Config.OldModel) -> None:
-        super().__init__(old_model_config)
+    def __init__(self, old_model_config: Config.OldModel, clip_set_up) -> None:
+        super().__init__(old_model_config, clip_set_up)
     @abstractmethod
     def get_new_data_indices(self, n_data, dataset_splits: Dataset.DataSplits):
         '''
@@ -84,11 +83,11 @@ class NonSeqStrategy(Strategy):
         Log.save(data, idx_log)
 
 class Greedy(NonSeqStrategy):
-    def __init__(self, old_model_config: Config.OldModel) -> None:
-        super().__init__(old_model_config)
+    def __init__(self, old_model_config: Config.OldModel, clip_set_up) -> None:
+        super().__init__(old_model_config, clip_set_up)
     def get_new_data_indices(self, n_data, data_splits: Dataset.DataSplits, bound = None):
-        clf = Detector.SVM(data_splits.loader['train_clip'], self.clip_processor)
-        score = clf.fit(self.base_model, data_splits.loader['val_shift'])
+        clf = Detector.factory(self.detector, set_up_dataloader=data_splits.loader['train_clip'], clip_processor = self.clip_processor, split_and_search=True)
+        score = clf.fit(self.base_model, data_splits.loader['val_shift'], data_splits.dataset['val_shift'], 16)
         market_dv, _ = clf.predict(data_splits.loader['market'], self.base_model)
         new_data_indices_total = []
         if bound == None:
@@ -225,9 +224,9 @@ class Seq(Strategy):
         clf_config = Log.get_config(model_config, acquire_instruction, 'clf')
         Log.save(clf, clf_config) # Save new clf
 
-def StrategyFactory(strategy, old_model_config:Config.OldModel):
+def StrategyFactory(strategy, old_model_config:Config.OldModel, clip_set_up):
     if strategy=='dv':
-        return Greedy(old_model_config)
+        return Greedy(old_model_config, clip_set_up)
     elif strategy =='sm':
         return Sample(old_model_config)
     elif strategy == 'conf':
