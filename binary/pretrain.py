@@ -1,13 +1,8 @@
 from utils.strategy import *
 from utils.set_up import set_up
 import utils.statistics.subset as Subset
-import utils.statistics.stat_test as stat_test
-def run(ds:Dataset.DataSplits, model_config:Config.OldModel, train_flag:bool, clip_processor):
-    
-    if model_config.base_type == 'svm':
-        base_model = Model.svm(ds.loader['train_clip'], clip_processor)
-    else:
-        base_model = Model.resnet(2)
+def run(ds:Dataset.DataSplits, model_config:Config.OldModel, train_flag:bool, detect_instruction:Config.Dectector):
+    base_model = Model.prototype_factory(model_config.base_type, model_config.class_number, ds.loader['train_clip'], detect_instruction.vit)
     if train_flag:
         if model_config.base_type == 'svm':
             base_model.train(ds.loader['train_clip'])
@@ -16,31 +11,38 @@ def run(ds:Dataset.DataSplits, model_config:Config.OldModel, train_flag:bool, cl
     else:
         base_model.load(model_config)
     # Evaluate
-    gt,pred,_  = base_model.eval(ds.loader['test'])
+    gt,pred,conf  = base_model.eval(ds.loader['test'])
+    # print(gt[:10])
+    # print(pred[:10])
+    # print(conf[:10])
     acc = (gt==pred).mean()*100
     gt,pred,_  = base_model.eval(ds.loader['test_shift'])
     acc_shift = (gt==pred).mean()*100
-
-    clf = Detector.SVM(ds.loader['train_clip'], clip_processor, split_and_search=True)
-    _ = clf.fit(base_model, ds.loader['val_shift'])
+    # if train_flag:
+    #     base_model.save(model_config.path)
+    clf = Detector.factory(detect_instruction.name, set_up_dataloader=ds.loader['train_clip'], clip_processor = detect_instruction.vit, split_and_search=True)
+    _ = clf.fit(base_model, ds.loader['val_shift'], ds.dataset['val_shift'], model_config.batch_size)
     _, detect_prec = clf.predict(ds.loader['val_shift'], compute_metrics=True, base_model=base_model)
+    print('In fitting CLF:', detect_prec)
+    _, detect_prec = clf.predict(ds.loader['test_shift'], compute_metrics=True, base_model=base_model)
     if train_flag:
         base_model.save(model_config.path)
 
-    shift_score = Subset.mis_cls_stat('val_shift', ds, base_model)
+    shift_score = Subset.mis_label_stat('val_shift', ds, base_model)
 
     return acc, acc_shift, detect_prec, shift_score
 
-def main(epochs,  model_dir ='', train_flag=False, device_id=0, base_type=''):
+def main(epochs,  model_dir ='', train_flag=False, device_id=0, base_type='', detector_type=''):
     batch_size, label_map, new_img_num_list, superclass_num, ratio, seq_rounds_config, ds_list, device_config = set_up(epochs, False, device_id)
     acc_list, acc_shift_list, detect_prec_list, shift_list = [], [], [], []
     clip_processor = Detector.load_clip(device_config)
+    detect_instrution = Config.Dectector(detector_type, clip_processor)
     for epo in range(epochs):
         print('in epoch {}'.format(epo))
         old_model_config = Config.OldModel(batch_size['base'],superclass_num,model_dir, device_config, epo, base_type)
         ds = ds_list[epo]
         ds = Dataset.DataSplits(ds, old_model_config.batch_size)
-        prec, acc_shift, detect_prec, shift_score = run(ds, old_model_config, train_flag, clip_processor)
+        prec, acc_shift, detect_prec, shift_score = run(ds, old_model_config, train_flag, detect_instrution)
         acc_list.append(prec)
         acc_shift_list.append(acc_shift)
         detect_prec_list.append(detect_prec)
@@ -61,8 +63,9 @@ if __name__ == '__main__':
     parser.add_argument('-tf','--train_flag',type=bool,default=False)
     parser.add_argument('-md','--model_dir',type=str,default='')
     parser.add_argument('-d','--device',type=int,default=0)
-    parser.add_argument('-bt','--base_type',type=str,default='resnet')
+    parser.add_argument('-bt','--base_type',type=str,default='resnet_1')
+    parser.add_argument('-dt','--detector_type',type=str,default='svm')
 
     args = parser.parse_args()
     # method, img_per_cls, Model.save
-    main(args.epochs,args.model_dir,args.train_flag, args.device, args.base_type)
+    main(args.epochs,args.model_dir,args.train_flag, args.device, args.base_type, args.detector_type)

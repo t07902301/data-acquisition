@@ -41,8 +41,9 @@ class resnet(prototype):
         super().__init__()
         model_env()
         build_fn = model_utils.BUILD_FUNCTIONS[hparams['arch_type']]
-        self.model = build_fn(hparams['arch'], num_class,use_pretrained)
+        self.model = build_fn(hparams['arch'], num_class, use_pretrained)
         self.model = self.model.cuda()
+        self.bce = (num_class==1)
 
     def load(self, model_config: Config.ModelConfig):
         super().load(model_config)
@@ -52,30 +53,48 @@ class resnet(prototype):
 
     def eval(self, dataloader):
         self.model = self.model.eval()
+        gts, preds, confs = [], [], []
         with torch.no_grad():
             with autocast():
-                gts, preds, confs = [], [], []
-                for x, y,fine_y in dataloader:
-                    x = x.cuda()
-                    logits = self.model(x)
-                    gts.append(y.cpu())
-                    preds.append(logits.argmax(-1).cpu())
-                    softmax_logits = nn.Softmax(dim=-1)(logits) # logits: unnormalized output before the last layer
-                    # loss.append(ce(softmax_logits,y.cuda()))
-                    confs.append(softmax_logits[torch.arange(logits.shape[0]), y].cpu())
-        gts = torch.cat(gts).numpy()
-        preds = torch.cat(preds).numpy()
-        confs = torch.cat(confs).numpy()
-        return gts, preds,confs
+                if self.bce:
+                    sigmoid = nn.Sigmoid()
+                    for x, y,fine_y in dataloader:
+                        x = x.cuda()
+                        gts.append(y.cpu())
+                        logits = self.model(x)
+                        conf = sigmoid(logits)
+                        pred = (conf>=0.5).int()
+                        preds.append(pred.cpu())
+                        confs.append(conf.cpu())
+                    gts = torch.cat(gts).numpy()
+                    preds = torch.cat(preds).numpy()
+                    preds = preds.reshape(len(preds))
+                    confs = torch.cat(confs).numpy()
+                    confs = confs.reshape(len(confs))
+                else:
+                    for x, y,fine_y in dataloader:
+                        x = x.cuda()
+                        gts.append(y.cpu())
+                        logits = self.model(x)
+                        preds.append(logits.argmax(-1).cpu())
+                        softmax_logits = nn.Softmax(dim=-1)(logits) # logits: unnormalized output before the last layer
+                        # loss.append(ce(softmax_logits,y.cuda()))
+                        confs.append(softmax_logits[torch.arange(logits.shape[0]), y].cpu())
+                        # confs.append(softmax_logits.cpu())
+                    gts = torch.cat(gts).numpy()
+                    preds = torch.cat(preds).numpy()
+                    confs = torch.cat(confs).numpy()
 
-    def train(self, train_loader,val_loader,log_model=False, model_save_path=''):
+        return gts, preds,confs            
+
+    def train(self, train_loader, val_loader, log_model=False, model_save_path=''):
         '''return the last checkpoint'''
         training_args=hparams['training']
         training_args['optimizer'] = hparams['optimizer']
         training_args['iters_per_epoch'] = len(train_loader)
         trainer = trainer_utils.LightWeightTrainer(training_args=hparams['training'],
                                                         exp_name=model_save_path, enable_logging=log_model,
-                                                        bce=False, set_device=True)
+                                                        bce=self.bce, set_device=True)
         _ = trainer.fit(self.model, train_loader, val_loader)
         # self.model = best_model_chkpnt
 
@@ -127,11 +146,11 @@ class svm(prototype):
         torch.save(self.model.clf, path)
         print('model saved to {}'.format(path))
     
-    def update(self,train_loader):
+    def update(self, new_model_config, train_loader, val_loader, old_model=None):
         self.train(train_loader)
 
-def prototype_factory(base_type, set_up_loader=None, clip_processor=None):
-    if base_type == 'resnet':
-        return resnet(2)
+def prototype_factory(base_type, cls_num, svm_set_up=None, clip_processor=None):
+    if base_type == 'svm':
+        return svm(svm_set_up, clip_processor)
     else:
-        return svm(set_up_loader, clip_processor)
+        return resnet(cls_num)

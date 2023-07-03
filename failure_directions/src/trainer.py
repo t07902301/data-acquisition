@@ -17,7 +17,7 @@ from failure_directions.src.optimizers import get_optimizer_and_lr_scheduler
 # from optimizers import *
 
 
-def unwrap_batch(batch, set_device=False):
+def unwrap_batch(batch, set_device=False, bce = False):
     x, y, spurious, index = None, None, None, None
     if len(batch) == 3: # only for cifar-100?
         x, y, fine_y = batch
@@ -28,6 +28,8 @@ def unwrap_batch(batch, set_device=False):
     if set_device:
         x = x.cuda()
         y = y.cuda()
+    if bce:
+        y = y.view(y.shape[0], 1)
     return x, y, spurious, index
 
 class AverageMeter():
@@ -109,10 +111,10 @@ class LightWeightTrainer():
         return opt, scaler, scheduler
 
     def training_step(self, model, batch):
-        x, y, spurious, index = unwrap_batch(batch, self.set_device)
+        x, y, spurious, index = unwrap_batch(batch, self.set_device, self.bce)
         logits = model(x)
         if self.bce:
-            # logits = logits.view(logits.shape[0])
+            # logits = logits.view(logits.shape[0], 1)
             temp = self.bce_loss_unreduced(logits, y.float()) # weighted loss
         else:
             temp = self.ce_loss_unreduced(logits, y)
@@ -131,7 +133,7 @@ class LightWeightTrainer():
         return loss, acc, len(x)
     
     def validation_step(self, model, batch):
-        x, y, spurious, index = unwrap_batch(batch, self.set_device)
+        x, y, spurious, index = unwrap_batch(batch, self.set_device, self.bce)
         logits = model(x)
         if self.bce:
             # logits = logits.view(logits.shape[0])
