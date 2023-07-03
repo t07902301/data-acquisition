@@ -65,7 +65,7 @@ class subset(prototype):
         self.clip_set_up_loader = clip_set_up_loader
 
     def setup(self, old_model_config:Config.OldModel, datasplits:Dataset.DataSplits):
-        self.base_model = Model.prototype_factory(old_model_config.base_type, self.clip_set_up_loader, self.clip_processor)
+        self.base_model = Model.prototype_factory(old_model_config.base_type, old_model_config.class_number, self.clip_set_up_loader, self.clip_processor)
         self.base_model.load(old_model_config)
         # TODO: CLF can be made temporary
         self.clf = Detector.SVM(self.clip_set_up_loader, self.clip_processor)
@@ -96,10 +96,11 @@ class subset(prototype):
         '''
         loader: new_model + old_model
         '''
-        new_model = Model.prototype_factory(self.model_config.base_type, self.clip_set_up_loader, self.clip_processor)
+        new_model = Model.prototype_factory(self.model_config.base_type, self.model_config.class_number, self.clip_set_up_loader, self.clip_processor)
         new_model.load(self.model_config)
         gt,pred,_  = new_model.eval(loader['new_model'])
         new_correct = (gt==pred)
+
         if len(loader['old_model']) == 0:
             total_correct = new_correct
         else:
@@ -107,8 +108,7 @@ class subset(prototype):
             old_correct = (gt==pred)
             total_correct = np.concatenate((old_correct,new_correct))
         
-        # print('old model Incorrect predictions in selected test images:', Subset.incorrect_pred_stat(loader['new_model'], self.base_model))
-        Subset.pred_stat(loader['new_model'], self.base_model, new_model)
+        Subset.pred_metric(loader['new_model'], self.base_model, new_model)
         return total_correct.mean()*100 - self.base_acc 
     
     def iter_test(self):
@@ -131,6 +131,9 @@ class probability(subset):
     def setup(self, old_model_config:Config.OldModel, datasplits:Dataset.DataSplits,  stream_instruction:Config.ProbabStream, plot:bool):
         super().setup(old_model_config, datasplits) 
         cor_dv, incor_dv = Plot_Stat.get_dv_dstr(self.base_model, datasplits.loader['val_shift'], self.clf)
+        total_dv = np.concatenate((incor_dv,cor_dv))
+        # print((total_dv<0).sum(), len(total_dv))
+        print('Negative DV: {}%'.format((total_dv<0).mean()*100))
         correct_prior = (len(cor_dv)) / (len(cor_dv) + len(incor_dv))
         correct_dstr = Subset.disrtibution(correct_prior, Plot_Stat.get_pdf(cor_dv, stream_instruction.pdf))
         incorrect_dstr =  Subset.disrtibution(1 - correct_prior, Plot_Stat.get_pdf(incor_dv, stream_instruction.pdf))
@@ -147,8 +150,7 @@ class probability(subset):
 
     def selected_dstr_plot(self, selected_loader, fig_name, pdf=None):
         cor_dv, incor_dv = Plot_Stat.get_dv_dstr(self.base_model, selected_loader, self.clf)
-        selected_dv = np.concatenate((cor_dv, incor_dv))
-        print('In selected:', min(selected_dv), max(selected_dv))
+        print('Old model mistakes in selected test: {}%'.format(len(incor_dv) / (len(incor_dv) + len(cor_dv)) * 100))
         self.dv_dstr_plot(cor_dv, incor_dv, fig_name, pdf)
 
     def run(self, acquisition_config:Config.Acquistion):

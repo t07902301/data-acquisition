@@ -68,20 +68,12 @@ def get_dv_dstr(model: Model.prototype, dataloader, clf:Detector.Prototype):
     incor_dv = dv[incor_mask]
     return cor_dv, incor_dv
     
-def run(clf:Detector.SVM, dataloader, model_config: Config.OldModel, removal_ratio=0, n_bins = 20, plot=False, overlap_cut_value=None):
-    model = Model.resnet(2)
-    model.load(model_config)
+def run(clf:Detector.Prototype, dataloader, model:Model.prototype, overlap_cut_value=None, removal_ratio=0, n_bins = 20, plot=False, model_config: Config.OldModel = None):
     cor_dv, incor_dv = get_dv_dstr(model, dataloader, clf)
     total_dv = {
         'correct pred': cor_dv,
         'incorrect pred': incor_dv
     }
-
-    # clf_metrics = {
-    #     'SVM ': np.round(precision, decimals=2),
-    #     'Model': np.round(cor_mask.mean()*100, decimals=2)
-    # }
-    # intersection_area = overlap_plot(total_dv, n_bins=n_bins, path=fig_path, clf_metrics=None, removal_ratio = removal_ratio)
     intersection_area = get_overlap_area(total_dv, overlap_cut_value)
     if plot:
         fig_path = get_fig_name(model_config.model_dir, model_config.base_type, model_config.model_cnt, removal_ratio)
