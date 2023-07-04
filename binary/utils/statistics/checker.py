@@ -59,29 +59,18 @@ class subset(prototype):
     If split with threshold, then test set can get dv when setting up this checker.\n
     If split with mistakes, TBD
     '''
-    def __init__(self, model_config: Config.NewModel, clip_processor: Detector.CLIPProcessor, clip_set_up_loader) -> None:
+    def __init__(self, model_config: Config.NewModel) -> None:
         super().__init__(model_config)
-        self.clip_processor = clip_processor
-        self.clip_set_up_loader = clip_set_up_loader
 
-    def setup(self, old_model_config:Config.OldModel, datasplits:Dataset.DataSplits):
-        self.base_model = Model.prototype_factory(old_model_config.base_type, old_model_config.class_number, self.clip_set_up_loader, self.clip_processor)
+    def setup(self, old_model_config:Config.OldModel, datasplits:Dataset.DataSplits, detector_instruction:Config.Dectector):
+        self.base_model = Model.prototype_factory(old_model_config.base_type, old_model_config.class_number, detector_instruction.vit)
         self.base_model.load(old_model_config)
-        # TODO: CLF can be made temporary
-        self.clf = Detector.SVM(self.clip_set_up_loader, self.clip_processor)
+        self.clf = Detector.factory(detector_instruction.name, clip_processor = detector_instruction.vit, split_and_search=True)
         _ = self.clf.fit(self.base_model, datasplits.loader['val_shift'])
         gt, pred, _ = self.base_model.eval(datasplits.loader['test_shift'])
         self.base_acc = (gt == pred).mean()*100 
-        self.test_info = self._get_test_info(datasplits)  
-
-    def _get_test_info(self, datasplits:Dataset.DataSplits):
-        test_info = {}
-        test_dv, _ = self.clf.predict(datasplits.loader['test_shift'], self.base_model)        
-        test_info['dv'] = test_dv
-        test_info['old_batch_size'] = self.model_config.batch_size
-        test_info['new_batch_size'] = self.model_config.new_batch_size
-        test_info['dataset'] = datasplits.dataset['test_shift']
-        return test_info
+        self.test_info = Subset.build_data_info(datasplits, 'test_shift', self.clf, self.model_config, self.base_model)
+        self.vit = detector_instruction.vit
 
     def get_subset_loader(self, threshold):
         loader = Subset.threshold_subset_setter().get_subset_loders(self.test_info,threshold)        
@@ -96,7 +85,7 @@ class subset(prototype):
         '''
         loader: new_model + old_model
         '''
-        new_model = Model.prototype_factory(self.model_config.base_type, self.model_config.class_number, self.clip_set_up_loader, self.clip_processor)
+        new_model = Model.prototype_factory(self.model_config.base_type, self.model_config.class_number, self.vit)
         new_model.load(self.model_config)
         gt,pred,_  = new_model.eval(loader['new_model'])
         new_correct = (gt==pred)
@@ -126,10 +115,10 @@ class subset(prototype):
         return acc_change
 
 class probability(subset):
-    def __init__(self, model_config: Config.NewModel, clip_processor: Detector.CLIPProcessor, clip_set_up_loader) -> None:
-        super().__init__(model_config, clip_processor, clip_set_up_loader)   
-    def setup(self, old_model_config:Config.OldModel, datasplits:Dataset.DataSplits,  stream_instruction:Config.ProbabStream, plot:bool):
-        super().setup(old_model_config, datasplits) 
+    def __init__(self, model_config: Config.NewModel) -> None:
+        super().__init__(model_config)   
+    def setup(self, old_model_config:Config.OldModel, datasplits:Dataset.DataSplits, detector_instruction: Config.Dectector, stream_instruction:Config.ProbabStream, plot:bool):
+        super().setup(old_model_config, datasplits, detector_instruction) 
         cor_dv, incor_dv = Plot_Stat.get_dv_dstr(self.base_model, datasplits.loader['val_shift'], self.clf)
         total_dv = np.concatenate((incor_dv,cor_dv))
         # print((total_dv<0).sum(), len(total_dv))
