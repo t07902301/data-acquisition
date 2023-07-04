@@ -16,9 +16,6 @@ class DVStream(Stream):
         super().__init__(bound)
 
 class Dectector():
-    def __init__(self) -> None:
-        self.name = ''
-        self.vit = ''
     def __init__(self, name, vit_mounted) -> None:
         self.name = name
         self.vit = vit_mounted
@@ -32,7 +29,6 @@ class Acquistion():
         self.method = ''
         self.n_ndata = 0
         self.bound = None
-        self.detector = Dectector()
 
     @abstractmethod
     def get_new_data_size(self):
@@ -41,6 +37,12 @@ class Acquistion():
     @abstractmethod
     def get_info(self):
         pass
+
+    def add_streaming(self, streamer:Stream):
+        self.stream = streamer
+
+    def add_detector(self, detector:Dectector):
+        self.detector = detector
 
 class NonSeqAcquistion(Acquistion):
     def __init__(self) -> None:
@@ -117,13 +119,14 @@ class NewModel(ModelConfig):
             root = self.set_seq_root(self.root, acquistion_config)
         else:
             root = self.root
+        root_detector = os.path.join(root, acquistion_config.detector.name)
+        self.check_dir(root_detector)
         bound_name = '_{}'.format(acquistion_config.bound) if acquistion_config.bound != None else ''
-        self.path = os.path.join(root, '{}_{}{}.pt'.format(acquistion_config.method, acquistion_config.n_ndata, bound_name))
+        self.path = os.path.join(root_detector, '{}_{}{}.pt'.format(acquistion_config.method, acquistion_config.n_ndata, bound_name))
     
     def set_root(self, model_cnt):
         pure_name = 'pure' if self.pure else 'non-pure'
         # aug_name = '' if self.augment else 'na'
-
         if self.base_type != 'svm':
             self.root = os.path.join(self.root, self.setter, pure_name, str(model_cnt), str(self.new_batch_size)) 
         else:
