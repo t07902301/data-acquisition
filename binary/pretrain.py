@@ -2,10 +2,10 @@ from utils.strategy import *
 from utils.set_up import set_up
 import utils.statistics.subset as Subset
 def run(ds:Dataset.DataSplits, model_config:Config.OldModel, train_flag:bool, detect_instruction:Config.Dectector):
-    base_model = Model.prototype_factory(model_config.base_type, model_config.class_number, ds.loader['train_clip'], detect_instruction.vit)
+    base_model = Model.prototype_factory(model_config.base_type, model_config.class_number, detect_instruction.vit)
     if train_flag:
         if model_config.base_type == 'svm':
-            base_model.train(ds.loader['train_clip'])
+            base_model.train(ds.loader['train'])
         else:
             base_model.train(ds.loader['train'], ds.loader['val'])
     else:
@@ -20,7 +20,7 @@ def run(ds:Dataset.DataSplits, model_config:Config.OldModel, train_flag:bool, de
     acc_shift = (gt==pred).mean()*100
     # if train_flag:
     #     base_model.save(model_config.path)
-    clf = Detector.factory(detect_instruction.name, set_up_dataloader=ds.loader['train_clip'], clip_processor = detect_instruction.vit, split_and_search=True)
+    clf = Detector.factory(detect_instruction.name, clip_processor = detect_instruction.vit, split_and_search=True)
     _ = clf.fit(base_model, ds.loader['val_shift'], ds.dataset['val_shift'], model_config.batch_size)
     _, detect_prec = clf.predict(ds.loader['val_shift'], compute_metrics=True, base_model=base_model)
     print('In fitting CLF:', detect_prec)
@@ -49,8 +49,8 @@ def main(epochs,  model_dir ='', train_flag=False, device_id=0, base_type='', de
         shift_list.append(shift_score)
     print('Model Average Acc before shift: {}%'.format(np.round(np.mean(acc_list),decimals=3)))
     print('Model Average Acc after shift: {}%'.format(np.round(np.mean(acc_shift_list),decimals=3)))
-    Detector.statistics(detect_prec_list, 'precision')
     print('Shifted Data Proportion on Model Misclassifications: {}%'.format(np.round(np.mean(np.array(shift_list),axis=0), decimals=3)))
+    Detector.statistics(detect_prec_list, 'precision')
 
     split_data = ds.dataset
     for spit_name in split_data.keys():

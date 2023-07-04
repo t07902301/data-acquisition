@@ -44,19 +44,17 @@ class Prototype():
         pass
 
 class SVM(Prototype):
-    def __init__(self, set_up_dataloader, clip_processor:CLIPProcessor, split_and_search=False, data_transform = 'clip') -> None:
+    def __init__(self, clip_processor:CLIPProcessor, split_and_search=False, data_transform = 'clip') -> None:
         super().__init__(data_transform)
         self.clip_processor = clip_processor
-        self.model = SVMFitter(method=config['clf'], svm_args=config['clf_args'],cv=config['clf_args']['k-fold'], split_and_search = split_and_search)
-        #TODO take the mean adn stf of svm fit set for norm
-        set_up_latent = get_latent(set_up_dataloader, clip_processor, self.transform)
-        self.model.set_preprocess(set_up_latent) 
-        # plt.hist(set_up_img[0], 50)
-        # plt.savefig('figure/img.png')
-        # plt.close()
+        self.model = SVMFitter(method=config['clf'], svm_args=config['clf_args'],cv=config['clf_args']['k-fold'], split_and_search = split_and_search, do_normalize=True, do_standardize=False)
+        # #TODO take the mean adn stf of svm fit set for norm
+        # set_up_latent = get_latent(set_up_dataloader, clip_processor, self.transform)
+        # self.model.set_preprocess(set_up_latent) 
     
     def fit(self, base_model:Model.prototype, data_loader, data=None, batch_size = None):
         latent, correctness, _ = get_correctness(data_loader, base_model, self.transform, self.clip_processor)
+        self.model.set_preprocess(latent) #TODO val set mean and std may be accurate as those from train_clip
         score = self.model.fit(latent, correctness)
         return score
     
@@ -175,7 +173,7 @@ class RandomForest(Prototype):
         # TODO 
         confs = self.model.predict_proba(data)
         cls_conf = []
-        for idx in (range(data)):
+        for idx in (range(len(confs))):
             cls_conf.append(confs[idx][gt_labels[idx]])
         metrics = None
         if compute_metrics:
@@ -183,12 +181,12 @@ class RandomForest(Prototype):
             metrics = balanced_accuracy_score(gts, preds) * 100
         return np.array(cls_conf), metrics  
 
-def factory(detector_type, set_up_dataloader, clip_processor:CLIPProcessor, split_and_search=False, data_transform = 'clip'):
+def factory(detector_type, clip_processor:CLIPProcessor, split_and_search=False, data_transform = 'clip'):
     if detector_type == 'svm':
-        return SVM(set_up_dataloader, clip_processor, split_and_search, data_transform)
+        return SVM(clip_processor, split_and_search, data_transform)
     elif detector_type == 'resnet':
         return resnet()
-    elif detector_type == 'log_regression':
+    elif detector_type == 'logregs':
         return LogRegressor(data_transform, clip_processor)
     else:
         return RandomForest(data_transform, clip_processor)
