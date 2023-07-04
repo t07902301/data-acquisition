@@ -159,3 +159,13 @@ def pred_metric(dataloader, old_model:Model.prototype, new_model:Model.prototype
 
     # old_labels = set(config['data']['train_label']) - set(config['data']['remove_fine_labels'])
     # print(label_stat(old_incor_data, old_labels), label_stat(new_cor_old_incor_data, old_labels), label_stat(new_cor_data, old_labels))
+
+
+def build_data_info(dataset_splits: Dataset.DataSplits, name, clf:Detector.Prototype, model_config:Config.NewModel, base_model:Model.prototype):
+    data_info = {}
+    dv, _ = clf.predict(dataset_splits.loader[name], base_model)        
+    data_info['dv'] = dv
+    data_info['old_batch_size'] = model_config.batch_size
+    data_info['new_batch_size'] = model_config.new_batch_size
+    data_info['dataset'] = dataset_splits.dataset[name]
+    return data_info
