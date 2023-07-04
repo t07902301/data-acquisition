@@ -16,13 +16,14 @@ def inv_norm(ds_mean, ds_std):
                                ])
 
 class SVMFitter:
-    def __init__(self, split_and_search=True, balanced=True, cv=2, do_normalize=True, method='SVM', svm_args=None):
+    def __init__(self, split_and_search=True, balanced=True, cv=2, do_normalize=False, method='SVM', svm_args=None, do_standardize=True):
         self.split_and_search = split_and_search
         self.balanced = balanced
         self.cv = cv
         self.clf = None
         self.pre_process = None
         self.do_normalize = do_normalize
+        self.do_standardize = do_standardize
         self.method = method
         self.svm_args = svm_args
         

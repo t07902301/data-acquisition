@@ -10,11 +10,10 @@ import torch.nn as nn
 
 class SVMPreProcessing(nn.Module):
     
-    def __init__(self, mean=None, std=None, do_normalize=False):
+    def __init__(self, do_normalize=False, do_standardize=True):
         super().__init__()
-        self.mean = mean
-        self.std = std
         self.do_normalize = do_normalize
+        self.do_standardize = do_standardize
         
     def update_stats(self, latents):
         # latents = latents.detach().clone()
@@ -22,11 +21,14 @@ class SVMPreProcessing(nn.Module):
             latents = torch.tensor(latents)    
         self.mean = latents.mean(dim=0)
         self.std = (latents - self.mean).std(dim=0)
+        self.max = latents.max()
+        self.min = latents.min()
     
     def normalize(self, latents):
         if not torch.is_tensor(latents):
             latents = torch.tensor(latents)    
-        return latents/torch.linalg.norm(latents, dim=1, keepdims=True)
+        # return latents/torch.linalg.norm(latents, dim=1, keepdims=True)
+        return (latents - self.min) / (self.max - self.min)
     
     def standardize(self, latents):
         if not torch.is_tensor(latents):
@@ -37,7 +39,7 @@ class SVMPreProcessing(nn.Module):
         if not torch.is_tensor(latents):
             # latents = torch.tensor(latents) 
             latents = torch.concat(latents)  
-        if self.mean is not None:
+        if self.do_standardize:
             latents = self.standardize(latents)
         if self.do_normalize:
             latents = self.normalize(latents)
