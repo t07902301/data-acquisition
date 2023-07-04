@@ -8,10 +8,12 @@ import utils.objects.dataset as Dataset
 import utils.objects.Detector as Detector
 import torch
 import numpy as np
+import utils.statistics.subset as TestSubset
+import utils.statistics.stat_test as Plot_Stat
 class Strategy():
     base_model:Model.prototype
-    def __init__(self, old_model_config:Config.OldModel, clip_set_up=None, clip_processor=None) -> None:
-        self.base_model = Model.prototype_factory(old_model_config.base_type, old_model_config.class_number, clip_set_up, clip_processor)
+    def __init__(self, old_model_config:Config.OldModel, clip_processor=None) -> None:
+        self.base_model = Model.prototype_factory(old_model_config.base_type, old_model_config.class_number, clip_processor)
         self.base_model.load(old_model_config)
 
     @abstractmethod
@@ -26,28 +28,37 @@ class Strategy():
         Log data to reconstruct the final train set, and the final CLF statistic if necessary
         '''
         pass
-        
-    def get_new_val(self, dataset_splits: Dataset.DataSplits, new_data, clf=None):
-        dataset_splits.replace('new_data', new_data)
-        if clf is None:
-            clf = Detector.SVM(dataset_splits.loader['train_clip'], self.clip_processor)
-            score = clf.fit(self.base_model, dataset_splits.loader['val_shift']) 
-        val_dv, _ = clf.predict(dataset_splits.loader['val_shift'], self.base_model)
-        new_data_dv, _ = clf.predict(dataset_splits.loader['new_data'], self.base_model)
-        bound = np.max(new_data_dv)
-        val_indices = np.arange(len(dataset_splits.dataset['val_shift']))
-        targeted_indices = val_indices[val_dv <= bound]
-        targeted_val = torch.utils.data.Subset(dataset_splits.dataset['val_shift'], targeted_indices)
-        dataset_splits.replace('val_shift', targeted_val)   
+
+    def get_new_val(self, dataset_splits: Dataset.DataSplits, stream_instruction:Config.ProbabStream, model_config: Config.NewModel, clf=None, detect_instruction:Config.Dectector=None):
+        if clf is None and detect_instruction != None:
+            clf = Detector.factory(detect_instruction.name, clip_processor = detect_instruction.vit, split_and_search=True)
+            _ = clf.fit(self.base_model, dataset_splits.loader['val_shift']) 
+        # val_dv, _ = clf.predict(dataset_splits.loader['val_shift'], self.base_model)
+        # dataset_splits.replace('new_data', new_data)
+        # new_data_dv, _ = clf.predict(dataset_splits.loader['new_data'], self.base_model)
+        # bound = np.max(new_data_dv)
+        # val_indices = np.arange(len(dataset_splits.dataset['val_shift']))
+        # targeted_indices = val_indices[val_dv <= bound]
+        # targeted_val = torch.utils.data.Subset(dataset_splits.dataset['val_shift'], targeted_indices)
+        # dataset_splits.replace('val_shift', targeted_val)   
+
+        cor_dv, incor_dv = Plot_Stat.get_dv_dstr(self.base_model, dataset_splits.loader['val_shift'], clf)
+        correct_prior = (len(cor_dv)) / (len(cor_dv) + len(incor_dv))
+        correct_dstr = TestSubset.disrtibution(correct_prior, Plot_Stat.get_pdf(cor_dv, stream_instruction.pdf))
+        incorrect_dstr =  TestSubset.disrtibution(1 - correct_prior, Plot_Stat.get_pdf(incor_dv, stream_instruction.pdf))
+        val_shift_info = TestSubset.build_data_info(dataset_splits, 'val_shift', clf, model_config, self.base_model)
+        val_shift_split, _ = TestSubset.probability_setter().get_subset_loders(val_shift_info, correct_dstr, incorrect_dstr, stream_instruction)
+        dataset_splits.loader['val_shift'] = val_shift_split['new_model']
+        dataset_splits.dataset['val_shift'] = None
 
     def get_new_data(self, data_splits: Dataset.DataSplits, new_data_indices):
         return torch.utils.data.Subset(data_splits.dataset['market'],new_data_indices)
     
 class NonSeqStrategy(Strategy):
-    def __init__(self, old_model_config: Config.OldModel, clip_set_up) -> None:
-        super().__init__(old_model_config, clip_set_up)
+    def __init__(self, old_model_config: Config.OldModel) -> None:
+        super().__init__(old_model_config)
     @abstractmethod
-    def get_new_data_indices(self, n_data, dataset_splits: Dataset.DataSplits):
+    def get_new_data_indices(self, n_data, dataset_splits: Dataset.DataSplits, detector_instruction: Config.Dectector = None, bound = None):
         '''
         Based on old model performance, a certain number of new data is acquired.
         '''
@@ -56,26 +67,17 @@ class NonSeqStrategy(Strategy):
     def operate(self, acquire_instruction: Config.Acquistion, dataset: dict, new_model_config:Config.NewModel):
         dataset_copy = deepcopy(dataset)
         dataset_splits = Dataset.DataSplits(dataset_copy, new_model_config.new_batch_size)
-        new_data_indices,_ = self.get_new_data_indices(acquire_instruction.n_ndata, dataset_splits, acquire_instruction.bound)
-        new_data = self.get_new_data(dataset_splits, new_data_indices, )
+        new_data_indices,_ = self.get_new_data_indices(acquire_instruction.n_ndata, dataset_splits, acquire_instruction.detector, acquire_instruction.bound)
+        new_data = self.get_new_data(dataset_splits, new_data_indices)
         dataset_splits.use_new_data(new_data, new_model_config, acquire_instruction)
 
         self.log_data(new_model_config, new_data_indices, acquire_instruction)
        
-        self.get_new_val(dataset_splits, new_data)
+        self.get_new_val(dataset_splits, acquire_instruction.stream, new_model_config, detect_instruction=acquire_instruction.detector)
 
         self.base_model.update(new_model_config, dataset_splits.loader['train'], dataset_splits.loader['val_shift'])
         new_model_config.set_path(acquire_instruction)
         self.base_model.save(new_model_config.path)
-
-        # base_model = Model.load(old_model_config) # check dv for new data 
-        # clf = Detector.SVM(dataset_splits.loader['train_clip'])
-        # score = clf.fit(base_model, dataset_splits.loader['val_shift'])
-        # market_info, precision = clf.predict(dataset_splits.loader['market'])
-        # for cls_idx in raw_new_data_indices:
-        #     print(np.max(market_dv[cls_idx]))
-        # new_model_config.set_path(acquire_instruction)
-        # print(new_model_config.path)
 
     def log_data(self, model_config:Config.NewModel, data, acquire_instruction: Config.Acquistion):
         idx_log = model_config.get_log_config('indices')
@@ -83,12 +85,12 @@ class NonSeqStrategy(Strategy):
         Log.save(data, idx_log)
 
 class Greedy(NonSeqStrategy):
-    def __init__(self, old_model_config: Config.OldModel, clip_set_up) -> None:
-        super().__init__(old_model_config, clip_set_up)
-    def get_new_data_indices(self, n_data, data_splits: Dataset.DataSplits, bound = None):
-        clf = Detector.factory(self.detector, set_up_dataloader=data_splits.loader['train_clip'], clip_processor = self.clip_processor, split_and_search=True)
-        score = clf.fit(self.base_model, data_splits.loader['val_shift'], data_splits.dataset['val_shift'], 16)
-        market_dv, _ = clf.predict(data_splits.loader['market'], self.base_model)
+    def __init__(self, old_model_config: Config.OldModel) -> None:
+        super().__init__(old_model_config)
+    def get_new_data_indices(self, n_data, dataset_splits: Dataset.DataSplits, detector_instruction: Config.Dectector, bound = None):
+        clf = Detector.factory(detector_instruction.name, clip_processor = detector_instruction.vit, split_and_search=True)
+        score = clf.fit(self.base_model, dataset_splits.loader['val_shift'], dataset_splits.dataset['val_shift'], 16)
+        market_dv, _ = clf.predict(dataset_splits.loader['market'], self.base_model)
         new_data_indices_total = []
         if bound == None:
             new_data_indices = acquistion.get_top_values_indices(market_dv, n_data)
@@ -104,8 +106,8 @@ class Greedy(NonSeqStrategy):
 class Sample(NonSeqStrategy):
     def __init__(self, old_model_config: Config.OldModel) -> None:
         super().__init__(old_model_config)
-    def get_new_data_indices(self, n_data, data_splits: Dataset.DataSplits):
-        market_gts = acquistion.get_loader_labels(data_splits.loader['market'])
+    def get_new_data_indices(self, n_data, dataset_splits: Dataset.DataSplits, detector_instruction: Config.Dectector, bound = None):
+        market_gts = acquistion.get_loader_labels(dataset_splits.loader['market'])
         new_data_indices_total = []
         new_data_indices = acquistion.sample_acquire(market_gts,n_data)
         new_data_indices_total.append(new_data_indices)
@@ -116,8 +118,8 @@ class Confidence(NonSeqStrategy):
     def __init__(self, old_model_config: Config.OldModel) -> None:
         super().__init__(old_model_config)
     
-    def get_new_data_indices(self, n_data, data_splits: Dataset.DataSplits):
-        market_gts, market_preds, market_confs = self.base_model.eval(data_splits.loader['market'])
+    def get_new_data_indices(self, n_data, dataset_splits: Dataset.DataSplits, detector_instruction: Config.Dectector, bound = None):
+        market_gts, market_preds, market_confs = self.base_model.eval(dataset_splits.loader['market'])
         new_data_indices_total = []
         new_data_indices = acquistion.get_top_values_indices(market_confs, n_data)
         new_data_indices_total.append(new_data_indices) 
@@ -127,10 +129,10 @@ class Confidence(NonSeqStrategy):
 class Mix(NonSeqStrategy):
     def __init__(self, old_model_config: Config.OldModel) -> None:
         super().__init__(old_model_config)
-    def get_new_data_indices(self, n_data, data_splits: Dataset.DataSplits):
-        clf = Detector.SVM(data_splits.loader['train_clip'], self.clip_processor)
-        score = clf.fit(self.base_model, data_splits.loader['val_shift'])
-        market_dv, _ = clf.predict(data_splits.loader['market'], self.base_model)
+    def get_new_data_indices(self, n_data, dataset_splits: Dataset.DataSplits, detector_instruction: Config.Dectector, bound = None):
+        clf = Detector.SVM(dataset_splits.loader['train_clip'], self.clip_processor)
+        score = clf.fit(self.base_model, dataset_splits.loader['val_shift'])
+        market_dv, _ = clf.predict(dataset_splits.loader['market'], self.base_model)
         new_data_indices_total = []
         greedy_results = acquistion.get_top_values_indices(market_dv, n_data-n_data//2)
         sample_results = acquistion.sample_acquire(market_dv,n_data//2)
@@ -224,9 +226,9 @@ class Seq(Strategy):
         clf_config = Log.get_config(model_config, acquire_instruction, 'clf')
         Log.save(clf, clf_config) # Save new clf
 
-def StrategyFactory(strategy, old_model_config:Config.OldModel, clip_set_up):
+def StrategyFactory(strategy, old_model_config:Config.OldModel):
     if strategy=='dv':
-        return Greedy(old_model_config, clip_set_up)
+        return Greedy(old_model_config)
     elif strategy =='sm':
         return Sample(old_model_config)
     elif strategy == 'conf':
