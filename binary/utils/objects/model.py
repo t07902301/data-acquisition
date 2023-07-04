@@ -149,8 +149,8 @@ class svm(prototype):
     def update(self, new_model_config, train_loader, val_loader, old_model=None):
         self.train(train_loader)
 
-def prototype_factory(base_type, cls_num, svm_set_up=None, clip_processor=None):
+def prototype_factory(base_type, cls_num, clip_processor=None):
     if base_type == 'svm':
-        return svm(svm_set_up, clip_processor)
+        return svm(clip_processor)
     else:
         return resnet(cls_num)
