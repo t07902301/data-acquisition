@@ -32,17 +32,14 @@ def dummy_acquire(cls_gt, cls_pred, method, img_num):
         new_img_indices = result_mask_indices
     return new_img_indices  
 
-def get_top_values_indices(values, K=0, clf='SVM'):
+def get_top_values_indices(values, K=0):
     '''
-    return indices of images with top decision scores
+    return indices with top (target) decision scores from an ascending order
     '''
-    sorting_idx = np.argsort(values)
+    sorting_idx = np.argsort(values) # ascending order
     value_indices = np.arange(len(values))
     sorted_val_indices = value_indices[sorting_idx]
-    if clf == 'SVM':
-        top_val_indices = sorted_val_indices[:K]
-    else:
-        top_val_indices = sorted_val_indices[::-1][:K] # decision scores from clf confidence is non-negative
+    top_val_indices = sorted_val_indices[:K]
     return top_val_indices
 
 def get_in_bound_top_indices(values, K, bound):
@@ -57,3 +54,10 @@ def get_in_bound_top_indices(values, K, bound):
     top_idx = sorted_in_bound_val_indices[:K]
     return top_idx
     
+def get_conf_diff(gts, confs):
+    cls_0_mask = (gts==0)
+    cls_1_mask = ~cls_0_mask
+    confs_diff = np.zeros(len(gts))
+    confs_diff[cls_0_mask] = (0.5 - confs[cls_0_mask])
+    confs_diff[cls_1_mask] = (confs[cls_1_mask] - 0.5)
+    return confs_diff
