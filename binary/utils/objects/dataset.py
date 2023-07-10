@@ -105,7 +105,7 @@ def create_dataset(ds_root, select_fine_labels, ratio):
     ds['val_shift'] =  val_ds
     ds['market'] =  market_ds
     ds['test_shift'] = test_ds
-    ds['train_clip'] =  left_clip_train
+    # ds['train_clip'] =  left_clip_train
     ds['val_mar'] = val_market_set
     return ds
 
