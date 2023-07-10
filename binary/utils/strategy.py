@@ -30,6 +30,7 @@ class Strategy():
         pass
 
     def get_new_val(self, dataset_splits: Dataset.DataSplits, stream_instruction:Config.ProbabStream, model_config: Config.NewModel, clf=None, detect_instruction:Config.Dectector=None):
+        print('Get split val_shift')
         if clf is None and detect_instruction != None:
             clf = Detector.factory(detect_instruction.name, clip_processor = detect_instruction.vit, split_and_search=True)
             _ = clf.fit(self.base_model, dataset_splits.loader['val_shift']) 
@@ -91,55 +92,52 @@ class Greedy(NonSeqStrategy):
         clf = Detector.factory(detector_instruction.name, clip_processor = detector_instruction.vit, split_and_search=True)
         score = clf.fit(self.base_model, dataset_splits.loader['val_shift'], dataset_splits.dataset['val_shift'], 16)
         market_dv, _ = clf.predict(dataset_splits.loader['market'], self.base_model)
-        new_data_indices_total = []
         if bound == None:
             new_data_indices = acquistion.get_top_values_indices(market_dv, n_data)
         else:
             new_data_indices = acquistion.get_in_bound_top_indices(market_dv, n_data, bound)
-        new_data_indices_total.append(new_data_indices)
         clf_info = {
             'clf': clf,
             'score': score
         }
-        return np.concatenate(new_data_indices_total), clf_info       
+        return new_data_indices, clf_info       
 
 class Sample(NonSeqStrategy):
     def __init__(self, old_model_config: Config.OldModel) -> None:
         super().__init__(old_model_config)
     def get_new_data_indices(self, n_data, dataset_splits: Dataset.DataSplits, detector_instruction: Config.Dectector, bound = None):
         market_gts = acquistion.get_loader_labels(dataset_splits.loader['market'])
-        new_data_indices_total = []
         new_data_indices = acquistion.sample_acquire(market_gts,n_data)
-        new_data_indices_total.append(new_data_indices)
         clf_info = None
-        return np.concatenate(new_data_indices_total), clf_info      
+        return new_data_indices, clf_info      
 
 class Confidence(NonSeqStrategy):
     def __init__(self, old_model_config: Config.OldModel) -> None:
         super().__init__(old_model_config)
+        self.n_class = old_model_config.class_number
     
     def get_new_data_indices(self, n_data, dataset_splits: Dataset.DataSplits, detector_instruction: Config.Dectector, bound = None):
-        market_gts, market_preds, market_confs = self.base_model.eval(dataset_splits.loader['market'])
-        new_data_indices_total = []
-        new_data_indices = acquistion.get_top_values_indices(market_confs, n_data)
-        new_data_indices_total.append(new_data_indices) 
+        market_gts, _, market_confs = self.base_model.eval(dataset_splits.loader['market'])
+        if self.n_class == 1:
+            confs_diff = acquistion.get_conf_diff(market_gts, market_confs)
+            new_data_indices = acquistion.get_top_values_indices(confs_diff, n_data)
+        else:
+            new_data_indices = acquistion.get_top_values_indices(market_confs, n_data)
         clf_info = None
-        return np.concatenate(new_data_indices_total), clf_info       
+        return new_data_indices, clf_info       
 
 class Mix(NonSeqStrategy):
     def __init__(self, old_model_config: Config.OldModel) -> None:
         super().__init__(old_model_config)
     def get_new_data_indices(self, n_data, dataset_splits: Dataset.DataSplits, detector_instruction: Config.Dectector, bound = None):
         clf = Detector.SVM(dataset_splits.loader['train_clip'], self.clip_processor)
-        score = clf.fit(self.base_model, dataset_splits.loader['val_shift'])
+        _ = clf.fit(self.base_model, dataset_splits.loader['val_shift'])
         market_dv, _ = clf.predict(dataset_splits.loader['market'], self.base_model)
-        new_data_indices_total = []
         greedy_results = acquistion.get_top_values_indices(market_dv, n_data-n_data//2)
         sample_results = acquistion.sample_acquire(market_dv,n_data//2)
         new_data_cls_indices = np.concatenate([greedy_results, sample_results])
-        new_data_indices_total.append(new_data_cls_indices)
         clf_info = None
-        return np.concatenate(new_data_indices_total), clf_info       
+        return new_data_cls_indices, clf_info       
 
 class SeqCLF(Strategy):
     def __init__(self, old_model_config: Config.OldModel) -> None:
