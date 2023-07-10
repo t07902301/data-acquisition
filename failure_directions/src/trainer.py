@@ -158,7 +158,7 @@ class LightWeightTrainer():
             scaler.scale(loss).backward()
             scaler.step(opt)
             scaler.update()
-        scheduler.step()   # TODO Does scheduler update optmizer per batch or per epoch? Per
+        # scheduler.step()   # TODO Does scheduler update optmizer per batch or per epoch?
                
         # with tqdm(train_dataloader) as t:
         #     t.set_description(f"Train Epoch: {epoch_num}")
@@ -208,10 +208,10 @@ class LightWeightTrainer():
             # print('In epoch {}'.format(epoch), scheduler.get_last_lr())
 
             val_loss, val_acc = self.val_epoch(epoch, model, val_dataloader)
-            # if self.training_args['lr_scheduler']['type'] == 'ReduceLROnPlateau': # Early Stopping
-            #     scheduler.step(val_loss)      
-            # else:
-            #     scheduler.step()
+            if self.training_args['lr_scheduler']['type'] == 'ReduceLROnPlateau': # Early Stopping
+                scheduler.step(val_loss)      
+            else:
+                scheduler.step()
 
             # curr_lr = scheduler.get_last_lr()[0]
             # if epoch%10 == 0:
