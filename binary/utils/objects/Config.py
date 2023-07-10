@@ -126,7 +126,6 @@ class NewModel(ModelConfig):
     
     def set_root(self, model_cnt):
         pure_name = 'pure' if self.pure else 'non-pure'
-        # aug_name = '' if self.augment else 'na'
         if self.base_type != 'svm':
             self.root = os.path.join(self.root, self.setter, pure_name, str(model_cnt), str(self.new_batch_size)) 
         else:
@@ -165,8 +164,7 @@ def str2bool(value):
 def str2float(value):
     return float(value)
 
-def parse(pure:bool):
-    pure_name = 'pure' if pure else 'non-pure'
+def parse():
     hparams = config['hparams']
     base_batch_size = hparams['batch_size']['base']
     new_batch_size = hparams['batch_size']['new']
@@ -184,10 +182,10 @@ def parse(pure:bool):
     }
     output = {
         'label_map': label_map,
-        'n_data_per_cls': img_per_cls_list,
         'ratio': ratio,
         'removed_labels': config['data']['remove_fine_labels'],
-        'svm_kernel': config['clf_args']['kernel']
+        'svm_kernel': config['clf_args']['kernel'],
+        'superclass': superclass_num,
     }
     print(output)
     return batch_size, train_labels, label_map, img_per_cls_list, superclass_num, ratio, seq_rounds 
