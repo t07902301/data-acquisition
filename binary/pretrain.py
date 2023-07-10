@@ -33,7 +33,7 @@ def run(ds:Dataset.DataSplits, model_config:Config.OldModel, train_flag:bool, de
     return acc, acc_shift, detect_prec, shift_score
 
 def main(epochs,  model_dir ='', train_flag=False, device_id=0, base_type='', detector_type=''):
-    batch_size, label_map, new_img_num_list, superclass_num, ratio, seq_rounds_config, ds_list, device_config = set_up(epochs, False, device_id)
+    batch_size, label_map, new_img_num_list, superclass_num, ratio, seq_rounds_config, ds_list, device_config = set_up(epochs, device_id)
     acc_list, acc_shift_list, detect_prec_list, shift_list = [], [], [], []
     clip_processor = Detector.load_clip(device_config)
     detect_instrution = Config.Dectector(detector_type, clip_processor)
@@ -64,8 +64,8 @@ if __name__ == '__main__':
     parser.add_argument('-md','--model_dir',type=str,default='')
     parser.add_argument('-d','--device',type=int,default=0)
     parser.add_argument('-bt','--base_type',type=str,default='resnet_1')
-    parser.add_argument('-dt','--detector_type',type=str,default='svm')
+    parser.add_argument('-dn','--detector_name',type=str,default='svm')
 
     args = parser.parse_args()
     # method, img_per_cls, Model.save
-    main(args.epochs,args.model_dir,args.train_flag, args.device, args.base_type, args.detector_type)
+    main(args.epochs,args.model_dir,args.train_flag, args.device, args.base_type, args.detector_name)
