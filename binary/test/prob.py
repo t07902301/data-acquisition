@@ -13,16 +13,16 @@ def bound_run(epochs, parse_para, dataset_list, new_img_num_list, method_list, a
     return results, bound_stat_list
 
 
-def main(epochs, new_model_setter='retrain', pure=False, model_dir ='', device=0, probab_bound = 0.5, base_type='', detector_name = ''):
+def main(epochs, new_model_setter='refine', pure=False, model_dir ='', device=0, probab_bound = 0.5, base_type='', detector_name = ''):
     print('Detector:', detector_name)
+    if pure == False:
+        probab_bound = 0
+    print('Probab bound:', probab_bound)
     device_config = 'cuda:{}'.format(device)
     torch.cuda.set_device(device_config)
-    batch_size, label_map, new_img_num_list, superclass_num, ratio, seq_rounds_config, ds_list, device_config = set_up(epochs, False, device)
-    # method_list, method_labels = ['dv','sm','conf','seq_clf'], ['greedy decision value','random sampling','model confidence','sequential with only SVM updates']
-    method_list, method_labels = ['dv'], ['dv']
-    # method_list = ['dv','sm','conf','mix']
-    # method_labels = ['greedy decision value','random sampling','model confidence','greedy+sampling']
-
+    batch_size, label_map, new_img_num_list, superclass_num, ratio, seq_rounds_config, ds_list, device_config = set_up(epochs, device)
+    # method_list = ['dv','sm','conf'] if new_model_setter!='refine' else ['dv']
+    method_list = ['dv','sm','conf']
     clip_processor = Detector.load_clip(device_config)
     parse_para = (batch_size, superclass_num,model_dir, device_config, base_type, pure, new_model_setter, seq_rounds_config)
     acquire_instruction = Config.AcquistionFactory('seq',seq_rounds_config) 
@@ -30,21 +30,17 @@ def main(epochs, new_model_setter='retrain', pure=False, model_dir ='', device=0
     detect_instruction = Config.Dectector(detector_name, clip_processor)
     acquire_instruction.add_detector(detect_instruction)
     # bounds = [-1.5, -1, -0.8, -0.5, 0, 0.5]
-    bounds = [ None]
-    bound_stat_list = []
-    average_results = []
+    bounds = [None]
     for bound in bounds:
         print('In treshold: {}'.format(bound))
         acquire_instruction.bound = bound
         result, bound_stat = bound_run(epochs, parse_para, ds_list, new_img_num_list, method_list, acquire_instruction, stream_instruction)
-        method_result = np.array(result)[:, 0, :]
-        average_results.append(np.round(np.mean(method_result, axis=0), decimals=3).tolist())
-        bound_stat_list.append(bound_stat)
-   
-    for i in average_results:
-        print(*i, sep=',')
-
-    # print(np.round(np.mean(bound_stat_list, axis=1), decimals=2))
+        result = np.array(result)
+        print(result.shape)
+        for idx, method in enumerate(method_list):
+            method_result = result[:, idx, :]
+            print(method)
+            print(*np.round(np.mean(method_result, axis=0), decimals=3).tolist(), sep=',')
 
 import argparse
 if __name__ == '__main__':
