@@ -29,25 +29,20 @@ def bound_run(parse_para, epochs, ds_list, strategy:str, method_list, new_img_nu
         epoch_run(parse_para, method_list, new_img_num_list, dataset, acquire_instruction, epo)
 
 def main(epochs, new_model_setter='retrain', pure=False, model_dir ='', strategy='', device=0, base_type='', detector_name=''):
-    print('Use pure: ', pure)
     print('Detector Name:', detector_name)
     clip_processor = Detector.load_clip(device)
     detect_instruction = Config.Dectector(detector_name, clip_processor)
-    stream_instruction = Config.ProbabStream(bound=0.5, pdf='kde')
+    probab_bound = 0.5 if pure else 0
+    stream_instruction = Config.ProbabStream(bound=probab_bound, pdf='kde')
 
     acquire_instruction = Config.AcquistionFactory(strategy, sequential_rounds_config=0)
     acquire_instruction.add_detector(detect_instruction)
     acquire_instruction.add_streaming(stream_instruction)
 
-    batch_size, label_map, new_img_num_list, superclass_num, ratio, seq_rounds_config, ds_list, device_config = set_up(epochs, False, device)
+    batch_size, label_map, new_img_num_list, superclass_num, ratio, seq_rounds_config, ds_list, device_config = set_up(epochs, device)
 
-    # method_list = ['dv','sm','conf','mix'] if strategy=='non_seq' else [strategy]
+    # method_list = ['dv','sm','conf'] if strategy=='non_seq' else [strategy]
     method_list = ['dv']
-    bounds = [-1.5, -1, -0.8, -0.5, 0, 0.5]
-    # bounds = [ -0.5, 0, 0.5]
-
-
-    # method_list, new_img_num_list = ['dv','sm'], [150,200]
     bounds = [None]
     for bound in bounds:
         parse_para = (batch_size, superclass_num,model_dir, device_config, base_type, pure, new_model_setter, seq_rounds_config)
@@ -62,7 +57,7 @@ if __name__ == '__main__':
     parser.add_argument('-e','--epochs',type=int,default=1)
     parser.add_argument('-p','--pure',type=Config.str2bool,default=True)
     parser.add_argument('-md','--model_dir',type=str,default='')
-    parser.add_argument('-s','--strategy',type=str)
+    parser.add_argument('-s','--strategy',type=str, default='non_seq')
     parser.add_argument('-d','--device',type=int,default=0)
     parser.add_argument('-bt','--base_type',type=str,default='resnet_1')
     parser.add_argument('-dn','--detector_name',type=str,default='svm')
