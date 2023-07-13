@@ -54,10 +54,13 @@ def get_in_bound_top_indices(values, K, bound):
     top_idx = sorted_in_bound_val_indices[:K]
     return top_idx
     
-def get_conf_diff(gts, confs):
+def get_probab_diff(gts, probab):
     cls_0_mask = (gts==0)
     cls_1_mask = ~cls_0_mask
-    confs_diff = np.zeros(len(gts))
-    confs_diff[cls_0_mask] = (0.5 - confs[cls_0_mask])
-    confs_diff[cls_1_mask] = (confs[cls_1_mask] - 0.5)
-    return confs_diff
+    probab_diff = np.zeros(len(gts))
+    probab_diff[cls_0_mask] = (0.5 - probab[cls_0_mask])
+    probab_diff[cls_1_mask] = (probab[cls_1_mask] - 0.5)
+    return probab_diff
+
+def get_probab_gts(gts, probab):
+    return probab[np.arange(len(gts)), gts]
