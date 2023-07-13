@@ -49,6 +49,15 @@ def get_probab_checker(epoch, parse_para, dataset, stream_instruction:Config.Str
     checker.setup(old_model_config, dataset_splits, detect_instruction, stream_instruction, plot)
     return checker
 
+def get_ensemble_checker(epoch, parse_para, dataset, stream_instruction:Config.Stream, detect_instruction: Config.Dectector, plot=True):
+    batch_size, superclass_num,model_dir, device_config, base_type, pure, new_model_setter, seq_rounds_config = parse_para
+    old_model_config = Config.OldModel(batch_size['base'], superclass_num, model_dir, device_config, epoch, base_type=base_type)
+    new_model_config = Config.NewModel(batch_size['base'], superclass_num, model_dir, device_config, epoch, pure, new_model_setter, batch_size['new'], base_type=base_type)
+    dataset_splits = Dataset.DataSplits(dataset, old_model_config.batch_size)
+    checker = Checker.ensemble(new_model_config) 
+    checker.setup(old_model_config, dataset_splits, detect_instruction, stream_instruction, plot)
+    return checker
+
 # def get_subset_checker(epoch, parse_para, dataset, stream_instruction:Config.Stream, plot=True):
 #     batch_size, superclass_num,model_dir, device_config, base_type, pure, new_model_setter, seq_rounds_config = parse_para
 #     old_model_config = Config.OldModel(batch_size['base'], superclass_num, model_dir, device_config, epoch, base_type=base_type)
