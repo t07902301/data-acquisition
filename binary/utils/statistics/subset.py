@@ -27,12 +27,19 @@ class probability_setter(subset_setter):
     def __init__(self) -> None:
         super().__init__()
 
-    def norm_probab_target(self, value, target_dstr: disrtibution, other_dstr:disrtibution):
+    def get_probab(self, value, target_dstr: disrtibution, other_dstr:disrtibution, pdf_type):
+        if pdf_type == 'norm':
+            probab_target = self.norm_probab(value, target_dstr, other_dstr)  
+        else:
+            probab_target = self.kde_probab(value, target_dstr, other_dstr)
+        return probab_target
+
+    def norm_probab(self, value, target_dstr: disrtibution, other_dstr:disrtibution):
         probability_target = (target_dstr.prior * target_dstr.dstr.pdf(value)) / (target_dstr.prior * target_dstr.dstr.pdf(value) + other_dstr.prior * other_dstr.dstr.pdf(value))
         
         return probability_target
    
-    def kde_probab_target(self, value, target_dstr: disrtibution, other_dstr:disrtibution):
+    def kde_probab(self, value, target_dstr: disrtibution, other_dstr:disrtibution):
         probability_target = (target_dstr.prior * target_dstr.dstr.evaluate(value)) / (target_dstr.prior * target_dstr.dstr.evaluate(value) + other_dstr.prior * other_dstr.dstr.evaluate(value))
         # probability_target = (target_dstr.prior * target_dstr.dstr.pdf(value)) / (target_dstr.prior * target_dstr.dstr.pdf(value) + other_dstr.prior * other_dstr.dstr.pdf(value))
 
@@ -41,10 +48,7 @@ class probability_setter(subset_setter):
     def get_subset_loders(self, data_info, correct_dstr: disrtibution, incorrect_dstr: disrtibution, stream_instruction:Config.ProbabStream):
         selected_probab = []
         for value in data_info['dv']:
-            if stream_instruction.pdf == 'norm':
-                probab_target = self.norm_probab_target(value, incorrect_dstr, correct_dstr)  
-            else:
-                probab_target = self.kde_probab_target(value, incorrect_dstr, correct_dstr)
+            probab_target = self.get_probab(value, incorrect_dstr, correct_dstr, stream_instruction.pdf)
             selected_probab.append(probab_target)
         selected_probab = np.array(selected_probab).reshape((len(selected_probab),))
         selected_mask = (selected_probab >= stream_instruction.bound)
