@@ -9,7 +9,7 @@ def run(ds:Dataset.DataSplits, model_config:Config.OldModel, train_flag:bool, de
         else:
             base_model.train(ds.loader['train'], ds.loader['val'])
     else:
-        base_model.load(model_config)
+        base_model.load(model_config.path, model_config.device)
     # Evaluate
     gt,pred,conf  = base_model.eval(ds.loader['test'])
     # print(gt[:10])
