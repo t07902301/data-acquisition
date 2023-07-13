@@ -14,7 +14,7 @@ class Strategy():
     base_model:Model.prototype
     def __init__(self, old_model_config:Config.OldModel, clip_processor=None) -> None:
         self.base_model = Model.prototype_factory(old_model_config.base_type, old_model_config.class_number, clip_processor)
-        self.base_model.load(old_model_config)
+        self.base_model.load(old_model_config.path, old_model_config.device)
 
     @abstractmethod
     def operate(self, acquire_instruction: Config.Acquistion, dataset: dict, new_model_config:Config.NewModel):
@@ -117,12 +117,13 @@ class Confidence(NonSeqStrategy):
         self.n_class = old_model_config.class_number
     
     def get_new_data_indices(self, n_data, dataset_splits: Dataset.DataSplits, detector_instruction: Config.Dectector, bound = None):
-        market_gts, _, market_confs = self.base_model.eval(dataset_splits.loader['market'])
+        market_gts, _, market_probab = self.base_model.eval(dataset_splits.loader['market'])
         if self.n_class == 1:
-            confs_diff = acquistion.get_conf_diff(market_gts, market_confs)
-            new_data_indices = acquistion.get_top_values_indices(confs_diff, n_data)
+            confs = acquistion.get_probab_diff(market_gts, market_probab)
+            new_data_indices = acquistion.get_top_values_indices(confs, n_data)
         else:
-            new_data_indices = acquistion.get_top_values_indices(market_confs, n_data)
+            confs = acquistion.get_probab_gts(market_gts, market_probab)
+            new_data_indices = acquistion.get_top_values_indices(market_probab, n_data)
         clf_info = None
         return new_data_indices, clf_info       
 
@@ -169,7 +170,7 @@ class SeqCLF(Strategy):
         dataset_splits.replace('val_shift', org_val_ds)
         # train model 
         self.get_new_val(dataset_splits, new_data_total_set, clf_info['clf'])
-        self.base_model.update(new_model_config, dataset_splits.loader['train'], dataset_splits.loader['val_shift'])
+        self.base_model.update(new_model_config.setter, dataset_splits.loader['train'], dataset_splits.loader['val_shift'])
         new_model_config.set_path(acquire_instruction)
         self.base_model.save(new_model_config.path)
 
