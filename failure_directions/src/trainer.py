@@ -18,19 +18,20 @@ from failure_directions.src.optimizers import get_optimizer_and_lr_scheduler
 
 
 def unwrap_batch(batch, set_device=False, bce = False):
-    x, y, spurious, index = None, None, None, None
-    if len(batch) == 3: # only for cifar-100?
-        x, y, fine_y = batch
-    elif len(batch) == 4:
-        x, y, spurious, index = batch
-    elif len(batch) == 2:
-        x, y = batch
+    # x, y, fine_y, index = None, None, None, None
+    # if len(batch) == 3: # only for cifar-100?
+    #     x, y, fine_y = batch
+    # elif len(batch) == 4:
+    #     x, y, fine_y, index = batch
+    # elif len(batch) == 2:
+    #     x, y = batch
+    x, y, fine_y, index = batch
     if set_device:
         x = x.cuda()
         y = y.cuda()
     if bce:
         y = y.view(y.shape[0], 1)
-    return x, y, spurious, index
+    return x, y, fine_y, index
 
 class AverageMeter():
     def __init__(self):
@@ -46,16 +47,16 @@ class AverageMeter():
     
 class LightWeightTrainer():
     def __init__(self, training_args, exp_name, enable_logging=True, loss_upweight_vec=None,
-                 set_device=False, bce=False, weights=None):
+                 set_device=False, bce=False, cls_weights=None, loss_weight_index_map=None):
         # print('In Training, loss weights are',weights)
         self.training_args = training_args
         self.bce = bce
         if self.bce:
-            self.bce_loss_unreduced = nn.BCEWithLogitsLoss(reduction='none',weight=weights)
-            self.bce_loss = nn.BCEWithLogitsLoss(weight=weights)
+            self.bce_loss_unreduced = nn.BCEWithLogitsLoss(reduction='none',weight=cls_weights)
+            self.bce_loss = nn.BCEWithLogitsLoss(weight=cls_weights)
         else:
-            self.ce_loss_unreduced = nn.CrossEntropyLoss(reduction='none',weight=weights)
-            self.ce_loss = nn.CrossEntropyLoss(weight=weights)
+            self.ce_loss_unreduced = nn.CrossEntropyLoss(reduction='none',weight=cls_weights)
+            self.ce_loss = nn.CrossEntropyLoss(weight=cls_weights)
         self.enable_logging = enable_logging
         if self.enable_logging:
             new_path = self.make_training_dir(exp_name)
@@ -64,22 +65,32 @@ class LightWeightTrainer():
         else:
             self.training_dir = None
             self.writer = None
-        self.loss_upweight_vec = loss_upweight_vec
         self.set_device = set_device
+        self.loss_upweight_vec = loss_upweight_vec
+        self.loss_weight_index_map = loss_weight_index_map
+        # self.sorter = np.argsort(self.loss_weight_index_map) 
 
-    def get_weights(self,labels,cls_num=2):
-        # cls_num = gts.max() + 1
-        weights = np.arange(len(labels)) #batch_size
-        for c in range(cls_num):
-            mask = labels==c
-            mask = mask.detach().cpu().numpy()
-            c_num = np.sum(np.where(mask==True,1,0))
-            if c_num == 0:
-                return torch.ones([len(labels)]).cuda()
-            weights[mask] = 1/c_num
-            assert (weights >= 0).all().item()
+    def get_mapped_weights(self, batch_index):
+        map_position = []
+        for index in batch_index:
+            map_position.append(np.where(self.loss_weight_index_map == index)[0])
+        map_position = np.array(map_position)
+        mapped_weight = self.loss_upweight_vec[map_position]
+        return mapped_weight
 
-        return torch.tensor(weights).cuda() 
+    # def get_weights(self,labels,cls_num=2):
+    #     # cls_num = gts.max() + 1
+    #     weights = np.arange(len(labels)) #batch_size
+    #     for c in range(cls_num):
+    #         mask = labels==c
+    #         mask = mask.detach().cpu().numpy()
+    #         c_num = np.sum(np.where(mask==True,1,0))
+    #         if c_num == 0:
+    #             return torch.ones([len(labels)]).cuda()
+    #         weights[mask] = 1/c_num
+    #         assert (weights >= 0).all().item()
+
+    #     return torch.tensor(weights).cuda() 
 
     def make_training_dir(self, exp_name):
         path = os.path.join('runs', exp_name)
@@ -111,18 +122,18 @@ class LightWeightTrainer():
         return opt, scaler, scheduler
 
     def training_step(self, model, batch):
-        x, y, spurious, index = unwrap_batch(batch, self.set_device, self.bce)
+        x, y, fine_y, index = unwrap_batch(batch, self.set_device, self.bce)
         logits = model(x)
         if self.bce:
-            # logits = logits.view(logits.shape[0], 1)
             temp = self.bce_loss_unreduced(logits, y.float()) # weighted loss
         else:
             temp = self.ce_loss_unreduced(logits, y)
-        # # get loss weights
-        # if self.loss_upweight_vec is not None:
-        #     weight = self.loss_upweight_vec[index].cuda()
-        #     assert (weight >= 0).all().item()
-        #     temp = temp * weight
+        # get loss weights
+        if self.loss_upweight_vec is not None:
+            mapped_weight = self.get_mapped_weights(index)
+            mapped_weight = mapped_weight.cuda()
+            # assert (weight >= 0).all().item()
+            temp = temp * mapped_weight
 
         # weight = self.get_weights(y)
         # assert (weight >= 0).all().item()
@@ -133,10 +144,9 @@ class LightWeightTrainer():
         return loss, acc, len(x)
     
     def validation_step(self, model, batch):
-        x, y, spurious, index = unwrap_batch(batch, self.set_device, self.bce)
+        x, y, fine_y, index = unwrap_batch(batch, self.set_device, self.bce)
         logits = model(x)
         if self.bce:
-            # logits = logits.view(logits.shape[0])
             loss = self.bce_loss(logits, y.float())
         else:
             loss = self.ce_loss(logits, y)
