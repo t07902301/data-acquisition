@@ -107,12 +107,6 @@ class CIFAR10(data.Dataset):
             self.test_data = self.test_data.transpose((0, 2, 3, 1))  # convert to HWC
 
     def __getitem__(self, index):
-        """
-        Args:
-            index (int): Index
-        Returns:
-            tuple: (image, target) where target is index of the target class.
-        """
         if self.train:
             img, target = self.train_data[index], self.train_labels[index]
             if self.coarse:
@@ -130,9 +124,9 @@ class CIFAR10(data.Dataset):
             img = self.transform(img)
 
         if not self.coarse:
-            return img, target
+            return img, target, index
         else:
-            return img, coarse_target, target
+            return img, coarse_target, target, index
 
     def __len__(self):
         if self.train:
@@ -209,10 +203,10 @@ class ModifiedDataset(data.Dataset):
     def __len__(self):
         return len(self.dataset)
     def __getitem__(self, index):
-        img, coarse_label, fine_label = self.dataset[index]
+        img, coarse_label, fine_label, real_idx = self.dataset[index]
         if self.coarse_label_transform is not None:
             coarse_label = self.coarse_label_transform[coarse_label]
-        return img, coarse_label, fine_label
+        return img, coarse_label, fine_label, real_idx
     
 ## TODO base transform makes images tensor and not be further transformed
 # class Subset(data.Dataset):
