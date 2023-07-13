@@ -245,7 +245,8 @@ def get_shuffle_idx(dataset):
 
 def loader2dataset(dataloader):
     img, coarse_labels, fine_labels = [], [], []
-    for x, y,fine_y in dataloader:
+    for batch_info in dataloader:
+        x, y, fine_y, _  = batch_info
         img.append(x)
         coarse_labels.append(y)
         fine_labels.append(fine_y)
