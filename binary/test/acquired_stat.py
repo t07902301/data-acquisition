@@ -14,7 +14,8 @@ def get_cor_incor_dstr(model: Model.prototype, dataloader):
     return dataset_gts[cor_mask], dataset_preds[incor_mask]
 
 def n_data_run(acquisition_config, checker: Checker.subset, data_split:Dataset.DataSplits, pdf_method):
-    check_result = check_data(acquisition_config, data_split, checker, pdf_method)
+    # check_result = check_data(acquisition_config, data_split, checker, pdf_method)
+    check_result = check_clf(acquisition_config, data_split, checker)
     return check_result
 
 def dv_dstr_plot(cor_dv, incor_dv, n_data, pdf_method=None, range=None):
@@ -29,6 +30,8 @@ def method_run(n_img_list, acquisition_config:Config.Acquistion, checker: Checke
     acc_change_list = []
     for n_img in n_img_list:
         acquisition_config.n_ndata = n_img
+        if 'seq' in acquisition_config.method:
+            checker.clf = Log.get_log_clf(acquisition_config, checker.model_config)
         acc_change = n_data_run(acquisition_config, checker, data_split, pdf_method)
         acc_change_list.append(acc_change)
     return acc_change_list
@@ -38,8 +41,6 @@ def run(acquisition_config:Config.Acquistion, methods, new_img_num_list, checker
     for method in methods:
         print('In method', method)
         acquisition_config.method = method
-        if 'seq' in method:
-            checker.clf = Log.get_log_clf(acquisition_config, checker.model_config, checker.clip_set_up_loader, checker.clip_processor)
         result_method = method_run(new_img_num_list, acquisition_config, checker, data_split, pdf_method)
         result_list.append(result_method)
     return result_list
@@ -51,7 +52,7 @@ def epoch_run(new_img_num_list, method_list, acquire_instruction:Config.Acquisti
 def check_data(acquisition_config:Config.Acquistion, data_split:Dataset.DataSplits, checker:Checker.subset, pdf_method):
     model_config = checker.model_config
     model_config.set_path(acquisition_config)
-    new_data, indices = Log.get_log_data(acquisition_config, model_config, data_split.dataset['market'])
+    new_data = Log.get_log_data(acquisition_config, model_config, data_split.dataset['market'])
     new_data_loader = torch.utils.data.DataLoader(new_data, batch_size= model_config.new_batch_size)
     
     # old_labels = set(Subset.config['data']['train_label']) - set(Subset.config['data']['remove_fine_labels'])
@@ -69,8 +70,6 @@ def check_data(acquisition_config:Config.Acquistion, data_split:Dataset.DataSpli
     # print('Old model mistakes in acquired data: {}%'.format())
     # plot_range = (-2.5, 0) # test_dv
     # dv_dstr_plot(cor_dv, incor_dv, acquisition_config.n_ndata, pdf_method, plot_range)
-    
-
 
     # market_dv, _ = checker.clf.predict(data_split.loader['market'], checker.base_model)
     # test_dv, _ = checker.clf.predict(data_split.loader['test_shift'], checker.base_model)
@@ -79,6 +78,13 @@ def check_data(acquisition_config:Config.Acquistion, data_split:Dataset.DataSpli
     # ks_result = Plot_stat.kstest(new_data_dv, test_dv)
     # return ks_result.pvalue
     
+def check_clf(acquisition_config:Config.Acquistion, data_split:Dataset.DataSplits, checker:Checker.subset):
+    model_config = checker.model_config
+    model_config.set_path(acquisition_config)
+    detector = Log.get_log_clf(acquisition_config, model_config)
+    _, prec = detector.predict(data_split.loader['test_shift'], checker.base_model, compute_metrics=True)
+    return prec
+
 def main(epochs, new_model_setter='retrain', pure=False, model_dir ='', device=0, probab_bound = 0.5, base_type='', detector_name = ''):
     device_config = 'cuda:{}'.format(device)
     if pure == False:
@@ -88,7 +94,7 @@ def main(epochs, new_model_setter='retrain', pure=False, model_dir ='', device=0
 
     # method_list, method_labels = ['dv','sm','conf','seq_clf'], ['greedy decision value','random sampling','model confidence','sequential with only SVM updates']
     # method_list = ['dv','sm','conf'] if new_model_setter!='refine' else ['dv']
-    method_list = ['dv','sm','conf']
+    method_list = ['seq_clf']
 
     clip_processor = Detector.load_clip(device_config)
     detect_instruction = Config.Dectector(detector_name, clip_processor)
