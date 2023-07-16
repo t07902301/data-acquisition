@@ -58,13 +58,18 @@ class PreProcessing(nn.Module):
             'mean': self.mean,
             'std': self.std,
             'min': self.min,
-            'max': self.max
+            'max': self.max,
+            'do_normalize': self.do_normalize,
+            'do_standardize': self.do_standardize
         }
     
-    def _import(self, args):
-        self.mean = args['mean']
-        self.std = args['std']
-        self.do_normalize = args['normalize']
+    def _import(self, stats):
+        self.mean = stats['mean']
+        self.std = stats['std']
+        self.do_normalize = stats['do_normalize']
+        self.do_standardize = stats['do_standardize']
+        self.max = stats['max']
+        self.min = stats['min']
 
 from abc import abstractmethod
 
@@ -75,13 +80,21 @@ class Prototype:
         self.do_standardize = do_standardize
         self.clf = None
 
-    @abstractmethod
-    def export(self, filename):
-        pass
-    
-    @abstractmethod
     def import_model(self, filename):
-        pass
+        with open(filename, 'rb') as f:
+            out = pkl.load(f)
+        self.clf = out['clf']
+        self.pre_process = PreProcessing()
+        self.pre_process._import(out['pre_stats'])
+
+    def export(self, filename):
+        with open(filename, 'wb') as f:
+            pkl.dump({
+                'clf': self.clf,
+                'pre_stats': self.pre_process._export(),
+                }, 
+                f
+            )
         
     def set_preprocess(self, train_latents=None):
         self.pre_process = PreProcessing(do_normalize=self.do_normalize)
@@ -91,7 +104,7 @@ class Prototype:
         else:
             print("No whitening")
 
-    @ abstractmethod
+    @abstractmethod
     def fit(self, latents, gts):
         pass
 
@@ -117,6 +130,7 @@ class LogRegressor(Prototype):
 
     def fit(self, latents, gts):
         latents = self.fit_preprocess(latents)
+        # TODO add args 
         self.clf = LogisticRegression(random_state=0, max_iter=50, solver='liblinear')
         self.clf.fit(latents, gts)
     
@@ -128,22 +142,6 @@ class LogRegressor(Prototype):
         if compute_metrics and (gts is not None):
             metrics = balanced_accuracy_score(gts, preds) * 100
         return dv, metrics  
-    
-    def import_model(self, filename):
-        with open(filename, 'rb') as f:
-            out = pkl.load(f)
-        self.clf = out['clf']
-        # svm_stats = out['pre_stats']
-        self.pre_process = PreProcessing(do_normalize=self.do_normalize, do_standardize=self.do_standardize)
-
-    def export(self, filename):
-        with open(filename, 'wb') as f:
-            pkl.dump({
-                'clf': self.clf,
-                'pre_stats': self.pre_process._export(),
-                }, 
-                f
-            )
 
 class SVM(Prototype):
     def __init__(self, split_and_search=True, balanced=True, cv=2, do_normalize=False, args=None, do_standardize=True):
@@ -186,7 +184,6 @@ class SVM(Prototype):
             'split_and_search': self.split_and_search,
             'balanced': self.balanced,
             'cv': self.cv,
-            'do_normalize': self.do_normalize,
         }
         with open(filename, 'wb') as f:
             pkl.dump({
@@ -199,11 +196,12 @@ class SVM(Prototype):
         with open(filename, 'rb') as f:
             out = pkl.load(f)
         self.clf = out['clf']
+        self.pre_process = PreProcessing()
+        self.pre_process._import(out['pre_stats'])
+
         self.split_and_search=out['args']['split_and_search']
         self.balanced = out['args']['balanced']
         self.cv = out['args']['cv']
-        self.do_normalize = out['args']['do_normalize']
-        self.pre_process = PreProcessing(do_normalize=self.do_normalize, do_standardize=self.do_standardize)
 
     def legacy_import_model(self, filename, svm_stats):
         with open(filename, 'rb') as f:
