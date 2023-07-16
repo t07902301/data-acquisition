@@ -29,7 +29,7 @@ class Strategy():
         '''
         pass
 
-    def get_new_val(self, dataset_splits: Dataset.DataSplits, stream_instruction:Config.ProbabStream, model_config: Config.NewModel, clf=None, detect_instruction:Config.Dectector=None):
+    def get_new_val(self, dataset_splits: Dataset.DataSplits, stream_instruction:Config.ProbabStream, model_config: Config.NewModel, clf: Detector.Prototype=None, detect_instruction:Config.Dectector=None):
         print('Get split val_shift')
         if clf is None and detect_instruction != None:
             clf = Detector.factory(detect_instruction.name, clip_processor = detect_instruction.vit, split_and_search=True)
@@ -97,7 +97,7 @@ class Greedy(NonSeqStrategy):
         else:
             new_data_indices = acquistion.get_in_bound_top_indices(market_dv, n_data, bound)
         _, metric = clf.predict(dataset_splits.loader['test_shift'], self.base_model, True)
-        print(metric)
+        print('CLF metric:', metric)
         return new_data_indices, clf       
 
 class Sample(NonSeqStrategy):
@@ -152,21 +152,21 @@ class SeqCLF(Strategy):
         new_data_total_set = None
 
         for round_i in range(acquire_instruction.n_rounds):
-            new_data_total_set, clf_info = self.round_operate(round_i, acquire_instruction, dataset_splits, new_data_total_set)
+            new_data_total_set, clf = self.round_operate(round_i, acquire_instruction, dataset_splits, new_data_total_set)
         
         self.recover_dataset(org_val_ds, 'val_shift', dataset_splits, acquire_instruction.n_ndata)
         # train model 
         dataset_splits.use_new_data(new_data_total_set, new_model_config, acquire_instruction)
-        self.get_new_val(dataset_splits, acquire_instruction.stream, new_model_config, detect_instruction=acquire_instruction.detector, clf=clf_info['clf'])
+        self.get_new_val(dataset_splits, acquire_instruction.stream, new_model_config, detect_instruction=acquire_instruction.detector, clf=clf)
         self.base_model.update(new_model_config.setter, dataset_splits.loader['train'], dataset_splits.loader['val_shift'])
         new_model_config.set_path(acquire_instruction)
         self.base_model.save(new_model_config.path)
 
-        self.log_data(new_model_config, new_data_total_set, acquire_instruction, clf_info)
+        self.log_data(new_model_config, new_data_total_set, acquire_instruction, clf)
 
     def round_operate(self, round_id, acquire_instruction, dataset_splits:Dataset.DataSplits, new_data_total_set):
         acquire_instruction.set_round(round_id)
-        new_data_round_indices, clf_info = self.sub_strategy.get_new_data_indices(acquire_instruction.n_data_round, dataset_splits, 
+        new_data_round_indices, clf = self.sub_strategy.get_new_data_indices(acquire_instruction.n_data_round, dataset_splits, 
                                                                                     acquire_instruction.detector)
         new_data_round_set = self.sub_strategy.get_new_data(dataset_splits.dataset['market'], new_data_round_indices)
 
@@ -175,7 +175,7 @@ class SeqCLF(Strategy):
 
         new_data_total_set = new_data_round_set  if (new_data_total_set == None) else  torch.utils.data.ConcatDataset([new_data_total_set,new_data_round_set])
 
-        return new_data_total_set, clf_info
+        return new_data_total_set, clf
 
     def recover_dataset(self, org_ds, dataset_name, dataset_splits:Dataset.DataSplits, n_new_data):
         # recover original val 
