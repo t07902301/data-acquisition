@@ -3,17 +3,18 @@ from utils import config
 from abc import abstractmethod
 
 class Stream():
-    def __init__(self, bound) -> None:
+    def __init__(self, bound, name) -> None:
+        self.name = name
         self.bound = bound
 
 class ProbabStream(Stream):
-    def __init__(self, bound, pdf) -> None:
-        super().__init__(bound)
+    def __init__(self, bound, name, pdf) -> None:
+        super().__init__(bound, name)
         self.pdf = pdf
 
 class DVStream(Stream):
-    def __init__(self, bound) -> None:
-        super().__init__(bound)
+    def __init__(self, bound, name) -> None:
+        super().__init__(bound, name)
 
 class Dectector():
     def __init__(self, name, vit_mounted) -> None:
@@ -97,6 +98,7 @@ class ModelConfig():
         self.check_dir(self.root)
         self.device = device
         self.base_type = base_type
+        self.path = None
     def check_dir(self, dir):
         if os.path.exists(dir) is False:
             os.makedirs(dir)
@@ -116,11 +118,18 @@ class NewModel(ModelConfig):
         self.set_root(model_cnt)
 
     def set_path(self,acquistion_config:Acquistion):
+        # Set Seq Acquistion Root
         if 'seq' in acquistion_config.method:
             root = self.set_seq_root(self.root, acquistion_config)
         else:
             root = self.root
-        root_detector = os.path.join(root, acquistion_config.detector.name)
+       
+        # Make Conf and sampling-based method Root agnostic to detector
+        if acquistion_config.method in ['conf', 'sm']:
+            root_detector = root
+        else:
+            root_detector = os.path.join(root, acquistion_config.detector.name)
+
         self.check_dir(root_detector)
         bound_name = '_{}'.format(acquistion_config.bound) if acquistion_config.bound != None else ''
         self.path = os.path.join(root_detector, '{}_{}{}.pt'.format(acquistion_config.method, acquistion_config.n_ndata, bound_name))
