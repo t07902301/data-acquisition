@@ -173,3 +173,15 @@ def build_data_info(dataset_splits: Dataset.DataSplits, name, clf:Detector.Proto
     data_info['new_batch_size'] = model_config.new_batch_size
     data_info['dataset'] = dataset_splits.dataset[name]
     return data_info
+    
+def get_hard_easy_dv(model: Model.prototype, dataloader, clf:Detector.Prototype):
+    '''
+    DV of hard and easy data wrt the given model
+    '''
+    dataset_gts, dataset_preds, _ = model.eval(dataloader)
+    dv, _ = clf.predict(dataloader, model)
+    cor_mask = (dataset_gts == dataset_preds)
+    incor_mask = ~cor_mask
+    cor_dv = dv[cor_mask]
+    incor_dv = dv[incor_mask]
+    return cor_dv, incor_dv
