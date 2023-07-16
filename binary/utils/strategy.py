@@ -74,11 +74,11 @@ class NonSeqStrategy(Strategy):
 
         self.log_data(new_model_config, new_data_indices, acquire_instruction)
        
-        # self.get_new_val(dataset_splits, acquire_instruction.stream, new_model_config, detect_instruction=acquire_instruction.detector)
+        self.get_new_val(dataset_splits, acquire_instruction.stream, new_model_config, detect_instruction=acquire_instruction.detector)
 
-        # self.base_model.update(new_model_config, dataset_splits.loader['train'], dataset_splits.loader['val_shift'])
-        # new_model_config.set_path(acquire_instruction)
-        # self.base_model.save(new_model_config.path)
+        self.base_model.update(new_model_config, dataset_splits.loader['train'], dataset_splits.loader['val_shift'])
+        new_model_config.set_path(acquire_instruction)
+        self.base_model.save(new_model_config.path)
 
     def log_data(self, model_config:Config.NewModel, data, acquire_instruction: Config.Acquistion):
         idx_log = model_config.get_log_config('indices')
@@ -154,13 +154,13 @@ class SeqCLF(Strategy):
         for round_i in range(acquire_instruction.n_rounds):
             new_data_total_set, clf = self.round_operate(round_i, acquire_instruction, dataset_splits, new_data_total_set)
         
-        self.recover_dataset(org_val_ds, 'val_shift', dataset_splits, acquire_instruction.n_ndata)
-        # train model 
-        dataset_splits.use_new_data(new_data_total_set, new_model_config, acquire_instruction)
-        self.get_new_val(dataset_splits, acquire_instruction.stream, new_model_config, detect_instruction=acquire_instruction.detector, clf=clf)
-        self.base_model.update(new_model_config.setter, dataset_splits.loader['train'], dataset_splits.loader['val_shift'])
-        new_model_config.set_path(acquire_instruction)
-        self.base_model.save(new_model_config.path)
+        # self.recover_dataset(org_val_ds, 'val_shift', dataset_splits, acquire_instruction.n_ndata)
+        # # train model 
+        # dataset_splits.use_new_data(new_data_total_set, new_model_config, acquire_instruction)
+        # self.get_new_val(dataset_splits, acquire_instruction.stream, new_model_config, detect_instruction=acquire_instruction.detector, clf=clf)
+        # self.base_model.update(new_model_config.setter, dataset_splits.loader['train'], dataset_splits.loader['val_shift'])
+        # new_model_config.set_path(acquire_instruction)
+        # self.base_model.save(new_model_config.path)
 
         self.log_data(new_model_config, new_data_total_set, acquire_instruction, clf)
 
@@ -189,8 +189,8 @@ class SeqCLF(Strategy):
         # Log.save(data, data_config) # Save new data
         clf_config = model_config.get_log_config('clf')
         clf_config.set_path(acquire_instruction)
-        Log.save(detector, clf_config)
-        
+        detector.save(clf_config.path)
+
 class Seq(Strategy):
     def __init__(self) -> None:
         super().__init__()

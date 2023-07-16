@@ -7,7 +7,7 @@ import torch
 from torch.cuda.amp import autocast
 import torch.nn as nn
 from utils import config
-from utils.detector.wrappers import SVMFitter, CLIPProcessor
+import utils.detector.wrappers as wrappers
 from abc import abstractmethod
 from utils.env import model_env
 hparams = config['hparams']
@@ -121,11 +121,11 @@ class resnet(prototype):
             self.train(train_loader,val_loader) # retrain 
 
 class svm(prototype):
-    def __init__(self, set_up_dataloader, clip_processor:CLIPProcessor, split_and_search=False) -> None:
+    def __init__(self, set_up_dataloader, clip_processor:wrappers.CLIPProcessor, split_and_search=False) -> None:
         super().__init__()
         self.clip_processor = clip_processor
         set_up_embedding, _ = self.clip_processor.evaluate_clip_images(set_up_dataloader)        
-        self.model = SVMFitter(method=config['clf'], svm_args=config['clf_args'],cv=config['clf_args']['k-fold'], split_and_search = split_and_search)
+        self.model = wrappers.SVM(method=config['clf'], svm_args=config['clf_args'],cv=config['clf_args']['k-fold'], split_and_search = split_and_search)
         self.model.set_preprocess(set_up_embedding) 
     
     def load(self, path, device):

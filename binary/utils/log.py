@@ -50,6 +50,7 @@ def get_log_data(acquisition_config:Config.Acquistion, model_config:Config.NewMo
 def get_log_clf(acquisition_config:Config.Acquistion, model_config:Config.NewModel):
     log_config = model_config.get_log_config('clf')
     log_config.set_path(acquisition_config)
-    detector = torch.load(log_config.path)
-    print('{} log load from {}'.format(log_config.log_symbol, log_config.path))
+    # detector = torch.load(log_config.path)
+    detector = Detector.factory(acquisition_config.detector.name, acquisition_config.detector.vit)
+    detector.load(log_config.path)
     return detector
