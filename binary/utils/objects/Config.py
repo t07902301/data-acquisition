@@ -57,29 +57,30 @@ class NonSeqAcquistion(Acquistion):
 class SequentialAc(Acquistion):
     def __init__(self, sequential_rounds:dict) -> None:
         super().__init__()
-        self.sequential_rounds_info = sequential_rounds
+        # self.n_rounds_info = sequential_rounds
+
+    def set_up(self):
+        self.n_rounds = 3
         self.round_acquire_method = 'dv'
         self.current_round = 0
-        self.n_data_last_round = 0
-        self.n_data_not_last = 0
-        self.round_data_per_class = 0
+        self.n_data_non_last_round = self.n_ndata  // self.n_rounds
+        n_data_acquired = self.n_data_non_last_round * (self.n_rounds - 1)
+        self.n_data_last_round = self.n_ndata - n_data_acquired
+        self.n_data_round = 0
+        
     def set_round(self, round):
         self.current_round = round + 1
-        if self.current_round == self.sequential_rounds:
-            self.round_data_per_class = self.n_data_last_round
+        if self.current_round == self.n_rounds:
+            self.n_data_round = self.n_data_last_round
         else:
-            self.round_data_per_class = self.n_data_not_last
+            self.n_data_round = self.n_data_non_last_round
+
     def get_new_data_size(self, class_number):
-        return class_number * self.n_data_last_round + class_number * self.n_data_not_last * (self.sequential_rounds-1)
+        return class_number * self.n_data_last_round + class_number * self.n_data_non_last_round * (self.n_rounds-1)
+    
     def get_info(self):
-        return 'acquisition method: {}, n_data_per_class:({},{}) in round {}'.format(self.method, self.n_data_not_last, self.n_data_last_round, self.current_round)
-    def set_items(self, method, new_data_number):
-        super().set_items(method, new_data_number)
-        # self.sequential_rounds = self.sequential_rounds_info[self.n_ndata]
-        self.sequential_rounds = 2
-        self.n_data_not_last = self.n_ndata  // self.sequential_rounds
-        n_data_acquired = self.n_data_not_last * (self.sequential_rounds - 1)
-        self.n_data_last_round = self.n_ndata - n_data_acquired
+        return 'acquisition method: {}, n_data_per_class:({},{}) in round {}'.format(
+            self.method, self.n_data_not_last, self.n_data_last_round, self.current_round)
 
 def AcquistionFactory(strategy, sequential_rounds_config):
     if strategy == 'non_seq':

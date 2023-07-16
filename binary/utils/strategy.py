@@ -52,8 +52,8 @@ class Strategy():
         dataset_splits.loader['val_shift'] = val_shift_split['new_model']
         dataset_splits.dataset['val_shift'] = None
 
-    def get_new_data(self, data_splits: Dataset.DataSplits, new_data_indices):
-        return torch.utils.data.Subset(data_splits.dataset['market'],new_data_indices)
+    def get_new_data(self, market_set, new_data_indices):
+        return torch.utils.data.Subset(market_set, new_data_indices)
     
 class NonSeqStrategy(Strategy):
     def __init__(self, old_model_config: Config.OldModel) -> None:
@@ -69,16 +69,16 @@ class NonSeqStrategy(Strategy):
         dataset_copy = deepcopy(dataset)
         dataset_splits = Dataset.DataSplits(dataset_copy, new_model_config.new_batch_size)
         new_data_indices,_ = self.get_new_data_indices(acquire_instruction.n_ndata, dataset_splits, acquire_instruction.detector, acquire_instruction.bound)
-        new_data = self.get_new_data(dataset_splits, new_data_indices)
+        new_data = self.get_new_data(dataset_splits.dataset['market'], new_data_indices)
         dataset_splits.use_new_data(new_data, new_model_config, acquire_instruction)
 
         self.log_data(new_model_config, new_data_indices, acquire_instruction)
        
-        self.get_new_val(dataset_splits, acquire_instruction.stream, new_model_config, detect_instruction=acquire_instruction.detector)
+        # self.get_new_val(dataset_splits, acquire_instruction.stream, new_model_config, detect_instruction=acquire_instruction.detector)
 
-        self.base_model.update(new_model_config, dataset_splits.loader['train'], dataset_splits.loader['val_shift'])
-        new_model_config.set_path(acquire_instruction)
-        self.base_model.save(new_model_config.path)
+        # self.base_model.update(new_model_config, dataset_splits.loader['train'], dataset_splits.loader['val_shift'])
+        # new_model_config.set_path(acquire_instruction)
+        # self.base_model.save(new_model_config.path)
 
     def log_data(self, model_config:Config.NewModel, data, acquire_instruction: Config.Acquistion):
         idx_log = model_config.get_log_config('indices')
@@ -90,17 +90,15 @@ class Greedy(NonSeqStrategy):
         super().__init__(old_model_config)
     def get_new_data_indices(self, n_data, dataset_splits: Dataset.DataSplits, detector_instruction: Config.Dectector, bound = None):
         clf = Detector.factory(detector_instruction.name, clip_processor = detector_instruction.vit, split_and_search=True)
-        score = clf.fit(self.base_model, dataset_splits.loader['val_shift'], dataset_splits.dataset['val_shift'], 16)
+        _ = clf.fit(self.base_model, dataset_splits.loader['val_shift'], dataset_splits.dataset['val_shift'], 16)
         market_dv, _ = clf.predict(dataset_splits.loader['market'], self.base_model)
         if bound == None:
             new_data_indices = acquistion.get_top_values_indices(market_dv, n_data)
         else:
             new_data_indices = acquistion.get_in_bound_top_indices(market_dv, n_data, bound)
-        clf_info = {
-            'clf': clf,
-            'score': score
-        }
-        return new_data_indices, clf_info       
+        _, metric = clf.predict(dataset_splits.loader['test_shift'], self.base_model, True)
+        print(metric)
+        return new_data_indices, clf       
 
 class Sample(NonSeqStrategy):
     def __init__(self, old_model_config: Config.OldModel) -> None:
@@ -146,45 +144,53 @@ class SeqCLF(Strategy):
         self.base_model_config = old_model_config
    
     def operate(self, acquire_instruction:Config.SequentialAc, dataset:dict, new_model_config:Config.NewModel):
+        acquire_instruction.set_up()
         self.sub_strategy = StrategyFactory(acquire_instruction.round_acquire_method, self.base_model_config)
         dataset_copy = deepcopy(dataset)
         dataset_splits = Dataset.DataSplits(dataset_copy, new_model_config.new_batch_size)
         org_val_ds = dataset_splits.dataset['val_shift']
         new_data_total_set = None
-        rounds = 2
 
-        for round_i in range(rounds):
-            acquire_instruction.set_round(round_i)
-            new_data_round_indices, clf_info = self.sub_strategy.get_new_data_indices(acquire_instruction.round_data_per_class, dataset_splits)
-            new_data_round_set = torch.utils.data.Subset(dataset_splits.dataset['market'],new_data_round_indices)
-            new_data_round_set = self.sub_strategy.get_new_data(dataset_splits, new_data_round_indices, )
-
-            dataset_splits.reduce('market', new_data_round_indices)
-            dataset_splits.expand('val_shift', new_data_round_set)
-
-            new_data_total_set = new_data_round_set  if (new_data_total_set == None) else  torch.utils.data.ConcatDataset([new_data_total_set,new_data_round_set])
-
-        # recover original val 
-        dataset_splits.use_new_data(new_data_total_set, new_model_config, acquire_instruction)
-        assert len(org_val_ds) == len(dataset_splits.dataset['val_shift']) - acquire_instruction.n_ndata, "size error with original val"
-        dataset_splits.replace('val_shift', org_val_ds)
+        for round_i in range(acquire_instruction.n_rounds):
+            new_data_total_set, clf_info = self.round_operate(round_i, acquire_instruction, dataset_splits, new_data_total_set)
+        
+        self.recover_dataset(org_val_ds, 'val_shift', dataset_splits, acquire_instruction.n_ndata)
         # train model 
-        self.get_new_val(dataset_splits, new_data_total_set, clf_info['clf'])
+        dataset_splits.use_new_data(new_data_total_set, new_model_config, acquire_instruction)
+        self.get_new_val(dataset_splits, acquire_instruction.stream, new_model_config, detect_instruction=acquire_instruction.detector, clf=clf_info['clf'])
         self.base_model.update(new_model_config.setter, dataset_splits.loader['train'], dataset_splits.loader['val_shift'])
         new_model_config.set_path(acquire_instruction)
         self.base_model.save(new_model_config.path)
 
-        clf = clf_info['clf']
-        self.log_data(new_model_config, new_data_total_set, acquire_instruction,clf)
+        self.log_data(new_model_config, new_data_total_set, acquire_instruction, clf_info)
 
-    def log_data(self, model_config:Config.NewModel, data, acquire_instruction: Config.SequentialAc, detector):
-        data_config = model_config.get_log_config('data')
-        data_config.set_path(acquire_instruction)
-        Log.save(data, data_config) # Save new data
+    def round_operate(self, round_id, acquire_instruction, dataset_splits:Dataset.DataSplits, new_data_total_set):
+        acquire_instruction.set_round(round_id)
+        new_data_round_indices, clf_info = self.sub_strategy.get_new_data_indices(acquire_instruction.n_data_round, dataset_splits, 
+                                                                                    acquire_instruction.detector)
+        new_data_round_set = self.sub_strategy.get_new_data(dataset_splits.dataset['market'], new_data_round_indices)
+
+        dataset_splits.reduce('market', new_data_round_indices)
+        dataset_splits.expand('val_shift', new_data_round_set)
+
+        new_data_total_set = new_data_round_set  if (new_data_total_set == None) else  torch.utils.data.ConcatDataset([new_data_total_set,new_data_round_set])
+
+        return new_data_total_set, clf_info
+
+    def recover_dataset(self, org_ds, dataset_name, dataset_splits:Dataset.DataSplits, n_new_data):
+        # recover original val 
+        assert len(org_ds) == len(dataset_splits.dataset[dataset_name]) - n_new_data, (len(org_ds), len(dataset_splits.dataset[dataset_name]), n_new_data)
+        # "size error with original val"
+        dataset_splits.replace(dataset_name, org_ds)
+
+    def log_data(self, model_config:Config.NewModel, data, acquire_instruction: Config.SequentialAc, detector: Detector.Prototype):
+        # data_config = model_config.get_log_config('data')
+        # data_config.set_path(acquire_instruction)
+        # Log.save(data, data_config) # Save new data
         clf_config = model_config.get_log_config('clf')
         clf_config.set_path(acquire_instruction)
-        Log.save(detector.fitter.clf, clf_config) # Save new clf
-
+        Log.save(detector, clf_config)
+        
 class Seq(Strategy):
     def __init__(self) -> None:
         super().__init__()
