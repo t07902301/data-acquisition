@@ -32,11 +32,12 @@ def run(ds:Dataset.DataSplits, model_config:Config.OldModel, train_flag:bool, de
 
     return acc, acc_shift, detect_prec, shift_score
 
-def main(epochs,  model_dir ='', train_flag=False, device_id=0, base_type='', detector_type=''):
+def main(epochs,  model_dir ='', train_flag=False, device_id=0, base_type='', detector_name=''):
+    print('Detector Name:', detector_name)
     batch_size, label_map, new_img_num_list, superclass_num, ratio, seq_rounds_config, ds_list, device_config = set_up(epochs, device_id)
     acc_list, acc_shift_list, detect_prec_list, shift_list = [], [], [], []
     clip_processor = Detector.load_clip(device_config)
-    detect_instrution = Config.Dectector(detector_type, clip_processor)
+    detect_instrution = Config.Dectector(detector_name, clip_processor)
     for epo in range(epochs):
         print('in epoch {}'.format(epo))
         old_model_config = Config.OldModel(batch_size['base'],superclass_num,model_dir, device_config, epo, base_type)
