@@ -4,6 +4,7 @@ import clip
 import torchvision.transforms as transforms
 from torch.cuda.amp import autocast
 import utils.detector.svm as svm_utils
+import torch.nn as nn
 
 def inv_norm(ds_mean, ds_std):
     if ds_std is None:
@@ -14,71 +15,163 @@ def inv_norm(ds_mean, ds_std):
                                 transforms.Normalize(mean = [-x /255 for x in ds_mean],
                                                      std = [ 1., 1., 1. ]),
                                ])
+class PreProcessing(nn.Module):
+    
+    def __init__(self, do_normalize=False, do_standardize=True):
+        super().__init__()
+        self.do_normalize = do_normalize
+        self.do_standardize = do_standardize
+        
+    def update_stats(self, latents):
+        # latents = latents.detach().clone()
+        if not torch.is_tensor(latents):
+            latents = torch.tensor(latents)    
+        self.mean = latents.mean(dim=0)
+        self.std = (latents - self.mean).std(dim=0)
+        self.max = latents.max()
+        self.min = latents.min()
+    
+    def normalize(self, latents):
+        if not torch.is_tensor(latents):
+            latents = torch.tensor(latents)    
+        # return latents/torch.linalg.norm(latents, dim=1, keepdims=True)
+        return (latents - self.min) / (self.max - self.min)
+    
+    def standardize(self, latents):
+        if not torch.is_tensor(latents):
+            latents = torch.tensor(latents)    
+        return (latents - self.mean) / self.std
+    
+    def forward(self, latents):
+        if not torch.is_tensor(latents):
+            print('Not tensors in detector input processing')
+            # latents = torch.tensor(latents) 
+            latents = torch.concat(latents)  
+        if self.do_standardize:
+            latents = self.standardize(latents)
+        if self.do_normalize:
+            latents = self.normalize(latents)
+        return latents
+    
+    def _export(self):
+        return {
+            'mean': self.mean,
+            'std': self.std,
+            'min': self.min,
+            'max': self.max
+        }
+    
+    def _import(self, args):
+        self.mean = args['mean']
+        self.std = args['std']
+        self.do_normalize = args['normalize']
 
-class SVMFitter:
-    def __init__(self, split_and_search=True, balanced=True, cv=2, do_normalize=False, method='SVM', svm_args=None, do_standardize=True):
-        self.split_and_search = split_and_search
-        self.balanced = balanced
-        self.cv = cv
-        self.clf = None
+from abc import abstractmethod
+
+class Prototype:
+    def __init__(self, do_normalize, do_standardize) -> None:
         self.pre_process = None
         self.do_normalize = do_normalize
         self.do_standardize = do_standardize
-        self.method = method
-        self.svm_args = svm_args
+        self.clf = None
+
+    @abstractmethod
+    def export(self, filename):
+        pass
+    
+    @abstractmethod
+    def import_model(self, filename):
+        pass
         
     def set_preprocess(self, train_latents=None):
-        self.pre_process = svm_utils.SVMPreProcessing(do_normalize=self.do_normalize)
+        self.pre_process = PreProcessing(do_normalize=self.do_normalize)
         if train_latents is not None:
             print("updating whitening")
             self.pre_process.update_stats(train_latents)
         else:
             print("No whitening")
-        
-    # def fit(self, model_preds, model_gts, latents, C):
-    #     assert self.pre_process is not None, 'run set_preprocess on a training set first'
-    #     latents = self.pre_process(latents).numpy()
-    #     # clf, score = svm_utils.shuffl_train(latents=latents, model_gts=model_gts, 
-    #     #                                                 model_preds=model_preds, balanced=self.balanced, 
-    #     #                                                 split_and_search=self.split_and_search,svm_args=self.svm_args, C_=C)
-    #     clf, score = svm_utils.train(latents=latents, model_gts=model_gts, 
-    #                                                     model_preds=model_preds, balanced=self.balanced, 
-    #                                                     split_and_search=self.split_and_search,svm_args=self.svm_args)
-    #     self.clf = clf
-    #     return score
+
+    @ abstractmethod
+    def fit(self, latents, gts):
+        pass
+
+    def fit_preprocess(self, latents):
+        assert self.pre_process is not None, 'run set_preprocess on a training set first'
+        latents = self.pre_process(latents).numpy()
+        return latents
+
+    @abstractmethod
+    def predict(self, latents):
+        pass
+
+    def predict_preprocess(self, latents):
+        assert self.clf is not None, "must call fit first"
+        latents = self.pre_process(latents).numpy()
+        return latents
+
+from sklearn.metrics import balanced_accuracy_score
+from sklearn.linear_model import LogisticRegression
+class LogRegressor(Prototype):
+    def __init__(self, do_normalize=False, do_standardize=True) -> None:
+        super().__init__(do_normalize, do_standardize)
+
+    def fit(self, latents, gts):
+        latents = self.fit_preprocess(latents)
+        self.clf = LogisticRegression(random_state=0, max_iter=50, solver='liblinear')
+        self.clf.fit(latents, gts)
+    
+    def predict(self, latents, gts=None, compute_metrics=False):
+        latents = self.predict_preprocess(latents)
+        dv = self.clf.decision_function(latents)
+        preds = self.clf.predict(latents)
+        metrics = None
+        if compute_metrics and (gts is not None):
+            metrics = balanced_accuracy_score(gts, preds) * 100
+        return dv, metrics  
+    
+    def import_model(self, filename):
+        with open(filename, 'rb') as f:
+            out = pkl.load(f)
+        self.clf = out['clf']
+        # svm_stats = out['pre_stats']
+        self.pre_process = PreProcessing(do_normalize=self.do_normalize, do_standardize=self.do_standardize)
+
+    def export(self, filename):
+        with open(filename, 'wb') as f:
+            pkl.dump({
+                'clf': self.clf,
+                'pre_stats': self.pre_process._export(),
+                }, 
+                f
+            )
+
+class SVM(Prototype):
+    def __init__(self, split_and_search=True, balanced=True, cv=2, do_normalize=False, args=None, do_standardize=True):
+        super().__init__(do_normalize, do_standardize)
+        self.split_and_search = split_and_search
+        self.balanced = balanced
+        self.cv = cv
+        self.clf = None
+        self.args = args
 
     def fit(self, latents, gts):
         assert self.pre_process is not None, 'run set_preprocess on a training set first'
-        # latents = [data[0].reshape(1, 512) for data in model_correctness]
         latents = self.pre_process(latents).numpy()
-        # gts = np.array([data[1] for data in model_correctness])
         clf, score = svm_utils.train(latents, gts, balanced=self.balanced, 
-                                    split_and_search=self.split_and_search,svm_args=self.svm_args)
+                                    split_and_search=self.split_and_search,args=self.args)
         self.clf = clf
         return score
     
-    # def predict(self, model_gts, latents, compute_metrics=True, model_preds=None):
-    #     assert self.clf is not None, "must call fit first"
-    #     latents = self.pre_process(latents).numpy()
-    #     #gts = gts.numpy()
-    #     #if preds is not None:
-    #     #    preds = preds.numpy()
-    #     return svm_utils.predict(latents=latents, model_gts=model_gts, clf=self.clf, 
-    #                                  model_preds=model_preds, compute_metrics=compute_metrics) 
-
     def predict(self, latents, gts=None, compute_metrics=False):
         assert self.clf is not None, "must call fit first"
         latents = self.pre_process(latents).numpy()
-        #gts = gts.numpy()
-        #if preds is not None:
-        #    preds = preds.numpy()
         return svm_utils.predict(self.clf, latents, gts, compute_metrics) 
 
     def base_fit(self, gts, latents):
         assert self.pre_process is not None, 'run set_preprocess on a training set first'
         latents = self.pre_process(latents).numpy()
         clf, score = svm_utils.base_train(latents=latents, gts=gts, balanced=self.balanced, 
-                                                        split_and_search=self.split_and_search,svm_args=self.svm_args)
+                                                        split_and_search=self.split_and_search,args=self.args)
         self.clf = clf
         return score
     
@@ -110,19 +203,15 @@ class SVMFitter:
         self.balanced = out['args']['balanced']
         self.cv = out['args']['cv']
         self.do_normalize = out['args']['do_normalize']
-        svm_stats = out['pre_stats']
-        self.pre_process = svm_utils.SVMPreProcessing(do_normalize=self.do_normalize,
-                                                      mean=svm_stats['mean'],
-                                                      std=svm_stats['std'])
+        self.pre_process = PreProcessing(do_normalize=self.do_normalize, do_standardize=self.do_standardize)
+
     def legacy_import_model(self, filename, svm_stats):
         with open(filename, 'rb') as f:
             self.clf = pkl.load(f)
-        self.pre_process = svm_utils.SVMPreProcessing(do_normalize=True,
+        self.pre_process = PreProcessing(do_normalize=True,
                                                       mean=svm_stats['mean'],
                                                       std=svm_stats['std'])
         
-        
-                
 class CLIPProcessor:
     def __init__(self, ds_mean=0, ds_std=1, 
                  arch='ViT-B/32', device='cuda'):
