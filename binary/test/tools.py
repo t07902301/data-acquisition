@@ -8,11 +8,13 @@ def method_run(n_img_list, acquisition_config:Config.Acquistion, checker: Checke
     acc_change_list = []
     for n_img in n_img_list:
         acquisition_config.n_ndata = n_img
+        if 'seq' in acquisition_config.method:
+            checker.clf = Log.get_log_clf(acquisition_config, checker.model_config)
         acc_change = n_data_run(acquisition_config, checker)
         acc_change_list.append(acc_change)
     return acc_change_list
 
-def n_data_run(acquisition_config, checker: Checker.prototype):
+def n_data_run(acquisition_config:Config.Acquistion, checker: Checker.prototype):
     check_result = checker.run(acquisition_config)
     return check_result
 
@@ -21,8 +23,6 @@ def run(acquisition_config:Config.Acquistion, methods, new_img_num_list, checker
     for method in methods:
         print('In method', method)
         acquisition_config.method = method
-        if 'seq' in method:
-            checker.clf = Log.get_log_clf(acquisition_config, checker.model_config)
         result_method = method_run(new_img_num_list, acquisition_config, checker)
         result_list.append(result_method)
     return result_list
