@@ -62,8 +62,8 @@ class DataSplits():
         '''
         new data to be added to train set or not, and update loader automatically
         '''
-        # assert len(new_data) == acquisition_config.n_ndata, 'size error - new data: {}, required new data: {} under {}'.format(len(new_data), acquisition_config.n_ndata, acquisition_config.get_info())
-        print('In bound {}, {} new data acquired with a budget of {}'.format(acquisition_config.bound, len(new_data), acquisition_config.n_ndata))
+        assert len(new_data) == acquisition_config.n_ndata, 'size error - new data: {}, required new data: {} \n under {}'.format(len(new_data), acquisition_config.n_ndata, acquisition_config.get_info())
+        # print('In bound {}, {} new data acquired with a budget of {}'.format(acquisition_config.bound, len(new_data), acquisition_config.n_ndata))
 
         if new_model_config.pure:
             self.replace('train', new_data)
@@ -73,7 +73,7 @@ class DataSplits():
 def create_dataset(ds_root, select_fine_labels, ratio):
     # When all classes are used, only work on removal
     # When some classes are neglected, test set and the big train set will be shrank.
-    train_ds,test_ds = get_raw_ds(ds_root)
+    train_ds, test_ds = get_raw_ds(ds_root)
 
     train_size = ratio["train_size"]
     val_size = ratio["val_size"]
@@ -81,8 +81,8 @@ def create_dataset(ds_root, select_fine_labels, ratio):
     remove_rate = ratio['remove_rate']
 
     if len(select_fine_labels)>0:
-        train_ds = get_subset_by_labels(train_ds,select_fine_labels)
-        test_ds = get_subset_by_labels(test_ds,select_fine_labels)
+        train_ds = get_subset_by_labels(train_ds, select_fine_labels)
+        test_ds = get_subset_by_labels(test_ds, select_fine_labels)
 
     label_summary = [i for i in range(max_subclass_num)] if len(select_fine_labels)==0 else select_fine_labels
 
@@ -90,7 +90,7 @@ def create_dataset(ds_root, select_fine_labels, ratio):
 
     val_ds, market_ds = split_dataset(val_market_set, label_summary, val_size/(val_size+market_size))
 
-    _, left_clip_train = split_dataset(clip_train_ds_split, data_config['remove_fine_labels'], remove_rate)
+    _, left_train = split_dataset(clip_train_ds_split, data_config['remove_fine_labels'], remove_rate)
 
     _, left_val = split_dataset(val_ds, data_config['remove_fine_labels'], remove_rate)
    
@@ -98,14 +98,13 @@ def create_dataset(ds_root, select_fine_labels, ratio):
 
     ds = {}
     # modified_labels = list(set(select_fine_labels) - set(target_test_label))
-    # balanced_train_ds = balance_dataset(target_test_label, modified_labels, left_clip_train)
-    ds['train'] = left_clip_train
+    # balanced_train_ds = balance_dataset(target_test_label, modified_labels, left_train)
+    ds['train'] = left_train
     ds['val'] = left_val
     ds['test'] = left_test
     ds['val_shift'] =  val_ds
     ds['market'] =  market_ds
     ds['test_shift'] = test_ds
-    # ds['train_clip'] =  left_clip_train
     ds['val_mar'] = val_market_set
     return ds
 
