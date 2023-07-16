@@ -5,74 +5,23 @@ from sklearn.svm import LinearSVC, SVC
 import numpy as np
 import sklearn.metrics as sklearn_metrics
 from sklearn.model_selection import cross_val_score, StratifiedKFold
-import torch.nn as nn
-import torch.nn as nn
 
-class SVMPreProcessing(nn.Module):
-    
-    def __init__(self, do_normalize=False, do_standardize=True):
-        super().__init__()
-        self.do_normalize = do_normalize
-        self.do_standardize = do_standardize
-        
-    def update_stats(self, latents):
-        # latents = latents.detach().clone()
-        if not torch.is_tensor(latents):
-            latents = torch.tensor(latents)    
-        self.mean = latents.mean(dim=0)
-        self.std = (latents - self.mean).std(dim=0)
-        self.max = latents.max()
-        self.min = latents.min()
-    
-    def normalize(self, latents):
-        if not torch.is_tensor(latents):
-            latents = torch.tensor(latents)    
-        # return latents/torch.linalg.norm(latents, dim=1, keepdims=True)
-        return (latents - self.min) / (self.max - self.min)
-    
-    def standardize(self, latents):
-        if not torch.is_tensor(latents):
-            latents = torch.tensor(latents)    
-        return (latents - self.mean) / self.std
-    
-    def forward(self, latents):
-        if not torch.is_tensor(latents):
-            # latents = torch.tensor(latents) 
-            latents = torch.concat(latents)  
-        if self.do_standardize:
-            latents = self.standardize(latents)
-        if self.do_normalize:
-            latents = self.normalize(latents)
-        return latents
-    
-    def _export(self):
-        return {
-            'mean': self.mean,
-            'std': self.std,
-            'normalize': self.do_normalize
-        }
-    
-    def _import(self, args):
-        self.mean = args['mean']
-        self.std = args['std']
-        self.do_normalize = args['normalize']
-
-def train(latents, gts, balanced=True, split_and_search=False, cv=2, svm_args=None):
+def train(latents, gts, balanced=True, split_and_search=False, cv=2, args=None):
     # if split_and_search is true, split our dataset into 50% svm train, 50% svm test
     # Then grid search over C = array([1.e-06, 1.e-05, 1.e-04, 1.e-03, 1.e-02, 1.e-01, 1.e+00])
     class_weight = 'balanced' if balanced else None        
-    kernel = svm_args['kernel']
+    kernel = args['kernel']
     best_clf, best_cv = choose_svm_hpara(latents, gts, class_weight, cv, kernel, split_and_search)
     best_clf.fit(latents, gts)
     return best_clf, best_cv  
 
-def shuffl_train(latents, model_gts, model_preds, balanced=True, split_and_search=False, cv=2, svm_args=None, C_ =1):
+def shuffl_train(latents, model_gts, model_preds, balanced=True, split_and_search=False, cv=2, args=None, C_ =1):
     print(C_)
     class_weight = 'balanced' if balanced else None        
     model_correct_pred_mask = (model_preds == model_gts)
     model_correctness = np.zeros(len(model_gts))
     model_correctness[model_correct_pred_mask] = 1
-    kernel = svm_args['kernel']
+    kernel = args['kernel']
     best_clf = SVC(C= C_, kernel=kernel, class_weight=class_weight, gamma='auto')
     best_clf.fit(latents, model_correctness)
     return best_clf, None  
@@ -126,9 +75,9 @@ def predict(clf: SVC, latents, gts=None, compute_metrics=False):
     return out_mask, out_decision, metric
 
 
-def base_train(latents, gts, balanced=True, split_and_search=False, cv=2, svm_args=None):
+def base_train(latents, gts, balanced=True, split_and_search=False, cv=2, args=None):
     class_weight = 'balanced' if balanced else None        
-    kernel = svm_args['kernel']
+    kernel = args['kernel']
     best_clf, best_cv = choose_svm_hpara(latents, gts, class_weight, cv, kernel, split_and_search)
     best_clf.fit(latents, gts)
     return best_clf, best_cv  
