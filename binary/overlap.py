@@ -1,8 +1,52 @@
 from utils.strategy import *
 from utils.set_up import set_up
 import utils.statistics.subset as Subset
-import utils.statistics.stat_test as stat_test
+import os
+import utils.statistics.distribution as Dstr
+import matplotlib.pyplot as plt
+
 old_labels = set(Dataset.data_config['train_label']) - set(Dataset.data_config['remove_fine_labels'])
+def format_dict(input_dict:dict):
+    output = ''
+    for keys, values in input_dict.items():
+        output += '{}: {}%; '.format(keys, values)
+    return output
+
+def get_overlap_bound(arr_1, arr_2):
+    return max(np.min(arr_1),np.min(arr_2)), min(np.max(arr_1), np.max(arr_2))
+
+def get_overlap_area(values, cut_value):
+    val_key = 'correct pred'
+    cor_area = Dstr.ecdf(values[val_key], cut_value)
+    val_key = 'incorrect pred'
+    incor_area = 1 - Dstr.ecdf(values[val_key], cut_value)
+    return incor_area + cor_area
+
+def get_fig_name(fig_dir, model_type, model_cnt, removal_ratio):
+    fig_root = 'figure/{}/stat_test/{}/overlap/{}'.format(fig_dir, model_type, model_cnt)
+    if os.path.exists(fig_root) is False:
+        os.makedirs(fig_root)    
+    fig_path = os.path.join(fig_root, '{}.png'.format(removal_ratio))
+    return fig_path
+
+def run(clf:Detector.Prototype, dataloader, model:Model.prototype, overlap_cut_value=None, removal_ratio=0, n_bins = 20, plot=False, model_config: Config.OldModel = None):
+    cor_dv, incor_dv = Subset.get_hard_easy_dv(model, dataloader, clf)
+    total_dv = {
+        'correct pred': cor_dv,
+        'incorrect pred': incor_dv
+    }
+    intersection_area = get_overlap_area(total_dv, overlap_cut_value)
+    if plot:
+        fig_path = get_fig_name(model_config.model_dir, model_config.base_type, model_config.model_cnt, removal_ratio)
+        Dstr.base_plot(total_dv['correct pred'], 'correct pred', 'orange', n_bins=n_bins)
+        Dstr.base_plot(total_dv['incorrect pred'], 'incorrect pred', 'blue', n_bins = n_bins)
+        # format_metrics = 'old_data: {}%; '.format((1-removal_ratio)*100)
+        # plt.title(format_metrics)
+        plt.savefig(fig_path)
+        plt.close()
+        print('save fig to', fig_path)          
+    return intersection_area
+
 def remove_old_data(dataset, sample_ratio):
     np.random.seed(1)
     _, left_data = Dataset.split_dataset(dataset, old_labels, sample_ratio)
