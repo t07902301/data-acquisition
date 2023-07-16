@@ -47,11 +47,9 @@ def get_log_data(acquisition_config:Config.Acquistion, model_config:Config.NewMo
 
     return new_data
 
-def get_log_clf(acquisition_config:Config.Acquistion, model_config:Config.NewModel, set_up_dataloader, clip_processor):
+def get_log_clf(acquisition_config:Config.Acquistion, model_config:Config.NewModel):
     log_config = model_config.get_log_config('clf')
     log_config.set_path(acquisition_config)
-    detector = Detector.SVM(set_up_dataloader, clip_processor)
-    clf = torch.load(log_config.path, map_location=model_config.device)
-    detector.fitter.clf = clf
+    detector = torch.load(log_config.path)
     print('{} log load from {}'.format(log_config.log_symbol, log_config.path))
     return detector
