@@ -58,7 +58,7 @@ class DataSplits():
         self.dataset[replaced_name] = new_data
         self.update_dataloader(replaced_name)
 
-    def use_new_data(self, new_data, new_model_config:Config.NewModel, acquisition_config:Config.Acquistion):
+    def use_new_data(self, new_data, new_model_config:Config.NewModel, acquisition_config:Config.Acquisition):
         '''
         new data to be added to train set or not, and update loader automatically
         '''

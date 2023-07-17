@@ -100,7 +100,7 @@ class misclassification_subset_setter(subset_setter):
         subset_loader = [test_loader]
         return subset_loader
     
-def get_threshold(clf:Detector.SVM , acquisition_config:Config.Acquistion, model_config:Config.NewModel, data_splits:Dataset.DataSplits):
+def get_threshold(clf:Detector.SVM , acquisition_config:Config.Acquisition, model_config:Config.NewModel, data_splits:Dataset.DataSplits):
     if 'seq' in acquisition_config.method: 
         log = Log(model_config, 'clf')
         clf = log.import_log(acquisition_config)    
