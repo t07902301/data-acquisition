@@ -119,23 +119,26 @@ class NewModel(ModelConfig):
         self.setter = setter
         self.new_batch_size = new_batch_size
         self.set_root(model_cnt)
-   
-    def set_path(self,acquistion_config:Acquistion):
-        # # Set Seq Acquistion Root
-        # if 'seq' in acquistion_config.method:
-        #     root = self.set_seq_root(self.root, acquistion_config)
-        # else:
-        #     root = self.root
-       
+        self.root_detector = None
+
+    def detector2root(self, acquistion_config:Acquistion):
         # Make Conf and sampling-based method Root agnostic to detector
         if acquistion_config.method in ['conf', 'sm']:
             temp_root = os.path.join(self.root, 'no-detector')
         else:
             temp_root = os.path.join(self.root, acquistion_config.detector.name)
-
         check_dir(temp_root)
+        return temp_root
+    
+    def set_path(self, acquistion_config:Acquistion):
+        # # Set Seq Acquistion Root
+        # if 'seq' in acquistion_config.method:
+        #     root = self.set_seq_root(self.root, acquistion_config)
+        # else:
+        #     root = self.root
+        self.root_detector = self.detector2root(acquistion_config)
         bound_name = '_{}'.format(acquistion_config.bound) if acquistion_config.bound != None else ''
-        self.path = os.path.join(temp_root, '{}_{}{}.pt'.format(acquistion_config.method, acquistion_config.n_ndata, bound_name))
+        self.path = os.path.join(self.root_detector, '{}_{}{}.pt'.format(acquistion_config.method, acquistion_config.n_ndata, bound_name))
     
     def set_root(self, model_cnt):
         pure_name = 'pure' if self.pure else 'non-pure'

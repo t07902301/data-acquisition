@@ -10,8 +10,8 @@ class Log():
         '''
         Add log name ('data','indices',...) to the model_config root
         '''
-        assert model_config.path != None, 'Set up model config path first'
-        self.root = os.path.join(model_config.root, 'log', name)
+        assert model_config.root_detector != None, 'Set up model config path first'
+        self.root = os.path.join(model_config.root_detector, 'log', name)
         Config.check_dir(self.root)
         self.name = name
    
