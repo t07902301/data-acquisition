@@ -98,7 +98,7 @@ class probability(subset):
         super().__init__(model_config)  
 
     def setup(self, old_model_config:Config.OldModel, datasplits:Dataset.DataSplits, detector_instruction: Config.Dectector, stream_instruction:Config.ProbabStream, plot:bool):
-        super().setup(old_model_config, datasplits, detector_instruction) 
+        super().setup(old_model_config, datasplits, detector_instruction, stream_instruction, plot) 
         self.test_loader, selected_probab = self.get_subset_loader(stream_instruction, self.anchor_loader)
         cor_dv, incor_dv = Subset.get_hard_easy_dv(self.base_model, self.test_loader['new_model'], self.clf)
         print('Setup - Hard images in New Test: {}%'.format(len(incor_dv) / (len(incor_dv) + len(cor_dv)) * 100))
@@ -165,7 +165,7 @@ class ensemble(subset):
         super().__init__(model_config)
     
     def setup(self, old_model_config: Config.OldModel, datasplits: Dataset.DataSplits, detector_instruction: Config.Dectector, stream_instruction: Config.ProbabStream, plot: bool):
-        super().setup(old_model_config, datasplits, detector_instruction)
+        super().setup(old_model_config, datasplits, detector_instruction, stream_instruction, plot)
         self.pdf_type = stream_instruction.pdf
         self.probab_setter = Subset.probability_setter()
         self.test_loader = torch.utils.data.DataLoader(self.test_info['dataset'], batch_size=self.model_config.new_batch_size)
