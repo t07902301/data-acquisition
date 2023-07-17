@@ -1,3 +1,4 @@
+import binary.utils.objects.Config as Config
 import utils.objects.model as Model
 import utils.objects.Detector as Detector
 import utils.objects.dataset as Dataset
@@ -21,7 +22,7 @@ class prototype():
         Load the new model and perform testing
         '''
         pass
-    def setup(self, old_model_config:Config.OldModel, datasplits:Dataset.DataSplits, detector_instruction: Config.Dectector, stream_instruction:Config.ProbabStream, plot:bool):
+    def setup(self, old_model_config:Config.OldModel, datasplits:Dataset.DataSplits, detector_instruction: Config.Dectector, stream_instruction:Config.Stream, plot:bool):
         '''
         Use the old model and data split to set up a prototype (for each epoch) -> base_model, clf/detector, anchor loader
         '''
@@ -40,11 +41,11 @@ class subset(prototype):
     def __init__(self, model_config: Config.NewModel) -> None:
         super().__init__(model_config)
     
-    def setup(self, old_model_config:Config.OldModel, datasplits:Dataset.DataSplits, detector_instruction:Config.Dectector):
+    def setup(self, old_model_config:Config.OldModel, datasplits:Dataset.DataSplits, detector_instruction: Config.Dectector, stream_instruction:Config.Stream, plot:bool):
         '''
         set base model, test data info and vit
         '''
-        super().setup(old_model_config, datasplits, detector_instruction)
+        super().setup(old_model_config, datasplits, detector_instruction, stream_instruction, plot)
         gt, pred, _ = self.base_model.eval(datasplits.loader['test_shift'])
         self.base_acc = (gt == pred).mean()*100 
         self.test_info = Subset.build_data_info(datasplits, 'test_shift', self.clf, self.model_config, self.base_model)
@@ -54,10 +55,10 @@ class subset(prototype):
         loader = Subset.threshold_subset_setter().get_subset_loders(self.test_info,threshold)        
         return loader
 
-    def run(self, acquisition_config:Config.Acquistion, stream_instruction: Config.DVStream):
-        loader = self.get_subset_loader(stream_instruction.bound)
+    def run(self, acquisition_config:Config.Acquistion):
+        self.test_loader = self.get_subset_loader(acquisition_config.bound)
         self.model_config.set_path(acquisition_config)
-        return self._target_test(loader)
+        return self._target_test(self.test_loader)
 
     def _target_test(self, loader):
         '''
@@ -96,11 +97,6 @@ class probability(subset):
     def __init__(self, model_config: Config.NewModel) -> None:
         super().__init__(model_config)  
 
-    def get_subset_loader(self, stream_instruction:Config.Stream, set_up_loader):
-        correct_dstr, incorrect_dstr = Distribution.get_dv_dstr(self.base_model, self.clf, set_up_loader, stream_instruction.pdf)
-        loader, selected_probab = Subset.probability_setter().get_subset_loders(self.test_info, correct_dstr, incorrect_dstr, stream_instruction)
-        return loader, selected_probab
-
     def setup(self, old_model_config:Config.OldModel, datasplits:Dataset.DataSplits, detector_instruction: Config.Dectector, stream_instruction:Config.ProbabStream, plot:bool):
         super().setup(old_model_config, datasplits, detector_instruction) 
         self.test_loader, selected_probab = self.get_subset_loader(stream_instruction, self.anchor_loader)
@@ -116,6 +112,11 @@ class probability(subset):
             fig_name = 'figure/test/selected_{}{}.png'.format(stream_instruction.bound, pdf_name)
             self.selected_dstr_plot(self.test_loader['new_model'], fig_name, stream_instruction.pdf)
 
+    def get_subset_loader(self, stream_instruction:Config.Stream, set_up_loader):
+        correct_dstr, incorrect_dstr = Distribution.get_dv_dstr(self.base_model, self.clf, set_up_loader, stream_instruction.pdf)
+        loader, selected_probab = Subset.probability_setter().get_subset_loders(self.test_info, correct_dstr, incorrect_dstr, stream_instruction)
+        return loader, selected_probab
+    
     def selected_dstr_plot(self, selected_loader, fig_name, pdf=None):
         cor_dv, incor_dv = Subset.get_hard_easy_dv(self.base_model, selected_loader, self.clf)
         print('Old model mistakes in selected test: {}%'.format(len(incor_dv) / (len(incor_dv) + len(cor_dv)) * 100))
@@ -167,6 +168,7 @@ class ensemble(subset):
         super().setup(old_model_config, datasplits, detector_instruction)
         self.pdf_type = stream_instruction.pdf
         self.probab_setter = Subset.probability_setter()
+        self.test_loader = torch.utils.data.DataLoader(self.test_info['dataset'], batch_size=self.model_config.new_batch_size)
 
     def get_dstr_weights(self, dataloader, pdf_type):
         correct_dstr, incorrect_dstr = Distribution.get_dv_dstr(self.base_model, self.clf, dataloader, pdf_type)
@@ -179,6 +181,10 @@ class ensemble(subset):
             old_weights.append(old_probab)
             # assert old_probab[0] + new_probab[0] == 1, old_probab[0] + new_probab[0] 
         return np.concatenate(old_weights), np.concatenate(new_weights)
+    
+    def run(self, acquisition_config: Config.Acquistion):
+        self.model_config.set_path(acquisition_config)
+        return self._target_test(self.test_loader)
     
     def _target_test(self, dataloader):
         new_model = Model.prototype_factory(self.model_config.base_type, self.model_config.class_number, self.vit)
