@@ -55,6 +55,10 @@ class Strategy():
     def get_new_data(self, market_set, new_data_indices):
         return torch.utils.data.Subset(market_set, new_data_indices)
     
+    @abstractmethod
+    def export_log(self, model_config:Config.NewModel, acquire_instruction: Config.Acquistion, content):
+        pass
+
 class NonSeqStrategy(Strategy):
     def __init__(self, old_model_config: Config.OldModel) -> None:
         super().__init__(old_model_config)
@@ -73,13 +77,13 @@ class NonSeqStrategy(Strategy):
         dataset_splits.use_new_data(new_data, new_model_config, acquire_instruction)
 
         new_model_config.set_path(acquire_instruction)
-        self.export_log(new_model_config, new_data_indices, acquire_instruction)
+        self.export_log(new_model_config, acquire_instruction, new_data_indices)
 
         self.get_new_val(dataset_splits, acquire_instruction.stream, new_model_config, detect_instruction=acquire_instruction.detector)
         self.base_model.update(new_model_config, dataset_splits.loader['train'], dataset_splits.loader['val_shift'])
         self.base_model.save(new_model_config.path)
 
-    def export_log(self, model_config:Config.NewModel, data, acquire_instruction: Config.Acquistion):
+    def export_log(self, model_config:Config.NewModel, acquire_instruction: Config.Acquistion, data):
         log = Log(model_config, 'indices')
         log.export(acquire_instruction, data=data)
 
@@ -156,7 +160,7 @@ class SeqCLF(Strategy):
             new_data_total_set, clf = self.round_operate(round_i, acquire_instruction, dataset_splits, new_data_total_set)
         
         new_model_config.set_path(acquire_instruction)
-        self.export_log(new_model_config, new_data_total_set, acquire_instruction, clf)
+        self.export_log(new_model_config, acquire_instruction, clf)
 
         # self.recover_dataset(org_val_ds, 'val_shift', dataset_splits, acquire_instruction.n_ndata)
         # # train model 
@@ -164,7 +168,6 @@ class SeqCLF(Strategy):
         # self.get_new_val(dataset_splits, acquire_instruction.stream, new_model_config, detect_instruction=acquire_instruction.detector, clf=clf)
         # self.base_model.update(new_model_config.setter, dataset_splits.loader['train'], dataset_splits.loader['val_shift'])
         # self.base_model.save(new_model_config.path)
-
 
     def round_operate(self, round_id, acquire_instruction, dataset_splits:Dataset.DataSplits, new_data_total_set):
         acquire_instruction.set_round(round_id)
