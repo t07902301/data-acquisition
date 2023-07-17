@@ -2,8 +2,8 @@ import numpy as np
 import torch
 def get_loader_labels(dataloader):
     gts = []
-    for x, y,fine_y in dataloader:
-        gts.append(y)
+    for batch_info in dataloader:
+        gts.append(batch_info[1])
     return torch.cat(gts).numpy()
 
 def extract_class_indices(cls_label, ds_labels):
