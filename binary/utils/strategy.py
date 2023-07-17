@@ -1,15 +1,15 @@
 from copy import deepcopy
 from abc import abstractmethod
-import utils.log as Log
 import utils.acquistion as acquistion
 import utils.objects.model as Model
 import utils.objects.Config as Config
+from utils.objects.log import Log
 import utils.objects.dataset as Dataset
 import utils.objects.Detector as Detector
 import torch
 import numpy as np
 import utils.statistics.subset as TestSubset
-import utils.statistics.stat_test as Plot_Stat
+import utils.statistics.distribution as Distribution
 class Strategy():
     base_model:Model.prototype
     def __init__(self, old_model_config:Config.OldModel, clip_processor=None) -> None:
@@ -23,7 +23,7 @@ class Strategy():
         '''
         pass
     @abstractmethod
-    def log_data(self, model_config:Config.NewModel, data, acquire_instruction: Config.Acquistion):
+    def export_log(self, model_config:Config.NewModel, data, acquire_instruction: Config.Acquistion):
         '''
         Log data to reconstruct the final train set, and the final CLF statistic if necessary
         '''
@@ -43,10 +43,10 @@ class Strategy():
         # targeted_val = torch.utils.data.Subset(dataset_splits.dataset['val_shift'], targeted_indices)
         # dataset_splits.replace('val_shift', targeted_val)   
 
-        cor_dv, incor_dv = Plot_Stat.get_dv_dstr(self.base_model, dataset_splits.loader['val_shift'], clf)
+        cor_dv, incor_dv = TestSubset.get_hard_easy_dv(self.base_model, dataset_splits.loader['val_shift'], clf)
         correct_prior = (len(cor_dv)) / (len(cor_dv) + len(incor_dv))
-        correct_dstr = TestSubset.disrtibution(correct_prior, Plot_Stat.get_pdf(cor_dv, stream_instruction.pdf))
-        incorrect_dstr =  TestSubset.disrtibution(1 - correct_prior, Plot_Stat.get_pdf(incor_dv, stream_instruction.pdf))
+        correct_dstr = TestSubset.disrtibution(correct_prior, Distribution.get_pdf(cor_dv, stream_instruction.pdf))
+        incorrect_dstr =  TestSubset.disrtibution(1 - correct_prior, Distribution.get_pdf(incor_dv, stream_instruction.pdf))
         val_shift_info = TestSubset.build_data_info(dataset_splits, 'val_shift', clf, model_config, self.base_model)
         val_shift_split, _ = TestSubset.probability_setter().get_subset_loders(val_shift_info, correct_dstr, incorrect_dstr, stream_instruction)
         dataset_splits.loader['val_shift'] = val_shift_split['new_model']
@@ -72,18 +72,16 @@ class NonSeqStrategy(Strategy):
         new_data = self.get_new_data(dataset_splits.dataset['market'], new_data_indices)
         dataset_splits.use_new_data(new_data, new_model_config, acquire_instruction)
 
-        self.log_data(new_model_config, new_data_indices, acquire_instruction)
-       
-        self.get_new_val(dataset_splits, acquire_instruction.stream, new_model_config, detect_instruction=acquire_instruction.detector)
-
-        self.base_model.update(new_model_config, dataset_splits.loader['train'], dataset_splits.loader['val_shift'])
         new_model_config.set_path(acquire_instruction)
+        self.export_log(new_model_config, new_data_indices, acquire_instruction)
+
+        self.get_new_val(dataset_splits, acquire_instruction.stream, new_model_config, detect_instruction=acquire_instruction.detector)
+        self.base_model.update(new_model_config, dataset_splits.loader['train'], dataset_splits.loader['val_shift'])
         self.base_model.save(new_model_config.path)
 
-    def log_data(self, model_config:Config.NewModel, data, acquire_instruction: Config.Acquistion):
-        idx_log = model_config.get_log_config('indices')
-        idx_log.set_path(acquire_instruction)
-        Log.save(data, idx_log)
+    def export_log(self, model_config:Config.NewModel, data, acquire_instruction: Config.Acquistion):
+        log = Log(model_config, 'indices')
+        log.export(acquire_instruction, data=data)
 
 class Greedy(NonSeqStrategy):
     def __init__(self, old_model_config: Config.OldModel) -> None:
@@ -103,6 +101,7 @@ class Greedy(NonSeqStrategy):
 class Sample(NonSeqStrategy):
     def __init__(self, old_model_config: Config.OldModel) -> None:
         super().__init__(old_model_config)
+        Dataset.data_split_env()
     def get_new_data_indices(self, n_data, dataset_splits: Dataset.DataSplits, detector_instruction: Config.Dectector, bound = None):
         market_gts = acquistion.get_loader_labels(dataset_splits.loader['market'])
         new_data_indices = acquistion.sample_acquire(market_gts,n_data)
@@ -128,6 +127,8 @@ class Confidence(NonSeqStrategy):
 class Mix(NonSeqStrategy):
     def __init__(self, old_model_config: Config.OldModel) -> None:
         super().__init__(old_model_config)
+        Dataset.data_split_env()
+
     def get_new_data_indices(self, n_data, dataset_splits: Dataset.DataSplits, detector_instruction: Config.Dectector, bound = None):
         clf = Detector.SVM(dataset_splits.loader['train_clip'], self.clip_processor)
         _ = clf.fit(self.base_model, dataset_splits.loader['val_shift'])
@@ -154,15 +155,16 @@ class SeqCLF(Strategy):
         for round_i in range(acquire_instruction.n_rounds):
             new_data_total_set, clf = self.round_operate(round_i, acquire_instruction, dataset_splits, new_data_total_set)
         
+        new_model_config.set_path(acquire_instruction)
+        self.export_log(new_model_config, new_data_total_set, acquire_instruction, clf)
+
         # self.recover_dataset(org_val_ds, 'val_shift', dataset_splits, acquire_instruction.n_ndata)
         # # train model 
         # dataset_splits.use_new_data(new_data_total_set, new_model_config, acquire_instruction)
         # self.get_new_val(dataset_splits, acquire_instruction.stream, new_model_config, detect_instruction=acquire_instruction.detector, clf=clf)
         # self.base_model.update(new_model_config.setter, dataset_splits.loader['train'], dataset_splits.loader['val_shift'])
-        # new_model_config.set_path(acquire_instruction)
         # self.base_model.save(new_model_config.path)
 
-        self.log_data(new_model_config, new_data_total_set, acquire_instruction, clf)
 
     def round_operate(self, round_id, acquire_instruction, dataset_splits:Dataset.DataSplits, new_data_total_set):
         acquire_instruction.set_round(round_id)
@@ -183,13 +185,9 @@ class SeqCLF(Strategy):
         # "size error with original val"
         dataset_splits.replace(dataset_name, org_ds)
 
-    def log_data(self, model_config:Config.NewModel, data, acquire_instruction: Config.SequentialAc, detector: Detector.Prototype):
-        # data_config = model_config.get_log_config('data')
-        # data_config.set_path(acquire_instruction)
-        # Log.save(data, data_config) # Save new data
-        clf_config = model_config.get_log_config('clf')
-        clf_config.set_path(acquire_instruction)
-        detector.save(clf_config.path)
+    def export_log(self, model_config:Config.NewModel, acquire_instruction: Config.SequentialAc, detector: Detector.Prototype):
+        log = Log(model_config, 'clf')
+        log.export(acquire_instruction, detector=detector)
 
 class Seq(Strategy):
     def __init__(self) -> None:
@@ -223,13 +221,11 @@ class Seq(Strategy):
         Model.save(model,new_model_config.path)
 
         clf = clf_info['clf']
-        self.log_data(new_model_config, new_data_total_set, acquire_instruction, clf)
+        self.export_log(new_model_config, new_data_total_set, acquire_instruction, clf)
 
-    def log_data(self, model_config:Config.NewModel, data, acquire_instruction: Config.SequentialAc, clf):
-        data_config = Log.get_config(model_config, acquire_instruction, 'data')
-        Log.save(data, data_config) # Save new data
-        clf_config = Log.get_config(model_config, acquire_instruction, 'clf')
-        Log.save(clf, clf_config) # Save new clf
+    def export_log(self, model_config:Config.NewModel, acquire_instruction: Config.SequentialAc, detector: Detector.Prototype):
+        log = Log(model_config, 'clf')
+        log.export(acquire_instruction, detector=detector)
 
 def StrategyFactory(strategy, old_model_config:Config.OldModel):
     if strategy=='dv':

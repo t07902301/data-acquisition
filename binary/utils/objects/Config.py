@@ -1,6 +1,8 @@
 import os
 from utils import config
 from abc import abstractmethod
+import torch
+# import utils.objects.Detector as Detector
 
 class Stream():
     def __init__(self, bound, name) -> None:
@@ -88,6 +90,10 @@ def AcquistionFactory(strategy, sequential_rounds_config):
         return NonSeqAcquistion()
     else:
         return SequentialAc(sequential_rounds_config)
+    
+def check_dir(dir):
+    if os.path.exists(dir) is False:
+        os.makedirs(dir)
 
 class ModelConfig():
     def __init__(self, batch_size, class_number, model_dir, device, base_type) -> None:
@@ -95,13 +101,10 @@ class ModelConfig():
         self.class_number = class_number
         self.model_dir = model_dir
         self.root = os.path.join(config['base_root'], model_dir, base_type, str(batch_size))
-        self.check_dir(self.root)
+        check_dir(self.root)
         self.device = device
         self.base_type = base_type
         self.path = None
-    def check_dir(self, dir):
-        if os.path.exists(dir) is False:
-            os.makedirs(dir)
             
 class OldModel(ModelConfig):
     def __init__(self, batch_size, class_number, model_dir, device, model_cnt, base_type) -> None:
@@ -116,23 +119,23 @@ class NewModel(ModelConfig):
         self.setter = setter
         self.new_batch_size = new_batch_size
         self.set_root(model_cnt)
-
+   
     def set_path(self,acquistion_config:Acquistion):
-        # Set Seq Acquistion Root
-        if 'seq' in acquistion_config.method:
-            root = self.set_seq_root(self.root, acquistion_config)
-        else:
-            root = self.root
+        # # Set Seq Acquistion Root
+        # if 'seq' in acquistion_config.method:
+        #     root = self.set_seq_root(self.root, acquistion_config)
+        # else:
+        #     root = self.root
        
         # Make Conf and sampling-based method Root agnostic to detector
         if acquistion_config.method in ['conf', 'sm']:
-            root_detector = root
+            temp_root = os.path.join(self.root, 'no-detector')
         else:
-            root_detector = os.path.join(root, acquistion_config.detector.name)
+            temp_root = os.path.join(self.root, acquistion_config.detector.name)
 
-        self.check_dir(root_detector)
+        check_dir(temp_root)
         bound_name = '_{}'.format(acquistion_config.bound) if acquistion_config.bound != None else ''
-        self.path = os.path.join(root_detector, '{}_{}{}.pt'.format(acquistion_config.method, acquistion_config.n_ndata, bound_name))
+        self.path = os.path.join(temp_root, '{}_{}{}.pt'.format(acquistion_config.method, acquistion_config.n_ndata, bound_name))
     
     def set_root(self, model_cnt):
         pure_name = 'pure' if self.pure else 'non-pure'
@@ -140,30 +143,12 @@ class NewModel(ModelConfig):
             self.root = os.path.join(self.root, self.setter, pure_name, str(model_cnt), str(self.new_batch_size)) 
         else:
             self.root = os.path.join(self.root, pure_name, str(model_cnt)) 
-        self.check_dir(self.root)
+        check_dir(self.root)
 
     def set_seq_root(self,root, acquistion_config:SequentialAc):
         # root = os.path.join(root,'{}_rounds'.format(acquistion_config.sequential_rounds_info[acquistion_config.n_ndata]))
-        self.check_dir(root)
+        check_dir(root)
         return root
-    
-    def get_log_config(self, log_symbol):
-        '''
-        Add sub_log symbol ('data','indices',...) to the root
-        '''
-        log_config = Log(self.root, log_symbol)
-        self.check_dir(log_config.root)
-        return log_config
-
-class Log():
-    log_symbol: str
-    root: str
-    path: str
-    def __init__(self, model_config_root, log_symbol) -> None:
-        self.root = os.path.join(model_config_root, 'log', log_symbol)
-        self.log_symbol = log_symbol
-    def set_path(self, acquistion_config:Acquistion):
-        self.path = os.path.join(self.root, '{}_{}.pt'.format(acquistion_config.method, acquistion_config.n_ndata))    
 
 def str2bool(value):
     if isinstance(value,bool):

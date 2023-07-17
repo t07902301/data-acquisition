@@ -1,7 +1,7 @@
 from utils import config
 import utils.objects.model as Model
 import utils.objects.Config as Config
-import utils.log as Log
+from utils.objects.log import Log
 import utils.objects.dataset as Dataset
 import utils.objects.Detector as Detector
 from abc import abstractmethod
@@ -102,8 +102,11 @@ class misclassification_subset_setter(subset_setter):
     
 def get_threshold(clf:Detector.SVM , acquisition_config:Config.Acquistion, model_config:Config.NewModel, data_splits:Dataset.DataSplits):
     if 'seq' in acquisition_config.method: 
-        clf = Log.get_log_clf(acquisition_config, model_config, data_splits.loader['train_clip'], clf.clip_processor)
-    new_data = Log.get_log_data(acquisition_config, model_config, data_splits)
+        log = Log(model_config, 'clf')
+        clf = log.import_log(acquisition_config)    
+    log = Log(model_config, 'indices')
+    new_data_indices = log.import_log(acquisition_config)
+    new_data = torch.utils.data.Subset(data_splits.dataset['market'], new_data_indices)    
     train_data_loader = torch.utils.data.DataLoader(new_data, batch_size=model_config.batch_size, 
                             num_workers= config['num_workers'])
     train_dv, _ = clf.predict(train_data_loader)

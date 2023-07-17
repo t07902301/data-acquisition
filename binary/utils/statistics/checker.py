@@ -1,14 +1,9 @@
-import binary.utils.objects.Config as Config
-import binary.utils.objects.dataset as Dataset
-import utils.objects.Config as Config
-import utils.objects.Detector as Detector
-import utils.objects.dataset as Dataset
 import utils.objects.model as Model
-import utils.objects.Config as Config
 import utils.objects.Detector as Detector
 import utils.objects.dataset as Dataset
-import utils.log as Log
 import utils.statistics.distribution as Distribution
+from utils.objects.log import Log
+import utils.objects.Config as Config
 from abc import abstractmethod
 import numpy as np
 import torch
@@ -26,8 +21,7 @@ class prototype():
         Load the new model and perform testing
         '''
         pass
-    @abstractmethod
-    def setup(self, old_model_config: Config.OldModel, datasplits: Dataset.DataSplits, detector_instruction: Config.Dectector, stream_instruction: Config.ProbabStream, plot: bool):
+    def setup(self, old_model_config:Config.OldModel, datasplits:Dataset.DataSplits, detector_instruction: Config.Dectector, stream_instruction:Config.ProbabStream, plot:bool):
         '''
         Use the old model and data split to set up a prototype (for each epoch) -> base_model, clf/detector, anchor loader
         '''
@@ -36,37 +30,6 @@ class prototype():
         self.clf = Detector.factory(detector_instruction.name, clip_processor = detector_instruction.vit, split_and_search=True)
         _ = self.clf.fit(self.base_model, datasplits.loader['val_shift'])
         self.anchor_loader = datasplits.loader['val_shift']
-
-class DV(prototype):
-    def __init__(self, model_config: Config.NewModel) -> None:
-        super().__init__(model_config)
-        # prototype.__init__(self, model_config) # TODO: a problem in the constructor of multi-inheritence MRO
-        self.log_config = Log.get_config(model_config)
-    def load(self):
-        data = torch.load(self.log_config.path)
-        print('load DV from {}'.format(self.log_config.path))
-        return data
-    def setup(self, old_model_config, datasplits):
-        self.base_model = Model.load(old_model_config)
-        clf,clip_processor,_ = Detector.get_CLF(self.base_model,datasplits.loader)
-        self.clf = clf
-        self.clip_processor = clip_processor   
-    def run(self,acquisition_config):
-        self.log_config.set_path(acquisition_config)
-        data = self.log.load()
-        loader = torch.utils.data.DataLoader(data, batch_size=self.model_config.batch_size, shuffle=True,drop_last=True)
-        data_info, _ = Detector.apply_CLF(self.clf, loader, self.clip_processor, self.base_model)
-        return np.round(np.mean(data_info['dv']),decimals=3)
-class benchmark(DV):
-    def __init__(self, model_config: Config.NewModel) -> None:
-        super().__init__(model_config)
-    def setup(self, old_model_config, datasplits):
-        super().setup(old_model_config, datasplits)
-        datasplits = datasplits       
-    def run(self, datasplits):
-        data_info, _ = Detector.apply_CLF(self.clf, datasplits.loader['market'], self.clip_processor, self.base_model)
-        # return (data_info['dv']<0).sum()/len(data_info['dv'])     
-        return np.std(data_info['dv']), np.mean(data_info['dv'])
 
 class subset(prototype):
     '''
@@ -134,7 +97,7 @@ class probability(subset):
         super().__init__(model_config)  
 
     def get_subset_loader(self, stream_instruction:Config.Stream, set_up_loader):
-        correct_dstr, incorrect_dstr = Distribution.get_dv_dstr(set_up_loader, stream_instruction.pdf)
+        correct_dstr, incorrect_dstr = Distribution.get_dv_dstr(self.base_model, self.clf, set_up_loader, stream_instruction.pdf)
         loader, selected_probab = Subset.probability_setter().get_subset_loders(self.test_info, correct_dstr, incorrect_dstr, stream_instruction)
         return loader, selected_probab
 
@@ -159,12 +122,13 @@ class probability(subset):
         self.dv_dstr_plot(cor_dv, incor_dv, fig_name, pdf)
 
     def run(self, acquisition_config:Config.Acquistion):
+        self.model_config.set_path(acquisition_config)
         if 'seq' in acquisition_config.method:
-            self.clf = Log.get_log_clf(acquisition_config, self.model_config)
+            log = Log(self.model_config, 'clf')
+            self.clf = log.import_log(acquisition_config)
             self.test_loader, _ = self.get_subset_loader(acquisition_config.stream, self.anchor_loader)
             cor_dv, incor_dv = Subset.get_hard_easy_dv(self.base_model, self.test_loader['new_model'], self.clf)
             print('Running - Hard images in New Test: {}%'.format(len(incor_dv) / (len(incor_dv) + len(cor_dv)) * 100))
-        self.model_config.set_path(acquisition_config)
         return self._target_test(self.test_loader)
 
     def _target_test(self, loader):
@@ -205,7 +169,7 @@ class ensemble(subset):
         self.probab_setter = Subset.probability_setter()
 
     def get_dstr_weights(self, dataloader, pdf_type):
-        correct_dstr, incorrect_dstr = Distribution.get_dv_dstr(dataloader, pdf_type)
+        correct_dstr, incorrect_dstr = Distribution.get_dv_dstr(self.base_model, self.clf, dataloader, pdf_type)
         old_weights, new_weights = [], []
         dv, _ = self.clf.predict(dataloader, self.base_model)        
         for value in dv:

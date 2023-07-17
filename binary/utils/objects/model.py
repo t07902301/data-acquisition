@@ -1,5 +1,5 @@
 import sys
-import binary.utils.objects.dataset as Dataset
+import utils.objects.dataset as Dataset
 sys.path.append('..')
 import failure_directions.src.model_utils as model_utils
 import failure_directions.src.trainer as trainer_utils
