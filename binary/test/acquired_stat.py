@@ -50,7 +50,10 @@ def epoch_run(new_img_num_list, method_list, acquire_instruction:Config.Acquisti
 def check_data(acquisition_config:Config.Acquistion, data_split:Dataset.DataSplits, checker:Checker.prototype, pdf_method):
     model_config = checker.model_config
     model_config.set_path(acquisition_config)
-    new_data = Log.get_log_data(acquisition_config, model_config, data_split.dataset['market'])
+
+    log = Log(model_config, 'indices')
+    new_data_indices = log.import_log(acquisition_config)
+    new_data = torch.utils.data.Subset(data_split.dataset['market'], new_data_indices)
     new_data_loader = torch.utils.data.DataLoader(new_data, batch_size= model_config.new_batch_size)
     
     # old_labels = set(Subset.config['data']['train_label']) - set(Subset.config['data']['remove_fine_labels'])
@@ -79,7 +82,8 @@ def check_data(acquisition_config:Config.Acquistion, data_split:Dataset.DataSpli
 def check_clf(acquisition_config:Config.Acquistion, data_split:Dataset.DataSplits, checker:Checker.prototype):
     model_config = checker.model_config
     model_config.set_path(acquisition_config)
-    detector = Log.get_log_clf(acquisition_config, model_config)
+    log = Log(model_config, 'clf')
+    detector = log.import_log(acquisition_config)
     _, prec = detector.predict(data_split.loader['test_shift'], checker.base_model, compute_metrics=True)
     return prec
 
