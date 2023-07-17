@@ -6,33 +6,35 @@ def bound_run(epochs, parse_para, dataset_list, new_img_num_list, method_list, a
     bound_stat_list = []
     for epo in range(epochs):
         print('in epoch {}'.format(epo))
-        checker = get_probab_checker(epo, parse_para, dataset_list[epo], stream_instruction, acquire_instruction.detector, plot=False)
+        checker = get_checker(epo, parse_para, dataset_list[epo], stream_instruction, acquire_instruction.detector, plot=False) #probab / ensemble
         result_epoch, bound_stat = epoch_run(new_img_num_list, method_list, acquire_instruction, checker)
         results.append(result_epoch)
         bound_stat_list.append(bound_stat)
     return results, bound_stat_list
 
 
-def main(epochs, new_model_setter='refine', pure=False, model_dir ='', device=0, probab_bound = 0.5, base_type='', detector_name = ''):
+def main(epochs, new_model_setter='retrain', pure=False, model_dir ='', device=0, probab_bound = 0.5, base_type='', detector_name = '', strategy = ''):
     print('Detector:', detector_name)
-    if pure == False:
-        probab_bound = 0
+    # if pure == False:
+    #     probab_bound = 0
     print('Probab bound:', probab_bound)
     device_config = 'cuda:{}'.format(device)
     torch.cuda.set_device(device_config)
     batch_size, label_map, new_img_num_list, superclass_num, ratio, seq_rounds_config, ds_list, device_config = set_up(epochs, device)
     # method_list = ['dv','sm','conf'] if new_model_setter!='refine' else ['dv']
-    method_list = ['dv','sm','conf']
+    method_list = ['dv'] if strategy=='non_seq' else [strategy]
+    # method_list = ['dv']
+
     clip_processor = Detector.load_clip(device_config)
     parse_para = (batch_size, superclass_num,model_dir, device_config, base_type, pure, new_model_setter, seq_rounds_config)
-    acquire_instruction = Config.AcquistionFactory('seq',seq_rounds_config) 
-    stream_instruction = Config.ProbabStream(bound=probab_bound, pdf='kde')
+    acquire_instruction = Config.AcquistionFactory(strategy, None)
+    stream_instruction = Config.ProbabStream(bound=probab_bound, pdf='kde', name='probab')
     detect_instruction = Config.Dectector(detector_name, clip_processor)
     acquire_instruction.add_detector(detect_instruction)
+    acquire_instruction.add_streaming(stream_instruction)
     # bounds = [-1.5, -1, -0.8, -0.5, 0, 0.5]
     bounds = [None]
     for bound in bounds:
-        print('In treshold: {}'.format(bound))
         acquire_instruction.bound = bound
         result, bound_stat = bound_run(epochs, parse_para, ds_list, new_img_num_list, method_list, acquire_instruction, stream_instruction)
         result = np.array(result)
@@ -53,6 +55,7 @@ if __name__ == '__main__':
     parser.add_argument('-pb','--probab_bound', type=Config.str2float, default=0.5)
     parser.add_argument('-bt','--base_type',type=str,default='resnet_1')
     parser.add_argument('-dn','--detector_name',type=str,default='svm')
+    parser.add_argument('-s','--strategy',type=str, default='non_seq')
 
     args = parser.parse_args()
-    main(args.epochs,pure=args.pure,model_dir=args.model_dir, device=args.device, probab_bound=args.probab_bound, base_type=args.base_type, detector_name=args.detector_name)
+    main(args.epochs,pure=args.pure,model_dir=args.model_dir, device=args.device, probab_bound=args.probab_bound, base_type=args.base_type, detector_name=args.detector_name, strategy=args.strategy)
