@@ -95,8 +95,8 @@ class Greedy(NonSeqStrategy):
             new_data_indices = acquistion.get_top_values_indices(market_dv, n_data)
         else:
             new_data_indices = acquistion.get_in_bound_top_indices(market_dv, n_data, bound)
-        _, metric = clf.predict(dataset_splits.loader['test_shift'], self.base_model, True)
-        print('CLF metric:', metric)
+        # _, metric = clf.predict(dataset_splits.loader['test_shift'], self.base_model, True)
+        # print('CLF metric:', metric)
         return new_data_indices, clf       
 
 class Sample(NonSeqStrategy):
@@ -154,17 +154,17 @@ class SeqCLF(Strategy):
         new_data_total_set = None
 
         for round_i in range(operation.acquisition.n_rounds):
-            new_data_total_set, clf = self.round_operate(round_i, operation.acquisition, dataset_splits, new_data_total_set)
+            new_data_total_set, clf = self.round_operate(round_i, operation, dataset_splits, new_data_total_set)
         
         new_model_config.set_path(operation)
         self.export_log(new_model_config, operation.acquisition, clf)
 
-        # self.recover_dataset(org_val_ds, 'val_shift', dataset_splits, acquire_instruction.n_ndata)
-        # # train model 
-        # dataset_splits.use_new_data(new_data_total_set, new_model_config, acquire_instruction)
-        # self.get_new_val(dataset_splits, acquire_instruction.stream, new_model_config, detect_instruction=acquire_instruction.detector, clf=clf)
-        # self.base_model.update(new_model_config.setter, dataset_splits.loader['train'], dataset_splits.loader['val_shift'])
-        # self.base_model.save(new_model_config.path)
+        self.recover_dataset(org_val_ds, 'val_shift', dataset_splits, operation.acquisition.n_ndata)
+        # train model 
+        dataset_splits.use_new_data(new_data_total_set, new_model_config, operation.acquisition)
+        self.get_new_val(dataset_splits, operation.stream, new_model_config, detect_instruction=operation.detection, clf=clf)
+        self.base_model.update(new_model_config.setter, dataset_splits.loader['train'], dataset_splits.loader['val_shift'])
+        self.base_model.save(new_model_config.path)
 
     def round_operate(self, round_id, operation: Config.Operation, dataset_splits:Dataset.DataSplits, new_data_total_set):
         operation.acquisition.set_round(round_id)
