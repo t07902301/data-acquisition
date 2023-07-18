@@ -1,26 +1,30 @@
 from utils.strategy import *
 from utils.set_up import set_up
 
-def n_data_run(operation: Config.Operation, old_model_config:Config.OldModel, new_model_config:Config.NewModel, dataset:dict):
+#TODO method -> strategy -> #new_data
+# fix validation set to target test set before training new models
+# copy dataset before manipulating
+
+def run(operation: Config.Operation, old_model_config:Config.OldModel, new_model_config:Config.NewModel, dataset:dict):
     strategy = StrategyFactory(operation.acquisition.method, old_model_config)
     strategy.operate(operation, dataset, new_model_config)
 
-def method_run(new_img_num_list, operation: Config.Operation, old_model_config:Config.OldModel, new_model_config:Config.NewModel, dataset:dict):
+def data_run(new_img_num_list, operation: Config.Operation, old_model_config:Config.OldModel, new_model_config:Config.NewModel, dataset:dict):
     for new_img_num in new_img_num_list:
         operation.acquisition.n_ndata = new_img_num
-        n_data_run(operation, old_model_config, new_model_config, dataset)
+        data_run(operation, old_model_config, new_model_config, dataset)
 
-def run(dataset:dict, methods_list, new_img_num_list, old_model_config:Config.OldModel, new_model_config:Config.NewModel, operation: Config.Operation):
+def method_run(dataset:dict, methods_list, new_img_num_list, old_model_config:Config.OldModel, new_model_config:Config.NewModel, operation: Config.Operation):
     for method in methods_list:
         operation.acquisition.method = method
         operation.acquisition = Config.AcquisitionFactory(method, operation.acquisition)
-        method_run(new_img_num_list, operation, old_model_config, new_model_config, dataset)
+        data_run(new_img_num_list, operation, old_model_config, new_model_config, dataset)
 
 def epoch_run(parse_para, method_list, n_data_list, dataset, epo, operation: Config.Operation):
     batch_size, superclass_num,model_dir, device_config, base_type, pure, new_model_setter, seq_rounds_config = parse_para
     old_model_config = Config.OldModel(batch_size['base'], superclass_num, model_dir, device_config, epo, base_type)
     new_model_config = Config.NewModel(batch_size['base'], superclass_num, model_dir, device_config, epo, pure, new_model_setter, batch_size['new'], base_type)
-    run(dataset, method_list, n_data_list, old_model_config,new_model_config, operation)
+    method_run(dataset, method_list, n_data_list, old_model_config,new_model_config, operation)
 
 def bound_run(parse_para, epochs, ds_list, method_list, new_img_num_list, bound, operation: Config.Operation):
     operation.acquisition.bound = bound
