@@ -31,7 +31,13 @@ def ecdf(raw_values, cut_value=None):
         return result
     else:
         return np.array([np.sum(raw_values <= cut_value) / n_raw_vals])
-    
+
+
+class disrtibution():
+    def __init__(self, prior, dstr) -> None:
+        self.prior = prior
+        self.dstr = dstr
+
 def get_dv_dstr(model, detector, dataloader, pdf_type):
     '''
     Get decision value distribution of a dataloader against a base model
@@ -40,8 +46,8 @@ def get_dv_dstr(model, detector, dataloader, pdf_type):
     # total_dv = np.concatenate((incor_dv,cor_dv))
     # print('Negative DV: {}%'.format((total_dv<0).mean()*100))
     correct_prior = (len(cor_dv)) / (len(cor_dv) + len(incor_dv))
-    correct_dstr = Subset.disrtibution(correct_prior, get_pdf(cor_dv, pdf_type))
-    incorrect_dstr =  Subset.disrtibution(1 - correct_prior, get_pdf(incor_dv, pdf_type))
+    correct_dstr = disrtibution(correct_prior, get_pdf(cor_dv, pdf_type))
+    incorrect_dstr =  disrtibution(1 - correct_prior, get_pdf(incor_dv, pdf_type))
     return correct_dstr, incorrect_dstr
 
 def get_pdf(value, method):

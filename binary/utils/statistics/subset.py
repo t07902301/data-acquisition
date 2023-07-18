@@ -7,6 +7,7 @@ import utils.objects.Detector as Detector
 from abc import abstractmethod
 import numpy as np
 import torch
+from utils.statistics.distribution import disrtibution
 
 class subset_setter():
     def __init__(self) -> None:
@@ -17,11 +18,6 @@ class subset_setter():
         data_info: dict of data, gt and pred labels, batch_size, and dv(if needed)
         '''
         pass
-
-class disrtibution():
-    def __init__(self, prior, dstr) -> None:
-        self.prior = prior
-        self.dstr = dstr
 
 class probability_setter(subset_setter):
     def __init__(self) -> None:
