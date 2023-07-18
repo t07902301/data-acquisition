@@ -10,6 +10,9 @@ import torch
 import numpy as np
 import utils.statistics.subset as TestSubset
 import utils.statistics.distribution as Distribution
+
+#TODO add info class with base model and dataset, make strategy class more purified. 
+
 class Strategy():
     base_model:Model.prototype
     def __init__(self, old_model_config:Config.OldModel, clip_processor=None) -> None:
@@ -40,10 +43,7 @@ class Strategy():
             clf = Detector.factory(detect_instruction.name, clip_processor = detect_instruction.vit, split_and_search=True)
             _ = clf.fit(self.base_model, dataset_splits.loader['val_shift']) 
 
-        cor_dv, incor_dv = TestSubset.get_hard_easy_dv(self.base_model, dataset_splits.loader['val_shift'], clf)
-        correct_prior = (len(cor_dv)) / (len(cor_dv) + len(incor_dv))
-        correct_dstr = TestSubset.disrtibution(correct_prior, Distribution.get_pdf(cor_dv, stream_instruction.pdf))
-        incorrect_dstr =  TestSubset.disrtibution(1 - correct_prior, Distribution.get_pdf(incor_dv, stream_instruction.pdf))
+        correct_dstr, incorrect_dstr = Distribution.get_dv_dstr(self.base_model, clf, dataset_splits.loader['val_shift'], stream_instruction.pdf)
         val_shift_info = TestSubset.build_data_info(dataset_splits, 'val_shift', clf, model_config, self.base_model)
         val_shift_split, _ = TestSubset.probability_setter().get_subset_loders(val_shift_info, correct_dstr, incorrect_dstr, stream_instruction)
         dataset_splits.loader['val_shift'] = val_shift_split['new_model']
@@ -118,10 +118,9 @@ class Confidence(NonSeqStrategy):
         market_gts, _, market_probab = self.base_model.eval(dataset_splits.loader['market'])
         if self.n_class == 1:
             confs = acquistion.get_probab_diff(market_gts, market_probab)
-            new_data_indices = acquistion.get_top_values_indices(confs, n_data)
         else:
             confs = acquistion.get_probab_gts(market_gts, market_probab)
-            new_data_indices = acquistion.get_top_values_indices(market_probab, n_data)
+        new_data_indices = acquistion.get_top_values_indices(confs, n_data)
         clf_info = None
         return new_data_indices, clf_info       
 
