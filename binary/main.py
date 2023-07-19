@@ -12,7 +12,7 @@ def run(operation: Config.Operation, old_model_config:Config.OldModel, new_model
 def data_run(new_img_num_list, operation: Config.Operation, old_model_config:Config.OldModel, new_model_config:Config.NewModel, dataset:dict):
     for new_img_num in new_img_num_list:
         operation.acquisition.n_ndata = new_img_num
-        data_run(operation, old_model_config, new_model_config, dataset)
+        run(operation, old_model_config, new_model_config, dataset)
 
 def method_run(dataset:dict, methods_list, new_img_num_list, old_model_config:Config.OldModel, new_model_config:Config.NewModel, operation: Config.Operation):
     for method in methods_list:
