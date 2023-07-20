@@ -71,7 +71,7 @@ class SequentialAc(Acquisition):
     
     def get_info(self):
         return 'acquisition method: {}, n_data_per_class:({},{}) in round {}'.format(
-            self.method, self.n_data_not_last, self.n_data_last_round, self.current_round)
+            self.method, self.n_data_non_last_round, self.n_data_last_round, self.current_round)
 
 def AcquisitionFactory(method, acquisition:Acquisition):
     if 'seq' in method:
@@ -124,6 +124,7 @@ class NewModel(ModelConfig):
             temp_root = os.path.join(self.root, 'no-detector')
         else:
             temp_root = os.path.join(self.root, detector_name)
+        # temp_root = os.path.join('exp', temp_root)
         check_dir(temp_root)
         return temp_root
     
