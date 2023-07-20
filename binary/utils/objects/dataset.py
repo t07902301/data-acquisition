@@ -27,7 +27,8 @@ class DataSplits():
         generator.manual_seed(0)    
         self.loader = {
             k: torch.utils.data.DataLoader(self.dataset[k], batch_size=batch_size, 
-                                        shuffle=(k=='train'), drop_last=(k=='train'),num_workers=config['num_workers'],generator=generator)
+                                        shuffle=(k=='train'), drop_last=(k=='train'),
+                                        num_workers=config['num_workers'],generator=generator)
             for k in self.dataset.keys()
         }        
         self.batch_size = batch_size
