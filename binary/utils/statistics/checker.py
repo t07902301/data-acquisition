@@ -45,9 +45,8 @@ class subset(prototype):
         set base model, test data info and vit
         '''
         super().setup(old_model_config, datasplits, operation, plot) 
-        gt, pred, _ = self.base_model.eval(datasplits.loader['test_shift'])
-        self.base_acc = (gt == pred).mean()*100 
-        self.test_info = Subset.build_data_info(datasplits, 'test_shift', self.clf, self.model_config, self.base_model)
+        self.base_acc = self.base_model.acc(datasplits.loader['test_shift'])
+        self.test_info = Subset.build_data_info(datasplits, 'test_shift', self.clf, self.model_config.batch_size, self.model_config.new_batch_size, self.base_model)
         self.vit = operation.detection.vit
 
     def get_subset_loader(self, threshold):
@@ -217,7 +216,7 @@ class ensemble(subset):
         err_mask = (gts!=preds)
         total_err = err_mask.mean()
         alpha = np.log((1 - total_err) / total_err) / 2
-        # print(total_err, alpha)
+        print(total_err, alpha)
         return alpha
     
     def weight_error(self, new_probab, old_probab, new_model, old_model, anchor_dataloader):

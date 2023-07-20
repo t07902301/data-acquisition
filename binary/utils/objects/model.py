@@ -15,7 +15,7 @@ hparams = config['hparams']
 class prototype():
     @abstractmethod
     def __init__(self) -> None:
-        pass
+        self.model = None
     @abstractmethod
     def eval(self, dataloader):
         '''
@@ -34,6 +34,9 @@ class prototype():
     @abstractmethod
     def load(self, path, device):
         pass
+    def acc(self, dataloader):
+        gts, preds, _ = self.eval(dataloader)
+        return (gts==preds).mean()*100
 
 class resnet(prototype):
     def __init__(self, num_class, use_pretrained=False) -> None:
@@ -98,6 +101,7 @@ class resnet(prototype):
         # self.model = best_model_chkpnt
 
     def tune(self,train_loader,val_loader, weights=None,log_model=False,model_save_path=''):
+        '''return the best checkpoint'''
         training_args=hparams['tuning']
         training_args['optimizer'] = hparams['optimizer']
         training_args['iters_per_epoch'] = len(train_loader)
