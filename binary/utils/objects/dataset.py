@@ -64,7 +64,6 @@ class DataSplits():
         new data to be added to train set or not, and update loader automatically
         '''
         assert len(new_data) == acquisition_config.n_ndata, 'size error - new data: {}, required new data: {} \n under {}'.format(len(new_data), acquisition_config.n_ndata, acquisition_config.get_info())
-        # print('In bound {}, {} new data acquired with a budget of {}'.format(acquisition_config.bound, len(new_data), acquisition_config.n_ndata))
 
         if new_model_config.pure:
             self.replace('train', new_data)
@@ -86,12 +85,16 @@ def create_dataset(ds_root, select_fine_labels, ratio):
         test_ds = get_subset_by_labels(test_ds, select_fine_labels)
 
     label_summary = [i for i in range(max_subclass_num)] if len(select_fine_labels)==0 else select_fine_labels
-
+    
     clip_train_ds_split, val_market_set = split_dataset(train_ds, label_summary, train_size/(train_size+val_size+market_size))
 
-    val_ds, market_ds = split_dataset(val_market_set, label_summary, val_size/(val_size+market_size))
+    _, market_ds = split_dataset(val_market_set, label_summary, val_size/(val_size+market_size))
 
     _, left_train = split_dataset(clip_train_ds_split, data_config['remove_fine_labels'], remove_rate)
+
+    # _, left_val = split_dataset(val_ds, data_config['remove_fine_labels'], remove_rate)
+
+    test_ds, val_ds = split_dataset(test_ds, label_summary, 0.5)
 
     _, left_val = split_dataset(val_ds, data_config['remove_fine_labels'], remove_rate)
    
@@ -99,7 +102,7 @@ def create_dataset(ds_root, select_fine_labels, ratio):
 
     ds = {}
     # modified_labels = list(set(select_fine_labels) - set(target_test_label))
-    # balanced_train_ds = balance_dataset(target_test_label, modified_labels, left_train)
+    # balanced_train_ds = balance_dataset(target_test_label, modified_labels, left_train) # make shifted and original labels balanced?
     ds['train'] = left_train
     ds['val'] = left_val
     ds['test'] = left_test
@@ -128,10 +131,6 @@ def balance_dataset(target_labels, modified_label, dataset):
         modified_indices.append(sampled)
     modified_indices = np.concatenate(modified_indices)
     modified_ds = torch.utils.data.Subset(dataset, modified_indices)
-    # modified_label_check = get_ds_labels(modified_ds)
-    # print(np.unique(modified_label_check))
-    # for label in modified_label:
-    #     assert label in modified_label_check
     return torch.utils.data.ConcatDataset([modified_ds, target_ds])
 
 def modify_coarse_label(dataset, label_map):
@@ -170,10 +169,6 @@ def get_ds_labels(ds,use_fine_label=True):
     for idx in range(ds_size):
         label = ds[idx][label_idx]
         labels.append(label)
-    # if use_fine_label:
-    #     return np.array([info[2] for info in ds])
-    # else:
-    #     return np.array([info[1] for info in ds])
     return np.array(labels)
     
 def sample_indices(indices,ratio):
