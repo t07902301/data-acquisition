@@ -96,21 +96,17 @@ class NonSeqStrategy(Strategy):
         workspace.data_split.use_new_data(new_data, new_model_config, operation.acquisition)
 
         new_model_config.set_path(operation)
-        if operation.acquisition.method == 'sm' and operation.stream.bound == 0:
-            new_model_config.root_detector = Config.os.path.join(new_model_config.root_detector, 'rs')
-            Config.check_dir(new_model_config.root_detector)
-            bound_name = '_{}'.format(operation.acquisition.bound) if operation.acquisition.bound != None else ''
-            new_model_config.path = Config.os.path.join(new_model_config.root_detector, '{}_{}{}.pt'.format(operation.acquisition.method, operation.acquisition.n_ndata, bound_name))
-        else:
-            self.export_log(new_model_config, operation.acquisition, new_data_indices)
+
+        self.export_log(new_model_config, operation.acquisition, new_data_indices, operation.stream)
 
         workspace.base_model.update(new_model_config, workspace.data_split.loader['train'], workspace.validation_loader)
 
         workspace.base_model.save(new_model_config.path)
 
-    def export_log(self, model_config:Config.NewModel, acquire_instruction: Config.Acquisition, data):
-        log = Log(model_config, 'indices')
-        log.export(acquire_instruction, data=data)
+    def export_log(self, model_config:Config.NewModel, acquire_instruction: Config.Acquisition, data, stream: Config.Stream):
+        if model_config.check_rs(acquire_instruction.method, stream.bound):
+            log = Log(model_config, 'indices')
+            log.export(acquire_instruction, data=data)
 
 class Greedy(NonSeqStrategy):
     def __init__(self) -> None:

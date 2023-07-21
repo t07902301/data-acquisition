@@ -42,13 +42,6 @@ class Partition(prototype):
     def __init__(self, model_config: Config.NewModel) -> None:
         super().__init__(model_config)
     
-    def rs(self,  operation:Config.Operation):
-        if operation.acquisition.method == 'sm' and operation.stream.bound == 0:
-            self.model_config.root_detector = Config.os.path.join(self.model_config.root_detector, 'rs')
-            Config.check_dir(self.model_config.root_detector)
-            bound_name = '_{}'.format(operation.acquisition.bound) if operation.acquisition.bound != None else ''
-            self.model_config.path = Config.os.path.join(self.model_config.root_detector, '{}_{}{}.pt'.format(operation.acquisition.method, operation.acquisition.n_ndata, bound_name))
-
     def setup(self, old_model_config:Config.OldModel, datasplits:Dataset.DataSplits, operation:Config.Operation, plot:bool):
         '''
         set base model, test data info and vit
@@ -139,7 +132,6 @@ class Probability(Partition):
         Use a new CLF (new dv dstr) in testing seq
         '''
         self.model_config.set_path(operation)
-        self.rs(operation)
         if 'seq' in operation.acquisition.method:
             log = Log(self.model_config, 'clf')
             self.clf = log.import_log(operation)
@@ -240,6 +232,8 @@ class AverageEnsemble(Ensemble):
         probab = self.ensemble_decision(new_probab, new_weight, old_probab, old_weight)
 
         preds = np.argmax(probab, axis=-1)
+
+        DataStat.pred_metric(dataloader, self.base_model, new_model)
         return (gts==preds).mean() * 100 - self.base_acc 
      
 class DstrEnsemble(Ensemble):
@@ -272,8 +266,9 @@ class DstrEnsemble(Ensemble):
         old_weight = self.get_weight({'target': correct_dstr, 'other': incorrect_dstr}, dv, size)
 
         probab = self.ensemble_decision(new_probab, new_weight, old_probab, old_weight)
-
         preds = np.argmax(probab, axis=-1)
+
+        DataStat.pred_metric(dataloader, self.base_model, new_model)
         return (gts==preds).mean() * 100 - self.base_acc   
     
 # class AdaBoostEnsemble(Ensemble):
@@ -318,8 +313,6 @@ def factory(name, new_model_config):
         checker = DstrEnsemble(new_model_config)
     elif name == 'avg':
         checker = AverageEnsemble(new_model_config)
-    elif name == 'dev':
-        checker = Dev_ensemble(new_model_config)
     # elif name == 'max_dstr':
     #     checker = MaxDstr(new_model_config)
     # elif name == 'max_avg':

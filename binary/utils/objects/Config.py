@@ -116,7 +116,7 @@ class NewModel(ModelConfig):
         self.setter = setter
         self.new_batch_size = new_batch_size
         self.set_root(model_cnt)
-        self.root_detector = None
+        # root_detector = None
 
     def detector2root(self, acquisition_method, detector_name):
         # Make Conf and sampling-based method Root agnostic to detector
@@ -134,9 +134,11 @@ class NewModel(ModelConfig):
         #     root = self.set_seq_root(self.root, acquisition_config)
         # else:
         #     root = self.root
-        self.root_detector = self.detector2root(operation.acquisition.method, operation.detection.name)
+        root_detector = self.detector2root(operation.acquisition.method, operation.detection.name)
+        if self.check_rs(operation.acquisition.method, operation.stream.bound):
+            root_detector = os.path.join(root_detector, 'rs')
         bound_name = '_{}'.format(operation.acquisition.bound) if operation.acquisition.bound != None else ''
-        self.path = os.path.join(self.root_detector, '{}_{}{}.pt'.format(operation.acquisition.method, operation.acquisition.n_ndata, bound_name))
+        self.path = os.path.join(root_detector, '{}_{}{}.pt'.format(operation.acquisition.method, operation.acquisition.n_ndata, bound_name))
     
     def set_root(self, model_cnt):
         pure_name = 'pure' if self.pure else 'non-pure'
@@ -150,6 +152,12 @@ class NewModel(ModelConfig):
         # root = os.path.join(root,'{}_rounds'.format(acquisition_config.sequential_rounds_info[acquisition_config.n_ndata]))
         check_dir(root)
         return root
+    
+    def check_rs(self, acquisition_method, stream_bound):
+        if acquisition_method == 'sm' and stream_bound == 0:
+            return True
+        else:
+            return False
 
 def str2bool(value):
     if isinstance(value,bool):
