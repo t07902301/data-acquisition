@@ -134,11 +134,11 @@ class NewModel(ModelConfig):
         #     root = self.set_seq_root(self.root, acquisition_config)
         # else:
         #     root = self.root
-        root_detector = self.detector2root(operation.acquisition.method, operation.detection.name)
+        self.root_detector = self.detector2root(operation.acquisition.method, operation.detection.name)
         if self.check_rs(operation.acquisition.method, operation.stream.bound):
-            root_detector = os.path.join(root_detector, 'rs')
+            self.root_detector = os.path.join(self.root_detector, 'rs')
         bound_name = '_{}'.format(operation.acquisition.bound) if operation.acquisition.bound != None else ''
-        self.path = os.path.join(root_detector, '{}_{}{}.pt'.format(operation.acquisition.method, operation.acquisition.n_ndata, bound_name))
+        self.path = os.path.join(self.root_detector, '{}_{}{}.pt'.format(operation.acquisition.method, operation.acquisition.n_ndata, bound_name))
     
     def set_root(self, model_cnt):
         pure_name = 'pure' if self.pure else 'non-pure'
