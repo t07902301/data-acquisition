@@ -14,11 +14,11 @@ def statistics(values, stat_type, n_data_list = None):
     '''
     values = np.array(values)
     if n_data_list is None:
-        print('OOD detector average {}: {}%'.format(stat_type, np.round(np.mean(values), decimals=3).tolist()))
+        print('Distribution Classifier Average Precision {}: {}%'.format(stat_type, np.round(np.mean(values), decimals=3).tolist()))
     else: 
         for idx, n_data in enumerate(n_data_list):
             print('#new data:', n_data)       
-            print('OOD detector average {}: {}%'.format(stat_type, np.round(np.mean(values[:,idx]), decimals=3).tolist()))
+            print('Distribution Classifier Average Precision {}: {}%'.format(stat_type, np.round(np.mean(values[:,idx]), decimals=3).tolist()))
 
 def precision(clf, clip_processor, dataloader, base_model):
     data_clip = clip_processor.evaluate_clip_images(dataloader)

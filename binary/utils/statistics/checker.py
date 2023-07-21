@@ -195,7 +195,7 @@ class Ensemble(Partition):
     
     def transform_BDE_probab(self, class_1_probab):
         '''
-            Make 1D sigmoid output 2D
+            Make 1D sigmoid output be 2D
         '''
         size = len(class_1_probab)
         class_0_probab = (1-class_1_probab).reshape((size,1))
