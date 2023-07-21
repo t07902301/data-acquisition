@@ -25,7 +25,6 @@ def label_stat(dataset, checked_labels):
     for label in checked_labels:
         check_labels_cnt += (label==ds_labels).sum()
     # check_labels_cnt = check_labels_cnt/len(ds_labels) * 100
-    # return check_labels_cnt
     return check_labels_cnt
 
 def mis_label_stat(split_name, data_split:Dataset.DataSplits, model:Model.prototype):
@@ -55,25 +54,12 @@ def pred_metric(dataloader, old_model:Model.prototype, new_model:Model.prototype
     new_correct_indices = indices[new_correct_mask]
     new_incorrect_indices = indices[new_incorrect_mask]
 
-    # print(old_correct_mask.sum(), old_incorrect_mask.sum())
-    # print(new_correct_mask.sum(), new_incorrect_mask.sum())
-
     tn = len(np.intersect1d(new_incorrect_indices, old_incorrect_indices))
     fn = len(np.intersect1d(new_incorrect_indices, old_correct_indices))
     tp = len(np.intersect1d(new_correct_indices, old_incorrect_indices))
     fp = len(np.intersect1d(new_correct_indices, old_correct_indices))
     print(tn, tp)
     print(fn, fp)
-
-    # dataset = loader2dataset(dataloader)
-    # old_incor_data = torch.utils.data.Subset(dataset, old_incorrect_indices)
-    # new_cor_data = torch.utils.data.Subset(dataset, new_correct_indices)
-    # new_cor_old_incor_data = torch.utils.data.Subset(dataset, np.intersect1d(new_correct_indices, old_incorrect_indices))
-    # print(label_stat(old_incor_data, config['data']['remove_fine_labels']), label_stat(new_cor_old_incor_data, config['data']['remove_fine_labels']), label_stat(new_cor_data, config['data']['remove_fine_labels']))
-
-    # old_labels = set(config['data']['train_label']) - set(config['data']['remove_fine_labels'])
-    # print(label_stat(old_incor_data, old_labels), label_stat(new_cor_old_incor_data, old_labels), label_stat(new_cor_data, old_labels))
-
 
 def build_info(dataset_splits: Dataset.DataSplits, name, clf:Detector.Prototype, old_batch_size, new_batch_size, base_model:Model.prototype):
     data_info = {}
@@ -84,14 +70,20 @@ def build_info(dataset_splits: Dataset.DataSplits, name, clf:Detector.Prototype,
     data_info['dataset'] = dataset_splits.dataset[name]
     return data_info
     
-def get_hard_easy_dv(model: Model.prototype, dataloader, clf:Detector.Prototype):
+def get_correctness_dv(model: Model.prototype, dataloader, clf:Detector.Prototype, correctness):
     '''
     DV of hard and easy data wrt the given model
     '''
     dataset_gts, dataset_preds, _ = model.eval(dataloader)
     dv, _ = clf.predict(dataloader, model)
-    cor_mask = (dataset_gts == dataset_preds)
-    incor_mask = ~cor_mask
-    cor_dv = dv[cor_mask]
-    incor_dv = dv[incor_mask]
-    return cor_dv, incor_dv
+    if correctness:
+        mask = (dataset_gts == dataset_preds)
+    else:
+        mask = (dataset_gts != dataset_preds)
+    return dv[mask]
+
+def get_dataloader_size(dataloader):
+    gts = []
+    for batch_info in dataloader:
+        gts.append(batch_info[1])
+    return len(torch.concat(gts))  
