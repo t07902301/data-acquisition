@@ -79,11 +79,11 @@ class resnet(prototype):
                         x = x.cuda()
                         gts.append(y.cpu())
                         logits = self.model(x)
-                        preds.append(logits.argmax(-1).cpu())
                         softmax_logits = nn.Softmax(dim=-1)(logits) # logits: unnormalized output before the last layer
                         # loss.append(ce(softmax_logits,y.cuda()))
                         # probab.append(softmax_logits[torch.arange(logits.shape[0]), y].cpu())
                         probabs.append(softmax_logits.cpu())
+                        preds.append(softmax_logits.argmax(-1).cpu())
                     gts = torch.cat(gts).numpy()
                     preds = torch.cat(preds).numpy()
                     probabs = torch.cat(probabs).numpy()
@@ -97,8 +97,8 @@ class resnet(prototype):
         trainer = trainer_utils.LightWeightTrainer(training_args=hparams['training'],
                                                         exp_name=model_save_path, enable_logging=log_model,
                                                         bce=self.bce, set_device=True, loss_upweight_vec=data_weights)
-        _ = trainer.fit(self.model, train_loader, val_loader)
-        # self.model = best_model_chkpnt
+        best_model_chkpnt = trainer.fit(self.model, train_loader, val_loader)
+        self.model = best_model_chkpnt
 
     def tune(self,train_loader,val_loader, weights=None,log_model=False,model_save_path=''):
         '''return the best checkpoint'''
