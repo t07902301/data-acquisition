@@ -1,6 +1,6 @@
 import numpy as np
 from scipy.stats import norm, gaussian_kde, kstest, skewnorm, skew
-import utils.statistics.subset as Subset
+import utils.statistics.data as DataStat
 import matplotlib.pyplot as plt
 
 def get_intervals(values):
@@ -38,17 +38,15 @@ class disrtibution():
         self.prior = prior
         self.dstr = dstr
 
-def get_dv_dstr(model, detector, dataloader, pdf_type):
+def get_correctness_dstr(model, detector, dataloader, pdf_type, correctness:bool):
     '''
     Get decision value distribution of a dataloader against a base model
     '''
-    cor_dv, incor_dv = Subset.get_hard_easy_dv(model, dataloader, detector)
-    # total_dv = np.concatenate((incor_dv,cor_dv))
-    # print('Negative DV: {}%'.format((total_dv<0).mean()*100))
-    correct_prior = (len(cor_dv)) / (len(cor_dv) + len(incor_dv))
-    correct_dstr = disrtibution(correct_prior, get_pdf(cor_dv, pdf_type))
-    incorrect_dstr =  disrtibution(1 - correct_prior, get_pdf(incor_dv, pdf_type))
-    return correct_dstr, incorrect_dstr
+    target_dv =  DataStat.get_correctness_dv(model, dataloader, detector, correctness=correctness)
+    dataloader_size = DataStat.get_dataloader_size(dataloader)
+    prior = (len(target_dv)) / dataloader_size
+    dstr = disrtibution(prior, get_pdf(target_dv, pdf_type))
+    return dstr
 
 def get_pdf(value, method):
     if method == 'norm':
