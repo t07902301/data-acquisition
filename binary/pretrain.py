@@ -1,6 +1,6 @@
 from utils.strategy import *
 from utils.set_up import set_up
-import utils.statistics.subset as Subset
+import utils.statistics.data as DataStat
 def run(ds:Dataset.DataSplits, model_config:Config.OldModel, train_flag:bool, detect_instruction:Config.Detection):
     base_model = Model.prototype_factory(model_config.base_type, model_config.class_number, detect_instruction.vit)
     if train_flag:
@@ -11,10 +11,8 @@ def run(ds:Dataset.DataSplits, model_config:Config.OldModel, train_flag:bool, de
     else:
         base_model.load(model_config.path, model_config.device)
     # Evaluate
-    gt,pred,conf  = base_model.eval(ds.loader['test'])
-    acc = (gt==pred).mean()*100
-    gt,pred,_  = base_model.eval(ds.loader['test_shift'])
-    acc_shift = (gt==pred).mean()*100
+    acc = base_model.acc(ds.loader['test'])
+    acc_shift = base_model.acc(ds.loader['test_shift'])
     clf = Detector.factory(detect_instruction.name, clip_processor = detect_instruction.vit, split_and_search=True, data_transform='clip')
     _ = clf.fit(base_model, ds.loader['val_shift'], ds.dataset['val_shift'], model_config.batch_size)
     _, detect_prec = clf.predict(ds.loader['val_shift'], compute_metrics=True, base_model=base_model)
@@ -28,7 +26,7 @@ def run(ds:Dataset.DataSplits, model_config:Config.OldModel, train_flag:bool, de
     if train_flag:
         base_model.save(model_config.path)
 
-    shift_score = Subset.mis_label_stat('val_shift', ds, base_model)
+    shift_score = DataStat.mis_label_stat('val_shift', ds, base_model)
 
     return acc, acc_shift, detect_prec, shift_score
 
@@ -48,8 +46,8 @@ def main(epochs,  model_dir ='', train_flag=False, device_id=0, base_type='', de
         acc_shift_list.append(acc_shift)
         detect_prec_list.append(detect_prec)
         shift_list.append(shift_score)
-    print('Model Average Acc before shift: {}%'.format(np.round(np.mean(acc_list),decimals=3)))
-    print('Model Average Acc after shift: {}%'.format(np.round(np.mean(acc_shift_list),decimals=3)))
+    print('Base Model Acc before shift: {}%'.format(np.round(np.mean(acc_list),decimals=3)))
+    print('Base Model Acc after shift: {}%'.format(np.round(np.mean(acc_shift_list),decimals=3)))
     print('Shifted Data Proportion on Model Misclassifications: {}%'.format(np.round(np.mean(np.array(shift_list),axis=0), decimals=3)))
     Detector.statistics(detect_prec_list, 'precision')
 
