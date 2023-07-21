@@ -19,29 +19,33 @@ class Probability(Prototype):
     def __init__(self) -> None:
         super().__init__()
 
-    def get_probab(self, value, target_dstr: disrtibution, other_dstr:disrtibution, pdf_type):
+    def get_posterior(self, value, dstr_dict:dict, pdf_type):
+        '''
+        Get Posterior of Target Dstr in dstr_dict
+        '''
+        target_dstr = dstr_dict['target']
+        other_dstr = dstr_dict['other']
         if pdf_type == 'norm':
-            probab_target = self.norm_probab(value, target_dstr, other_dstr)  
+            target_posterior = self.norm(value, target_dstr, other_dstr)  
         else:
-            probab_target = self.kde_probab(value, target_dstr, other_dstr)
-        return probab_target
-
-    def norm_probab(self, value, target_dstr: disrtibution, other_dstr:disrtibution):
+            target_posterior = self.kde(value, target_dstr, other_dstr)
+        return target_posterior
+    
+    def norm(self, value, target_dstr: disrtibution, other_dstr:disrtibution):
         probability_target = (target_dstr.prior * target_dstr.dstr.pdf(value)) / (target_dstr.prior * target_dstr.dstr.pdf(value) + other_dstr.prior * other_dstr.dstr.pdf(value))
-        
         return probability_target
    
-    def kde_probab(self, value, target_dstr: disrtibution, other_dstr:disrtibution):
+    def kde(self, value, target_dstr: disrtibution, other_dstr:disrtibution):
         probability_target = (target_dstr.prior * target_dstr.dstr.evaluate(value)) / (target_dstr.prior * target_dstr.dstr.evaluate(value) + other_dstr.prior * other_dstr.dstr.evaluate(value))
         # probability_target = (target_dstr.prior * target_dstr.dstr.pdf(value)) / (target_dstr.prior * target_dstr.dstr.pdf(value) + other_dstr.prior * other_dstr.dstr.pdf(value))
 
         return probability_target
 
-    def run(self, data_info, correct_dstr: disrtibution, incorrect_dstr: disrtibution, stream_instruction:Config.ProbabStream):
+    def run(self, data_info, dstr_dict:dict, stream_instruction:Config.ProbabStream):
         selected_probab = []
         for value in data_info['dv']:
-            probab_target = self.get_probab(value, incorrect_dstr, correct_dstr, stream_instruction.pdf)
-            selected_probab.append(probab_target)
+            target_posterior = self.get_posterior(value, dstr_dict, stream_instruction.pdf)
+            selected_probab.append(target_posterior)
         selected_probab = np.array(selected_probab).reshape((len(selected_probab),))
         selected_mask = (selected_probab >= stream_instruction.bound)
         dataset_indices = np.arange(len(data_info['dataset']))
