@@ -20,7 +20,7 @@ class WorkSpace():
     '''
     def __init__(self, model_config: Config.OldModel, dataset:dict) -> None:
         self.base_model_config = model_config
-        self.dataset = dataset
+        self.init_dataset = dataset
     
     def set_up(self, new_batch_size):
         '''
@@ -28,7 +28,7 @@ class WorkSpace():
         '''
         self.base_model = Model.prototype_factory(self.base_model_config.base_type, self.base_model_config.class_number, clip_processor=None)
         self.base_model.load(self.base_model_config.path, self.base_model_config.device)
-        copied_dataset = deepcopy(self.dataset)
+        copied_dataset = deepcopy(self.init_dataset)
         self.data_split = Dataset.DataSplits(copied_dataset, new_batch_size)
 
     def set_validation(self, stream_instruction:Config.ProbabStream, old_batch_size, new_batch_size, clf: Detector.Prototype=None, detect_instruction:Config.Detection=None):
@@ -64,8 +64,21 @@ class Strategy():
         '''
         pass
 
-    def get_new_data(self, market_set, new_data_indices):
-        return torch.utils.data.Subset(market_set, new_data_indices)
+    @abstractmethod
+    def get_new_data_indices(self, operation:Config.Operation, workspace:WorkSpace):
+        '''
+        Based on old model performance, a certain number of new data is obtained.
+        '''
+        pass
+
+    def get_new_data_info(self, operation: Config.Operation, workspace:WorkSpace):
+
+        new_data_indices, detector = self.get_new_data_indices(operation, workspace)
+        return {
+            'data': torch.utils.data.Subset(workspace.data_split.dataset['market'], new_data_indices),
+            'indices': new_data_indices,
+            'clf': detector
+        }
     
     @abstractmethod
     def export_log(self, model_config:Config.NewModel, acquire_instruction: Config.Acquisition, content):
@@ -73,17 +86,22 @@ class Strategy():
         Log data/indices to reconstruct the train set; the final CLF for sequence
         '''
         pass
+    
+    def test_new_data(self):
+        pass
+        # set_indices = []
+        # for img in range(len(new_data)):
+        #     idx = new_data[img][3]
+        #     set_indices.append(idx)
+        # print('New data real indices:', set_indices)
+
+    def test_clf(self):
+        pass
 
 class NonSeqStrategy(Strategy):
     def __init__(self) -> None:
         super().__init__()
 
-    @abstractmethod
-    def get_new_data_indices(self, operation:Config.Operation, workspacce:WorkSpace):
-        '''
-        Based on old model performance, a certain number of new data is obtained.
-        '''
-        pass
     @abstractmethod
     def run(self, n_data, market_loader):
         pass
@@ -91,17 +109,16 @@ class NonSeqStrategy(Strategy):
     def operate(self, operation: Config.Operation, new_model_config:Config.NewModel, workspace:WorkSpace):
         workspace.reset(new_model_config.new_batch_size)
 
-        new_data_indices,_ = self.get_new_data_indices(operation, workspace)
-        new_data = self.get_new_data(workspace.data_split.dataset['market'], new_data_indices)
-        workspace.data_split.use_new_data(new_data, new_model_config, operation.acquisition)
+        new_data_info = self.get_new_data_info(operation, workspace)
+        workspace.data_split.use_new_data(new_data_info['data'], new_model_config, operation.acquisition)
 
         new_model_config.set_path(operation)
-
-        self.export_log(new_model_config, operation.acquisition, new_data_indices, operation.stream)
 
         workspace.base_model.update(new_model_config, workspace.data_split.loader['train'], workspace.validation_loader)
 
         workspace.base_model.save(new_model_config.path)
+
+        self.export_log(new_model_config, operation.acquisition, new_data_info['indices'], operation.stream)
 
     def export_log(self, model_config:Config.NewModel, acquire_instruction: Config.Acquisition, data, stream: Config.Stream):
         if model_config.check_rs(acquire_instruction.method, stream.bound):
@@ -113,17 +130,19 @@ class Greedy(NonSeqStrategy):
         super().__init__()
 
     def get_new_data_indices(self, operation:Config.Operation, workspacce:WorkSpace):
-        detector_instruction = operation.detection
         dataset_splits = workspacce.data_split
         acquistion_n_data = operation.acquisition.n_ndata
-        clf = self.get_Detector(detector_instruction, workspacce.base_model, workspacce.data_split)
-        new_data_indices = self.run(acquistion_n_data, dataset_splits.loader['market'], clf, workspacce.base_model)
-        return new_data_indices, clf  
+        detector_instruction = operation.detection
+        detector_train_dict = {'loader': dataset_splits.loader['val_shift'], 'dataset': dataset_splits.dataset['val_shift']}
+        detector = self.get_Detector(detector_instruction, workspacce.base_model, detector_train_dict)
+        new_data_indices = self.run(acquistion_n_data, dataset_splits.loader['market'], detector, workspacce.base_model)
+        return new_data_indices, detector  
 
-    def get_Detector(self, detector_instruction: Config.Detection, base_model: Model.prototype, data_split:Dataset.DataSplits):
-        clf = Detector.factory(detector_instruction.name, clip_processor = detector_instruction.vit, split_and_search=True)
-        _ = clf.fit(base_model, data_split.loader['val_shift'], data_split.dataset['val_shift'], 16)
-        return clf
+    def get_Detector(self, detector_instruction: Config.Detection, base_model: Model.prototype, validation_dict):
+        val_loader, val_dataset = validation_dict['loader'], validation_dict['dataset']
+        detector = Detector.factory(detector_instruction.name, clip_processor = detector_instruction.vit)
+        _ = detector.fit(base_model, val_loader, val_dataset, batch_size=None)
+        return detector
     
     def run(self, n_data, market_loader, detector: Detector.Prototype, base_model:Model.prototype, bound=None):
         market_dv, _ = detector.predict(market_loader, base_model)
@@ -131,8 +150,6 @@ class Greedy(NonSeqStrategy):
             new_data_indices = acquistion.get_top_values_indices(market_dv, n_data)
         else:
             new_data_indices = acquistion.get_in_bound_top_indices(market_dv, n_data, bound)
-        # _, metric = clf.predict(workspace.data_split.loader['test_shift'], workspace.base_model, True)
-        # print('CLF metric:', metric)
         return new_data_indices
 
 class Sample(NonSeqStrategy):
@@ -197,16 +214,16 @@ class SeqCLF(Strategy):
         operation.acquisition.set_up()
         self.sub_strategy = StrategyFactory(operation.acquisition.round_acquire_method)
         new_data_total_set = None
-
+        
         for round_i in range(operation.acquisition.n_rounds):
-            new_data_round_set, clf = self.round_operate(round_i, operation, workspace)
-            new_data_total_set = new_data_round_set if round_i==0 else torch.utils.data.ConcatDataset([new_data_total_set,new_data_round_set])
+            new_data_round_info = self.round_operate(round_i, operation, workspace)
+            new_data_total_set = new_data_round_info['data'] if round_i==0 else torch.utils.data.ConcatDataset([new_data_total_set, new_data_round_info['data']])
 
         new_model_config.set_path(operation)
-        self.export_log(new_model_config, operation.acquisition, clf)
+        last_clf = new_data_round_info['clf']
 
         workspace.reset(new_model_config.new_batch_size)
-        workspace.set_validation(operation.stream, new_model_config.batch_size, new_model_config.new_batch_size, clf)
+        workspace.set_validation(operation.stream, new_model_config.batch_size, new_model_config.new_batch_size, last_clf)
 
         # train model 
         workspace.data_split.use_new_data(new_data_total_set, new_model_config, operation.acquisition)
@@ -215,19 +232,19 @@ class SeqCLF(Strategy):
 
         workspace.base_model.save(new_model_config.path)
 
+        self.export_log(new_model_config, operation.acquisition, last_clf)
 
     def round_operate(self, round_id, operation: Config.Operation, workspace:WorkSpace):
         sub_operation = self.round_set_up(operation, round_id)    
         data_split = workspace.data_split
 
-        new_data_round_indices, clf = self.sub_strategy.get_new_data_indices(sub_operation, workspace)
-        new_data_round_set = self.sub_strategy.get_new_data(data_split.dataset['market'], new_data_round_indices)
+        new_data_round_info = self.sub_strategy.get_new_data_info(sub_operation, workspace)
 
-        data_split.reduce('market', new_data_round_indices)
-        data_split.expand('val_shift', new_data_round_set)
+        data_split.reduce('market', new_data_round_info['indices'])
+        data_split.expand('val_shift', new_data_round_info['data'])
 
-        return new_data_round_set, clf
-    
+        return new_data_round_info
+
     def round_set_up(self, operation: Config.Operation, round_id):
         '''
         Build sub operation where n_ndata is replaced by n_data_round
@@ -241,6 +258,8 @@ class SeqCLF(Strategy):
         log = Log(model_config, 'clf')
         log.export(acquire_instruction, detector=detector)
 
+    def get_new_data_indices(self, operation:Config.Operation, workspace:WorkSpace):
+        pass
 # class Seq(Strategy):
 #     def __init__(self) -> None:
 #         super().__init__()
@@ -254,7 +273,7 @@ class SeqCLF(Strategy):
 #         for round_i in range(rounds):
 #             acquire_instruction.set_round(round_i)
 #             new_data_round_indices, clf_info = self.sub_strategy.get_new_data_indices(acquire_instruction.round_data_per_class, workspace, old_model_config)
-#             new_data_round_set = torch.utils.data.Subset(workspace.dataset['market'],new_data_round_indices)
+#             new_data_round_set = torch.utils.data.Subset(workspace.inidataset['market'],new_data_round_indices)
 #             new_data_round_set = self.sub_strategy.get_new_data(workspace, new_data_round_indices, )
 
 #             workspace.reduce('market', new_data_round_indices)
