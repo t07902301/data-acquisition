@@ -52,7 +52,7 @@ class Prototype():
         print('{} log load from {}'.format('Detector', path))
         
 class SVM(Prototype):
-    def __init__(self, clip_processor:wrappers.CLIPProcessor, split_and_search=False, data_transform = 'clip') -> None:
+    def __init__(self, clip_processor:wrappers.CLIPProcessor, split_and_search=True, data_transform = 'clip') -> None:
         super().__init__(data_transform)
         self.clip_processor = clip_processor
         self.model = wrappers.SVM(args=config['clf_args'], cv=config['clf_args']['k-fold'], split_and_search = split_and_search, do_normalize=True, do_standardize=False)
@@ -90,7 +90,7 @@ class LogRegressor(Prototype):
         dv, metrics = self.model.predict(latent, gts, compute_metrics)
         return dv, metrics     
     
-def factory(detector_type, clip_processor:wrappers.CLIPProcessor, split_and_search=False, data_transform = 'clip'):
+def factory(detector_type, clip_processor:wrappers.CLIPProcessor, split_and_search=True, data_transform = 'clip'):
     if detector_type == 'svm':
         return SVM(clip_processor, split_and_search, data_transform)
     elif detector_type == 'resnet':

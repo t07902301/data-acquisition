@@ -29,7 +29,7 @@ class prototype():
         '''
         self.base_model = Model.prototype_factory(old_model_config.base_type, old_model_config.class_number, operation.detection.vit)
         self.base_model.load(old_model_config.path, old_model_config.device)
-        self.clf = Detector.factory(operation.detection.name, clip_processor = operation.detection.vit, split_and_search=True)
+        self.clf = Detector.factory(operation.detection.name, clip_processor = operation.detection.vit)
         _ = self.clf.fit(self.base_model, datasplits.loader['val_shift'])
         self.anchor_loader = datasplits.loader['val_shift']
 
