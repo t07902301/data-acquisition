@@ -118,13 +118,15 @@ class NewModel(ModelConfig):
         self.set_root(model_cnt)
         # root_detector = None
 
-    def detector2root(self, acquisition_method, detector_name):
+    def detector2root(self, acquisition_method, detector_name, stream_bound=None):
         # Make Conf and sampling-based method Root agnostic to detector
         if acquisition_method in ['conf', 'sm']:
             temp_root = os.path.join(self.root, 'no-detector')
         else:
             temp_root = os.path.join(self.root, detector_name)
-        # temp_root = os.path.join('exp', temp_root)
+        #TODO dev: rs - baselines
+        if self.check_rs(acquisition_method, stream_bound):
+            temp_root = os.path.join(temp_root, 'rs')
         check_dir(temp_root)
         return temp_root
     
@@ -134,9 +136,7 @@ class NewModel(ModelConfig):
         #     root = self.set_seq_root(self.root, acquisition_config)
         # else:
         #     root = self.root
-        self.root_detector = self.detector2root(operation.acquisition.method, operation.detection.name)
-        if self.check_rs(operation.acquisition.method, operation.stream.bound):
-            self.root_detector = os.path.join(self.root_detector, 'rs')
+        self.root_detector = self.detector2root(operation.acquisition.method, operation.detection.name, operation.stream.bound)
         bound_name = '_{}'.format(operation.acquisition.bound) if operation.acquisition.bound != None else ''
         self.path = os.path.join(self.root_detector, '{}_{}{}.pt'.format(operation.acquisition.method, operation.acquisition.n_ndata, bound_name))
     
