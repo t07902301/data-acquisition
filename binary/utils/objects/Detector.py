@@ -62,7 +62,7 @@ class SVM(Prototype):
     
     def fit(self, base_model:Model.prototype, data_loader, data=None, batch_size=None):
         latent, correctness, _ = get_correctness(data_loader, base_model, self.transform, self.clip_processor)
-        self.model.set_preprocess(latent) #TODO val set norm stat may be accurate as those from train_clip
+        self.model.set_preprocess(latent) 
         score = self.model.fit(latent, correctness)
         return score
     
