@@ -86,11 +86,11 @@ def create_dataset(ds_root, select_fine_labels, ratio):
 
     label_summary = [i for i in range(max_subclass_num)] if len(select_fine_labels)==0 else select_fine_labels
     
-    clip_train_ds_split, val_market_set = split_dataset(train_ds, label_summary, train_size/(train_size+val_size+market_size))
+    train_ds, val_market_set = split_dataset(train_ds, label_summary, train_size/(train_size+val_size+market_size))
 
     _, market_ds = split_dataset(val_market_set, label_summary, val_size/(val_size+market_size))
 
-    _, left_train = split_dataset(clip_train_ds_split, data_config['remove_fine_labels'], remove_rate)
+    _, left_train = split_dataset(train_ds, data_config['remove_fine_labels'], remove_rate)
 
     # _, left_val = split_dataset(val_ds, data_config['remove_fine_labels'], remove_rate)
 
@@ -109,10 +109,13 @@ def create_dataset(ds_root, select_fine_labels, ratio):
     ds['val_shift'] =  val_ds
     ds['market'] =  market_ds
     ds['test_shift'] = test_ds
-    ds['val_mar'] = val_market_set
     return ds
 
 def split_dataset(dataset, target_labels, split_1_ratio, use_fine_label = True):
+    '''
+    Split Dataset by Given Labels \n
+    Return (target dataset, the rest)
+    '''
     dataset_labels = get_ds_labels(dataset, use_fine_label)
     splits_1, splits_2 = get_split_indices(dataset_labels, target_labels, split_1_ratio)
     subset_1 = torch.utils.data.Subset(dataset, splits_1)
@@ -186,12 +189,12 @@ def complimentary_mask(mask_length, active_spot):
     advert_mask = ~active_mask 
     return advert_mask
 
-def get_split_indices(dataset_labels, target_labels, split_1_ratio=0):
+def get_split_indices(dataset_labels, target_labels, split_1_ratio):
     '''
     Label-wise split a dataset into two parts according to target labels and a ratio. 
     
     Params: 
-           split_1_ratio: how much splits into PART 1 from the dataset 
+           split_1_ratio: how much from target labels assigned to PART 1
     Return:
            p1_indices: indices belonging to part 1 (split_1_ratio)
            p2_indices: indices belonging to part 2
@@ -200,6 +203,10 @@ def get_split_indices(dataset_labels, target_labels, split_1_ratio=0):
     if torch.is_tensor(dataset_labels):
         dataset_labels = dataset_labels.numpy()
     ds_length = len(dataset_labels)
+
+    if len(target_labels) == 0 or split_1_ratio == 0:
+        return None, np.arange(ds_length)
+    
     p1_indices = []
     for c in target_labels:
         cls_indices = np.arange(ds_length)[dataset_labels == c]
