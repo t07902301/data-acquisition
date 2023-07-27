@@ -46,9 +46,9 @@ def main(epochs,  model_dir ='', train_flag=False, device_id=0, base_type='', de
         acc_shift_list.append(acc_shift)
         detect_prec_list.append(detect_prec)
         shift_list.append(shift_score)
-    print('Base Model Acc before shift: {}%'.format(np.round(np.mean(acc_list),decimals=3)))
-    print('Base Model Acc after shift: {}%'.format(np.round(np.mean(acc_shift_list),decimals=3)))
-    print('Shifted Data Proportion on Model Misclassifications: {}%'.format(np.round(np.mean(np.array(shift_list),axis=0), decimals=3)))
+    print('Old Model Acc before shift: {}%'.format(np.round(np.mean(acc_list),decimals=3)))
+    print('Old Model Acc after shift: {}%'.format(np.round(np.mean(acc_shift_list),decimals=3)))
+    print('Shifted Data Proportion on Old Model Misclassifications: {}%'.format(np.round(np.mean(np.array(shift_list),axis=0), decimals=3)))
     Detector.statistics(detect_prec_list, 'precision')
 
     split_data = ds.dataset
