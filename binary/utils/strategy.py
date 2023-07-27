@@ -22,11 +22,11 @@ class WorkSpace():
         self.base_model_config = model_config
         self.init_dataset = dataset
     
-    def set_up(self, new_batch_size):
+    def set_up(self, new_batch_size, clip_processor):
         '''
         set up base model + datasplits
         '''
-        self.base_model = Model.prototype_factory(self.base_model_config.base_type, self.base_model_config.class_number, clip_processor=None)
+        self.base_model = Model.prototype_factory(self.base_model_config.base_type, self.base_model_config.class_number, clip_processor=clip_processor)
         self.base_model.load(self.base_model_config.path, self.base_model_config.device)
         copied_dataset = deepcopy(self.init_dataset)
         self.data_split = Dataset.DataSplits(copied_dataset, new_batch_size)
@@ -50,8 +50,8 @@ class WorkSpace():
         val_shift_split, _ = Partitioner.Probability().run(val_shift_info, {'target': incorrect_dstr, 'other': correct_dstr}, stream_instruction)
         self.validation_loader = val_shift_split['new_model']
 
-    def reset(self, new_batch_size):
-        self.set_up(new_batch_size)
+    def reset(self, new_batch_size, clip_processor):
+        self.set_up(new_batch_size, clip_processor)
         
 class Strategy():
     def __init__(self) -> None:
@@ -80,13 +80,6 @@ class Strategy():
             'clf': detector
         }
     
-    @abstractmethod
-    def export_log(self, model_config:Config.NewModel, acquire_instruction: Config.Acquisition, content):
-        '''
-        Log data/indices to reconstruct the train set; the final CLF for sequence
-        '''
-        pass
-    
     def test_new_data(self):
         pass
         # set_indices = []
@@ -107,7 +100,7 @@ class NonSeqStrategy(Strategy):
         pass
 
     def operate(self, operation: Config.Operation, new_model_config:Config.NewModel, workspace:WorkSpace):
-        workspace.reset(new_model_config.new_batch_size)
+        workspace.reset(new_model_config.new_batch_size, operation.detection.vit)
 
         new_data_info = self.get_new_data_info(operation, workspace)
         workspace.data_split.use_new_data(new_data_info['data'], new_model_config, operation.acquisition)
@@ -118,10 +111,10 @@ class NonSeqStrategy(Strategy):
 
         workspace.base_model.save(new_model_config.path)
 
-        self.export_log(new_model_config, operation.acquisition, new_data_info['indices'], operation.stream)
+        self.export_indices(new_model_config, operation.acquisition, new_data_info['indices'], operation.stream)
 
-    def export_log(self, model_config:Config.NewModel, acquire_instruction: Config.Acquisition, data, stream: Config.Stream):
-        if model_config.check_rs(acquire_instruction.method, stream.bound):
+    def export_indices(self, model_config:Config.NewModel, acquire_instruction: Config.Acquisition, data, stream: Config.Stream):
+        if model_config.check_rs(acquire_instruction.method, stream.bound) is False:
             log = Log(model_config, 'indices')
             log.export(acquire_instruction, data=data)
 
@@ -210,7 +203,7 @@ class SeqCLF(Strategy):
         super().__init__()
 
     def operate(self, operation: Config.Operation, new_model_config:Config.NewModel, workspace:WorkSpace):
-        workspace.reset(new_model_config.new_batch_size)
+        workspace.reset(new_model_config.new_batch_size, operation.detection.vit)
         operation.acquisition.set_up()
         self.sub_strategy = StrategyFactory(operation.acquisition.round_acquire_method)
         new_data_total_set = None
@@ -222,7 +215,7 @@ class SeqCLF(Strategy):
         new_model_config.set_path(operation)
         last_clf = new_data_round_info['clf']
 
-        workspace.reset(new_model_config.new_batch_size)
+        workspace.reset(new_model_config.new_batch_size, operation.detection.vit)
         workspace.set_validation(operation.stream, new_model_config.batch_size, new_model_config.new_batch_size, last_clf)
 
         # train model 
@@ -232,7 +225,8 @@ class SeqCLF(Strategy):
 
         workspace.base_model.save(new_model_config.path)
 
-        self.export_log(new_model_config, operation.acquisition, last_clf)
+        self.export_clf(new_model_config, operation.acquisition, last_clf)
+        self.export_data(new_model_config, operation.acquisition, new_data_total_set)
 
     def round_operate(self, round_id, operation: Config.Operation, workspace:WorkSpace):
         sub_operation = self.round_set_up(operation, round_id)    
@@ -254,10 +248,14 @@ class SeqCLF(Strategy):
         sub_operation.acquisition.n_ndata = operation.acquisition.n_data_round    
         return sub_operation
 
-    def export_log(self, model_config:Config.NewModel, acquire_instruction: Config.SequentialAc, detector: Detector.Prototype):
+    def export_clf(self, model_config:Config.NewModel, acquire_instruction: Config.SequentialAc, detector: Detector.Prototype):
         log = Log(model_config, 'clf')
         log.export(acquire_instruction, detector=detector)
 
+    def export_data(self, model_config:Config.NewModel, acquire_instruction: Config.SequentialAc, dataset):
+        log = Log(model_config, 'data')
+        log.export(acquire_instruction, data=dataset)
+        
     def get_new_data_indices(self, operation:Config.Operation, workspace:WorkSpace):
         pass
 # class Seq(Strategy):
