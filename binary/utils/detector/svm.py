@@ -82,5 +82,5 @@ def base_train(latents, gts, balanced=True, split_and_search=False, cv=2, args=N
     best_clf.fit(latents, gts)
     return best_clf, best_cv  
 
-def raw_predict(clf: SVC, latents):
+def raw_predict(latents, clf: SVC):
     return clf.predict(latents)

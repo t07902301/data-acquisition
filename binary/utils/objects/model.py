@@ -125,17 +125,18 @@ class resnet(prototype):
             self.train(train_loader,val_loader) # retrain 
 
 class svm(prototype):
-    def __init__(self, set_up_dataloader, clip_processor:wrappers.CLIPProcessor, split_and_search=False) -> None:
+    def __init__(self, clip_processor:wrappers.CLIPProcessor, split_and_search=True) -> None:
         super().__init__()
         self.clip_processor = clip_processor
         self.model = wrappers.SVM(args=config['clf_args'], cv=config['clf_args']['k-fold'], split_and_search = split_and_search, do_normalize=True, do_standardize=False)
         # #TODO take the mean and std assumed norm dstr
         # set_up_latent = get_latent(set_up_dataloader, clip_processor, self.transform)
         # self.model.set_preprocess(set_up_latent) 
+        assert self.clip_processor != None
 
     def eval(self, dataloader):
         latent, gts = self.clip_processor.evaluate_clip_images(dataloader)  
-        preds = self.model.base_predict(latent)
+        preds = self.model.raw_predict(latent)
         return gts, preds, None
 
     def train(self, train_loader):
@@ -145,18 +146,19 @@ class svm(prototype):
 
     def save(self, path):
         self.model.export(path)
+        print('model saved to {}'.format(path))
 
     def load(self, path, device):
         self.model.import_model(path)
+        print('model load from {}'.format(path))
     
     def update(self, new_model_config, train_loader, val_loader):
         self.train(train_loader)
 
 def prototype_factory(base_type, cls_num, clip_processor=None):
+    assert clip_processor != None
     if base_type == 'svm':
         return svm(clip_processor)
-    elif base_type == 'em':
-        return ensembler(cls_num)
     else:
         return resnet(cls_num)
     
