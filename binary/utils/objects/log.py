@@ -20,18 +20,19 @@ class Log():
 
     def export(self, acquistion_config:Config.Acquisition, data=None, detector:Detector.Prototype=None):
         self.set_path(acquistion_config)
-        print('{} log save to {}'.format(self.name, self.path))       
         if self.name == 'clf':
             detector.save(self.path)        
         else:
             torch.save(data, self.path)
+            print('{} log save to {}'.format(self.name, self.path))       
 
     def import_log(self, operation:Config.Operation):
         self.set_path(operation.acquisition)
-        print('{} log load from {}'.format(self.name, self.path))       
         if self.name == 'clf':
             detector = Detector.factory(operation.detection.name, operation.detection.vit)
             detector.load(self.path) 
             return detector      
         else:
+            print('{} log load from {}'.format(self.name, self.path))       
             return torch.load(self.path)
+        
