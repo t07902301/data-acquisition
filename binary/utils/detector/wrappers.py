@@ -173,10 +173,10 @@ class SVM(Prototype):
         self.clf = clf
         return score
     
-    def base_predict(self, latents):
+    def raw_predict(self, latents):
         assert self.clf is not None, "must call fit first"
         latents = self.pre_process(latents).numpy()
-        pred = svm_utils.base_predict(latents, self.clf) 
+        pred = svm_utils.raw_predict(latents, self.clf) 
         return pred
 
     def export(self, filename):

@@ -128,25 +128,26 @@ class svm(prototype):
     def __init__(self, set_up_dataloader, clip_processor:wrappers.CLIPProcessor, split_and_search=False) -> None:
         super().__init__()
         self.clip_processor = clip_processor
-        set_up_embedding, _ = self.clip_processor.evaluate_clip_images(set_up_dataloader)        
-        self.model = wrappers.SVM(method=config['clf'], svm_args=config['clf_args'],cv=config['clf_args']['k-fold'], split_and_search = split_and_search)
-        self.model.set_preprocess(set_up_embedding) 
-    
-    def load(self, path, device):
-        self.model.clf = torch.load(path, map_location=device)
+        self.model = wrappers.SVM(args=config['clf_args'], cv=config['clf_args']['k-fold'], split_and_search = split_and_search, do_normalize=True, do_standardize=False)
+        # #TODO take the mean and std assumed norm dstr
+        # set_up_latent = get_latent(set_up_dataloader, clip_processor, self.transform)
+        # self.model.set_preprocess(set_up_latent) 
 
     def eval(self, dataloader):
-        fit_embedding, gts = self.clip_processor.evaluate_clip_images(dataloader)
-        preds = self.model.base_predict(fit_embedding)
+        latent, gts = self.clip_processor.evaluate_clip_images(dataloader)  
+        preds = self.model.base_predict(latent)
         return gts, preds, None
-        
+
     def train(self, train_loader):
-        embedding, gts = self.clip_processor.evaluate_clip_images(train_loader)        
-        _ = self.model.base_fit(gts, embedding)
+        latent, gts = self.clip_processor.evaluate_clip_images(train_loader)  
+        self.model.set_preprocess(latent)
+        _ = self.model.fit(latent, gts)
 
     def save(self, path):
-        torch.save(self.model.clf, path)
-        print('model saved to {}'.format(path))
+        self.model.export(path)
+
+    def load(self, path, device):
+        self.model.import_model(path)
     
     def update(self, new_model_config, train_loader, val_loader):
         self.train(train_loader)
