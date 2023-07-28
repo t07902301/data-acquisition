@@ -70,15 +70,27 @@ class DataSplits():
         else:
             self.expand('train', new_data)
 
+def load_dataset(ds_dict, remove_rate, model_dir):
+    remove_labels = data_config['remove_fine_labels'][model_dir]
+    _, old_train = split_dataset(ds_dict['train'], remove_labels, remove_rate)
+    _, old_val = split_dataset(ds_dict['val_shift'], remove_labels, remove_rate)
+    _, old_test = split_dataset(ds_dict['test_shift'], remove_labels, remove_rate)
+    return {
+        'train': old_train,
+        'val': old_val,
+        'test': old_test,
+        'market': ds_dict['market'],
+        'val_shift': ds_dict['val_shift'],
+        'test_shift': ds_dict['test_shift']
+    }
+
 def create_dataset(ds_root, select_fine_labels, ratio):
     # When all classes are used, only work on removal
     # When some classes are neglected, test set and the big train set will be shrank.
     train_ds, test_ds = get_raw_ds(ds_root)
 
     train_size = ratio["train_size"]
-    val_size = ratio["val_size"]
     market_size = ratio["market_size"]
-    remove_rate = ratio['remove_rate']
 
     if len(select_fine_labels)>0:
         train_ds = get_subset_by_labels(train_ds, select_fine_labels)
@@ -86,29 +98,17 @@ def create_dataset(ds_root, select_fine_labels, ratio):
 
     label_summary = [i for i in range(max_subclass_num)] if len(select_fine_labels)==0 else select_fine_labels
     
-    train_ds, val_market_set = split_dataset(train_ds, label_summary, train_size/(train_size+val_size+market_size))
-
-    _, market_ds = split_dataset(val_market_set, label_summary, val_size/(val_size+market_size))
-
-    _, left_train = split_dataset(train_ds, data_config['remove_fine_labels'], remove_rate)
-
-    # _, left_val = split_dataset(val_ds, data_config['remove_fine_labels'], remove_rate)
+    train_ds, market_ds = split_dataset(train_ds, label_summary, train_size/ (train_size + market_size) )
 
     test_ds, val_ds = split_dataset(test_ds, label_summary, 0.5)
-
-    _, left_val = split_dataset(val_ds, data_config['remove_fine_labels'], remove_rate)
-   
-    _, left_test = split_dataset(test_ds, data_config['remove_fine_labels'], remove_rate)
 
     ds = {}
     # modified_labels = list(set(select_fine_labels) - set(target_test_label))
     # balanced_train_ds = balance_dataset(target_test_label, modified_labels, left_train) # make shifted and original labels balanced?
-    ds['train'] = left_train
-    ds['val'] = left_val
-    ds['test'] = left_test
     ds['val_shift'] =  val_ds
     ds['market'] =  market_ds
     ds['test_shift'] = test_ds
+    ds['train'] =  train_ds
     return ds
 
 def split_dataset(dataset, target_labels, split_1_ratio, use_fine_label = True):

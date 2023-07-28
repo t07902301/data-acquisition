@@ -186,10 +186,10 @@ def parse():
     }
     output = {
         'label_map': label_map,
-        'ratio': ratio,
+        # 'ratio': ratio,
         'removed_labels': config['data']['remove_fine_labels'],
         'svm_kernel': config['clf_args']['kernel'],
-        'superclass': superclass_num,
+        # 'superclass': superclass_num,
     }
     print(output)
     return batch_size, train_labels, label_map, img_per_cls_list, superclass_num, ratio, seq_rounds 
