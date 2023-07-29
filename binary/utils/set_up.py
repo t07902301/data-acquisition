@@ -3,9 +3,10 @@ import utils.objects.dataset as Dataset
 import torch
 import os
 import pickle as pkl
+from utils.env import data_split_env
 
 def save_dataset(epochs, train_labels, label_map, ratio, root_model_dir):
-    Dataset.data_split_env()
+    data_split_env()
     ds_list = Dataset.get_data_splits_list(epochs, train_labels, label_map, ratio)
     data_root = os.path.join('data', root_model_dir)
     Config.check_dir(data_root)
@@ -44,7 +45,7 @@ def load_cover_dataset(epochs, ratio, model_dir):
     return ds_list
 
 def set_up(epochs, model_dir, device_id=0):
-    Dataset.data_split_env()
+    data_split_env()
     batch_size, train_labels, label_map, new_img_num_list, superclass_num, ratio, seq_rounds_config = Config.parse()
     device_config = 'cuda:{}'.format(device_id)
     torch.cuda.set_device(device_config)
