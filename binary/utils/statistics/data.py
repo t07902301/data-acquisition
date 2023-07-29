@@ -27,11 +27,10 @@ def label_stat(dataset, checked_labels):
     # check_labels_cnt = check_labels_cnt/len(ds_labels) * 100
     return check_labels_cnt
 
-def mis_label_stat(split_name, data_split:Dataset.DataSplits, model:Model.prototype):
+def mis_label_stat(split_name, data_split:Dataset.DataSplits, model:Model.prototype, check_labels):
     '''
     Get misclassification proportion on target labels
     '''
-    check_labels = config['data']['remove_fine_labels']
     gt,pred,_  = model.eval(data_split.loader[split_name])
     dataset = data_split.dataset[split_name]
     dataset_idx = np.arange(len(dataset))
