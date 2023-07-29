@@ -119,7 +119,7 @@ def ResNet18Wide(**kwargs):
     return ResNet(BasicBlock, [2,2,2,2], wm=5, **kwargs)
 
 def ResNet18Thin(**kwargs):
-    return ResNet(BasicBlock, [2,2,2,2], wd=.75, **kwargs)
+    return ResNet(BasicBlock, [2,2,2,2], wm=.75, **kwargs)
 
 def ResNet34(**kwargs):
     return ResNet(BasicBlock, [3,4,6,3], **kwargs)
