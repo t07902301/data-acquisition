@@ -204,8 +204,7 @@ class ModifiedDataset(data.Dataset):
         return len(self.dataset)
     def __getitem__(self, index):
         img, coarse_label, fine_label, real_idx = self.dataset[index]
-        if self.coarse_label_transform is not None:
-            coarse_label = self.coarse_label_transform[coarse_label]
+        coarse_label = self.coarse_label_transform[coarse_label]
         return img, coarse_label, fine_label, real_idx
     
 ## TODO base transform makes images tensor and not be further transformed
