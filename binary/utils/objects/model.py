@@ -19,7 +19,7 @@ class prototype():
     @abstractmethod
     def eval(self, dataloader):
         '''
-        gts, preds, probab(not from SVM for now)
+        gts, preds, probab
         '''
         pass
     @abstractmethod
@@ -137,7 +137,8 @@ class svm(prototype):
     def eval(self, dataloader):
         latent, gts = self.clip_processor.evaluate_clip_images(dataloader)  
         preds = self.model.raw_predict(latent)
-        return gts, preds, None
+        _, distance, _ = self.model.predict(latent)
+        return gts, preds, distance
 
     def train(self, train_loader):
         latent, gts = self.clip_processor.evaluate_clip_images(train_loader)  
