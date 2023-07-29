@@ -64,7 +64,8 @@ class SVM(Prototype):
         latent, correctness, _ = get_correctness(data_loader, base_model, self.transform, self.clip_processor)
         self.model.set_preprocess(latent) 
         score = self.model.fit(latent, correctness)
-        return score
+        print('Best CV Score:', score)
+        # return score
     
     def predict(self, data_loader, base_model:Model.prototype, compute_metrics=False):
         latent, correctness, _ = get_correctness(data_loader, base_model, self.transform, self.clip_processor)

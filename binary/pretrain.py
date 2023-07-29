@@ -1,5 +1,5 @@
 from utils.strategy import *
-from utils.set_up import set_up
+from utils.set_up import *
 import utils.statistics.data as DataStat
 def run(ds:Dataset.DataSplits, model_config:Config.OldModel, train_flag:bool, detect_instruction:Config.Detection):
     base_model = Model.prototype_factory(model_config.base_type, model_config.class_number, detect_instruction.vit)
@@ -14,7 +14,7 @@ def run(ds:Dataset.DataSplits, model_config:Config.OldModel, train_flag:bool, de
     acc = base_model.acc(ds.loader['test'])
     acc_shift = base_model.acc(ds.loader['test_shift'])
     clf = Detector.factory(detect_instruction.name, clip_processor = detect_instruction.vit, split_and_search=True, data_transform='clip')
-    _ = clf.fit(base_model, ds.loader['val_shift'], ds.dataset['val_shift'], model_config.batch_size)
+    clf.fit(base_model, ds.loader['val_shift'], ds.dataset['val_shift'], model_config.batch_size)
     _, detect_prec = clf.predict(ds.loader['val_shift'], compute_metrics=True, base_model=base_model)
     print('In fitting CLF:', detect_prec)
     gt,pred,_  = base_model.eval(ds.loader['val_shift'])
@@ -26,13 +26,17 @@ def run(ds:Dataset.DataSplits, model_config:Config.OldModel, train_flag:bool, de
     if train_flag:
         base_model.save(model_config.path)
 
-    shift_score = DataStat.mis_label_stat('val_shift', ds, base_model)
+    check_labels = Dataset.data_config['remove_fine_labels'][model_config.model_dir]
+    shift_score = DataStat.mis_label_stat('val_shift', ds, base_model, check_labels)
 
     return acc, acc_shift, detect_prec, shift_score
 
 def main(epochs,  model_dir ='', train_flag=False, device_id=0, base_type='', detector_name=''):
     print('Detector Name:', detector_name)
-    batch_size, label_map, new_img_num_list, superclass_num, ratio, seq_rounds_config, ds_list, device_config = set_up(epochs, device_id)
+    batch_size, new_img_num_list, superclass_num, seq_rounds_config, device_config, ds_list = set_up(epochs, model_dir, device_id)
+    np.random.seed(0)
+    # random.seed(0)   
+    print('after split dataset', np.random.randint(0,10,5))
     acc_list, acc_shift_list, detect_prec_list, shift_list = [], [], [], []
     clip_processor = Detector.load_clip(device_config)
     detect_instrution = Config.Detection(detector_name, clip_processor)
