@@ -1,4 +1,4 @@
-import binary.utils.objects.Config as Config
+import utils.objects.Config as Config
 import utils.objects.model as Model
 import utils.objects.Detector as Detector
 import utils.objects.dataset as Dataset
@@ -10,6 +10,7 @@ import numpy as np
 import torch
 import utils.statistics.partitioner as Partitioner
 import utils.statistics.data as DataStat
+import utils.statistics.decision as Decision
 
 class prototype():
     '''
@@ -30,7 +31,7 @@ class prototype():
         self.base_model = Model.prototype_factory(old_model_config.base_type, old_model_config.class_number, operation.detection.vit)
         self.base_model.load(old_model_config.path, old_model_config.device)
         self.clf = Detector.factory(operation.detection.name, clip_processor = operation.detection.vit)
-        _ = self.clf.fit(self.base_model, datasplits.loader['val_shift'])
+        self.clf.fit(self.base_model, datasplits.loader['val_shift'])
         self.anchor_loader = datasplits.loader['val_shift']
 
 class Partition(prototype):
@@ -71,12 +72,14 @@ class Partition(prototype):
 
         if len(loader['old_model']) == 0:
             total_correct = new_correct
+
         else:
             gt,pred,_  = self.base_model.eval(loader['old_model'])
             old_correct = (gt==pred)
             total_correct = np.concatenate((old_correct,new_correct))
         
         DataStat.pred_metric(loader['new_model'], self.base_model, new_model)
+        print('ACC compare:', total_correct.mean()*100, self.base_acc)
         return total_correct.mean()*100 - self.base_acc 
     
     def iter_test(self):
@@ -180,27 +183,12 @@ class Ensemble(Partition):
     def run(self, operation:Config.Operation):
         self.model_config.set_path(operation)
         return self._target_test(self.test_loader)
-    
-    def get_decision(self, model:Model.prototype, dataloader):
-        _, _, decision  = model.eval(dataloader)
-        if self.model_config.class_number == 1:
-            decision = self.transform_BDE_probab(decision)
-        return decision
 
     def ensemble_decision(self, new_probab, new_weights, old_probab, old_weights):
         '''
         Ensembled Decisions for Each Class
         '''
         return new_probab * new_weights + old_probab * old_weights
-    
-    def transform_BDE_probab(self, class_1_probab):
-        '''
-            Make 1D sigmoid output be 2D
-        '''
-        size = len(class_1_probab)
-        class_0_probab = (1-class_1_probab).reshape((size,1))
-        class_1_probab = class_1_probab.reshape((size,1))
-        return np.concatenate((class_0_probab, class_1_probab), axis=1)
     
     @abstractmethod
     def get_weight(self):
@@ -255,21 +243,19 @@ class DstrEnsemble(Ensemble):
         gts = self.get_gts(dataloader)
         size = len(gts)
         dv, _ = self.clf.predict(dataloader, self.base_model)  
-
+        decision_maker = Decision.factory(self.model_config.base_type, self.model_config.class_number)
         new_model = Model.prototype_factory(self.model_config.base_type, self.model_config.class_number, self.vit)
         new_model.load(self.model_config.path, self.model_config.device)  
-        new_probab = self.get_decision(new_model, dataloader)
-        old_probab = self.get_decision(self.base_model, dataloader)
+        new_probab = decision_maker.get(new_model, dataloader)
+        old_probab = decision_maker.get(self.base_model, dataloader)
         correct_dstr = self.get_correctness_dstr(dataloader, self.pdf_type, correctness=True)
         incorrect_dstr = self.get_correctness_dstr(dataloader, self.pdf_type, correctness=False)
         new_weight = self.get_weight({'target': incorrect_dstr, 'other': correct_dstr}, dv, size)
         old_weight = self.get_weight({'target': correct_dstr, 'other': incorrect_dstr}, dv, size)
-
         probab = self.ensemble_decision(new_probab, new_weight, old_probab, old_weight)
-        preds = np.argmax(probab, axis=-1)
-
+        decision = decision_maker.apply(probab)
         DataStat.pred_metric(dataloader, self.base_model, new_model)
-        return (gts==preds).mean() * 100 - self.base_acc   
+        return (gts==decision).mean() * 100 - self.base_acc   
     
 # class AdaBoostEnsemble(Ensemble):
 #     def __init__(self, model_config: Config.NewModel) -> None:
@@ -321,15 +307,16 @@ def factory(name, new_model_config):
         checker = prototype(new_model_config)
     return checker
 
-def get_args(epoch, parse_args, dataset):
-    batch_size, superclass_num,model_dir, device_config, base_type, pure, new_model_setter, seq_rounds_config = parse_args
+def get_configs(epoch, parse_args, dataset):
+    batch_size, superclass_num,model_dir, device_config, base_type, pure, new_model_setter, seq_rounds_config, dev_name = parse_args
     old_model_config = Config.OldModel(batch_size['base'], superclass_num, model_dir, device_config, epoch, base_type=base_type)
-    new_model_config = Config.NewModel(batch_size['base'], superclass_num, model_dir, device_config, epoch, pure, new_model_setter, batch_size['new'], base_type=base_type)
+    new_model_dir = model_dir[:2] if dev_name == 'rs' else model_dir
+    new_model_config = Config.NewModel(batch_size['base'], superclass_num, new_model_dir, device_config, epoch, pure, new_model_setter, batch_size['new'], base_type=base_type)
     dataset_splits = Dataset.DataSplits(dataset, old_model_config.batch_size)
     return old_model_config, new_model_config, dataset_splits
 
 def instantiate(epoch, parse_args, dataset, operation: Config.Operation, plot=True):
-    old_model_config, new_model_config, dataset_splits = get_args(epoch, parse_args, dataset)
+    old_model_config, new_model_config, dataset_splits = get_configs(epoch, parse_args, dataset)
     checker = factory(operation.stream.name, new_model_config)
     checker.setup(old_model_config, dataset_splits, operation, plot)
     return checker
