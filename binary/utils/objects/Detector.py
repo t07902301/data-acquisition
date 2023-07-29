@@ -6,7 +6,8 @@ from utils import config
 import utils.objects.model as Model
 import utils.objects.dataset as Dataset
 from abc import abstractmethod
- 
+import utils.objects.data_transform as DataTransform
+
 def statistics(values, stat_type, n_data_list = None):
     '''
     pretrained model | seq_clf\n
@@ -84,7 +85,7 @@ class LogRegressor(Prototype):
         self.model.fit(latent, correctness)
         
     def predict(self, data_loader, base_model: Model.prototype, compute_metrics=False):
-        latent = get_latent(data_loader, self.clip_processor, self.transform)
+        latent = DataTransform.get_latent(data_loader, self.clip_processor, self.transform)
         gts = None
         if compute_metrics:
             _, gts, _ = get_correctness(data_loader, base_model, self.transform, self.clip_processor)
@@ -106,26 +107,7 @@ def load_clip(device):
     return clip_processor
 
 import torch
-def get_flattened(loader):
-    img = []
-    for batch_info in loader:
-        img.append(torch.flatten(batch_info[0], start_dim=1))
-    return torch.cat(img, dim=0)
 
-def get_latent(data_loader, clip_processor:wrappers.CLIPProcessor = None, transform: str = None):
-    if transform == 'clip':
-        latent, _ = clip_processor.evaluate_clip_images(data_loader)  
-    elif transform == 'flatten':
-        latent = get_flattened(data_loader) 
-    else:
-        latent = loader2data(data_loader)
-    return latent
-
-def loader2data(loader):
-    img = []
-    for batch_info in loader:
-        img.append(batch_info[0])
-    return torch.cat(img, dim=0)
 
 def get_correctness(data_loader, model:Model.prototype, transform: str = None, clip_processor:wrappers.CLIPProcessor = None):
     '''
@@ -133,7 +115,7 @@ def get_correctness(data_loader, model:Model.prototype, transform: str = None, c
     Data in Latent Space, Base Model Prediction Correctness of Data, Combined Latent Data and Model Correctness
     ''' 
     gts, preds, _ = model.eval(data_loader)
-    data = get_latent(data_loader, clip_processor, transform)
+    data = DataTransform.get_latent(data_loader, clip_processor, transform)
     correctness_mask = (gts == preds)
     correctness = np.zeros(len(data), dtype = int)
     correctness[correctness_mask] = 1
@@ -179,7 +161,7 @@ class RandomForest(Prototype):
         latent, correctness, _ = get_correctness(data_loader, base_model, self.transform, self.clip_processor)
         self.model = self.model.fit(latent, correctness)
     def predict(self, data_loader, base_model: Model.prototype, compute_metrics=False):
-        data = get_latent(data_loader, self.clip_processor, self.transform)
+        data = DataTransform.get_latent(data_loader, self.clip_processor, self.transform)
         preds = self.model.predict(data)
         dataset = Dataset.loader2dataset(data_loader)
         gt_labels = Dataset.get_ds_labels(dataset)
