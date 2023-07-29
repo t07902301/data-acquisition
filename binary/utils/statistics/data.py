@@ -20,7 +20,7 @@ def get_new_data_max_dv(clf:Detector.SVM , acquisition_config:Config.Acquisition
     return np.max(train_dv)
 
 def label_stat(dataset, checked_labels):
-    ds_labels = Dataset.get_ds_labels(dataset, use_fine_label=True)
+    ds_labels = Dataset.get_labels(dataset, use_fine_label=True)
     check_labels_cnt = 0
     for label in checked_labels:
         check_labels_cnt += (label==ds_labels).sum()
@@ -81,8 +81,3 @@ def get_correctness_dv(model: Model.prototype, dataloader, clf:Detector.Prototyp
         mask = (dataset_gts != dataset_preds)
     return dv[mask]
 
-def get_dataloader_size(dataloader):
-    gts = []
-    for batch_info in dataloader:
-        gts.append(batch_info[1])
-    return len(torch.concat(gts))  

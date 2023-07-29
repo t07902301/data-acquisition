@@ -2,10 +2,10 @@ import torchvision.transforms as transforms
 from utils import config
 import torch
 import numpy as np
-from utils.env import generator, data_split_env
+from utils.env import generator
 import utils.objects.cifar as cifar
 import utils.objects.Config as Config
-import random
+
 
 data_config = config['data']
 max_subclass_num = config['hparams']['subclass']
@@ -129,7 +129,7 @@ def split_dataset(dataset, target_labels, split_1_ratio, use_fine_label = True):
     Split Dataset by Selecting Data from Target Labels \n
     Return (target dataset, the rest)
     '''
-    dataset_labels = get_ds_labels(dataset, use_fine_label)
+    dataset_labels = get_labels(dataset, use_fine_label)
     splits_1, splits_2 = get_split_indices(dataset_labels, target_labels, split_1_ratio)
     subset_1 = torch.utils.data.Subset(dataset, splits_1)
     subset_2 = torch.utils.data.Subset(dataset, splits_2)
@@ -138,7 +138,7 @@ def split_dataset(dataset, target_labels, split_1_ratio, use_fine_label = True):
 def balance_dataset(target_labels, modified_label, dataset):
     target_ds = get_subset_by_labels(dataset, target_labels)
     n_modify_cls = int(len(target_ds)/len(modified_label))
-    ds_labels = get_ds_labels(dataset)
+    ds_labels = get_labels(dataset)
     ds_indices = np.arange(len(dataset))
     modified_indices = []
     for label in modified_label:
@@ -171,7 +171,7 @@ def get_raw_ds(ds_root):
 
 def get_indices_by_labels(ds, subset_labels, use_fine_label=True):
     select_indice = []
-    ds_labels = get_ds_labels(ds,use_fine_label)
+    ds_labels = get_labels(ds,use_fine_label)
     for c in subset_labels:
         select_indice.append(np.arange(len(ds))[c==ds_labels])
     select_indice = np.concatenate(select_indice)
@@ -182,7 +182,7 @@ def get_subset_by_labels(ds, subset_labels, use_fine_label=True):
     ds = torch.utils.data.Subset(ds,select_indice) 
     return ds
 
-def get_ds_labels(ds,use_fine_label=True):
+def get_labels(ds,use_fine_label=True):
     ds_size = len(ds)
     label_idx = 2 if use_fine_label else 1
     labels = []
@@ -237,87 +237,11 @@ def get_split_indices(dataset_labels, target_labels, split_1_ratio):
     p2_indices = np.arange(ds_length)[mask_p2]
     return p1_indices,p2_indices
 
-def count_minority(ds):
-    '''
-    return #minority in ds
-    '''
-    minority_labels = [4, 73, 54, 10, 51, 40, 84, 18, 3, 12, 33, 38, 64, 45, 2, 44, 80, 96, 13, 81]
-    cnt = 0
-    ds_size = len(ds)
-    for index in range(ds_size):
-        if ds[index][2] in minority_labels:
-            cnt += 1
-    return cnt
-
 def get_data_splits_list(epochs, select_fine_labels, label_map, ratio):
     ds_list = []
     for epo in range(epochs):
-        # ds = set_up_indices(select_fine_labels,ratio)
         ds = create_dataset(select_fine_labels,ratio)
         if len(select_fine_labels) != 0 and (isinstance(label_map, dict)):
             ds = modify_coarse_label(ds, label_map)
         ds_list.append(ds)
     return ds_list
-
-def get_shuffle_idx(dataset):
-    shuffle_idx = np.arange(len(dataset))
-    random.shuffle(shuffle_idx)    
-    return shuffle_idx
-
-def loader2dataset(dataloader):
-    img, coarse_labels, fine_labels = [], [], []
-    for batch_info in dataloader:
-        x, y, fine_y, _  = batch_info
-        img.append(x)
-        coarse_labels.append(y)
-        fine_labels.append(fine_y)
-    img = torch.cat(img)
-    coarse_labels = torch.cat(coarse_labels)
-    fine_labels = torch.cat(fine_labels)
-
-    data = []
-    for i in range(len(img)):
-        data.append((img[i], coarse_labels[i], fine_labels[i]))
-    return data
-
-def set_up_indices(select_fine_labels, ratio):
-    train_ds, test_ds = get_raw_ds(data_config['ds_root'])
-
-    train_size = ratio["train_size"]
-    market_size = ratio["market_size"]
-
-    if len(select_fine_labels)>0:
-        train_ds = get_subset_by_labels(train_ds, select_fine_labels)
-        test_ds = get_subset_by_labels(test_ds, select_fine_labels)
-
-    label_summary = [i for i in range(max_subclass_num)] if len(select_fine_labels)==0 else select_fine_labels
-
-    train_labels = get_ds_labels(train_ds, use_fine_label=True)
-    train_indices, market_indices = get_split_indices(train_labels, label_summary, train_size/(train_size + market_size))
-
-    test_labels = get_ds_labels(test_ds, use_fine_label=True)
-    val_indices, test_indices = get_split_indices(test_labels, label_summary, 0.5)
-
-    indicies_dict = {
-        'train': train_indices,
-        'market': market_indices,
-        'test_shift': test_indices,
-        'val_shift': val_indices
-    }
-    return indicies_dict
-
-def load_indices(indicies_dict, select_fine_labels, label_map):
-    train_ds, test_ds = get_raw_ds(data_config['ds_root'])
-    train_ds = torch.utils.data.Subset(train_ds, indicies_dict['train'])
-    market_ds = torch.utils.data.Subset(train_ds, indicies_dict['market'])
-    test_shift = torch.utils.data.Subset(test_ds, indicies_dict['test_shift'])
-    val_shift = torch.utils.data.Subset(test_ds, indicies_dict['val_shift'])
-    ds_dict = {
-        'train': train_ds,
-        'market': market_ds,
-        'test_shift': test_shift,
-        'val_shift': val_shift
-    }
-    if len(select_fine_labels) != 0 and (isinstance(label_map, dict)):
-        ds_dict = modify_coarse_label(ds_dict, label_map)
-    return ds_dict
