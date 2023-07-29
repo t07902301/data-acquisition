@@ -70,8 +70,7 @@ class DataSplits():
         else:
             self.expand('train', new_data)
 
-def load_dataset(ds_dict, remove_rate, model_dir):
-    remove_labels = data_config['remove_fine_labels'][model_dir]
+def load_dataset(ds_dict, remove_rate, remove_labels):
     _, old_train = split_dataset(ds_dict['train'], remove_labels, remove_rate)
     _, old_val = split_dataset(ds_dict['val_shift'], remove_labels, remove_rate)
     _, old_test = split_dataset(ds_dict['test_shift'], remove_labels, remove_rate)
@@ -84,11 +83,25 @@ def load_dataset(ds_dict, remove_rate, model_dir):
         'test_shift': ds_dict['test_shift']
     }
 
-def create_dataset(ds_root, select_fine_labels, ratio):
+def load_cover_dataset(ds_dict, cover_rate, cover_labels):
+    old_train, _ = split_dataset(ds_dict['train'], cover_labels['src'], cover_rate)
+    old_val, _ = split_dataset(ds_dict['val_shift'], cover_labels['src'], cover_rate)
+    old_test, _ = split_dataset(ds_dict['test_shift'], cover_labels['src'], cover_rate)
+    val_shift, _ = split_dataset(ds_dict['val_shift'], cover_labels['target'], cover_rate)
+    test_shift, _ = split_dataset(ds_dict['test_shift'], cover_labels['target'], cover_rate)
+    return {
+        'train': old_train,
+        'val': old_val,
+        'test': old_test,
+        'market': ds_dict['market'],
+        'val_shift': val_shift,
+        'test_shift': test_shift
+    }
+
+def create_dataset(select_fine_labels, ratio):
     # When all classes are used, only work on removal
     # When some classes are neglected, test set and the big train set will be shrank.
-    train_ds, test_ds = get_raw_ds(ds_root)
-
+    train_ds, test_ds = get_raw_ds(data_config['ds_root'])
     train_size = ratio["train_size"]
     market_size = ratio["market_size"]
 
@@ -113,7 +126,7 @@ def create_dataset(ds_root, select_fine_labels, ratio):
 
 def split_dataset(dataset, target_labels, split_1_ratio, use_fine_label = True):
     '''
-    Split Dataset by Given Labels \n
+    Split Dataset by Selecting Data from Target Labels \n
     Return (target dataset, the rest)
     '''
     dataset_labels = get_ds_labels(dataset, use_fine_label)
@@ -156,12 +169,16 @@ def get_raw_ds(ds_root):
     test_ds = cifar.CIFAR100(ds_root, train=False,transform=base_transform,coarse=True)
     return train_ds,test_ds
 
-def get_subset_by_labels(ds, subset_labels, use_fine_label=True):
+def get_indices_by_labels(ds, subset_labels, use_fine_label=True):
     select_indice = []
     ds_labels = get_ds_labels(ds,use_fine_label)
     for c in subset_labels:
         select_indice.append(np.arange(len(ds))[c==ds_labels])
     select_indice = np.concatenate(select_indice)
+    return select_indice
+
+def get_subset_by_labels(ds, subset_labels, use_fine_label=True):
+    select_indice = get_indices_by_labels(ds, subset_labels, use_fine_label)
     ds = torch.utils.data.Subset(ds,select_indice) 
     return ds
 
@@ -208,9 +225,11 @@ def get_split_indices(dataset_labels, target_labels, split_1_ratio):
         return None, np.arange(ds_length)
     
     p1_indices = []
+    
     for c in target_labels:
         cls_indices = np.arange(ds_length)[dataset_labels == c]
         split_indices = sample_indices(cls_indices,split_1_ratio)
+        # split_indices = cls_indices
         p1_indices.append(split_indices)
 
     p1_indices = np.concatenate(p1_indices)
@@ -231,10 +250,10 @@ def count_minority(ds):
     return cnt
 
 def get_data_splits_list(epochs, select_fine_labels, label_map, ratio):
-    data_split_env()
     ds_list = []
     for epo in range(epochs):
-        ds = create_dataset(data_config['ds_root'],select_fine_labels,ratio)
+        # ds = set_up_indices(select_fine_labels,ratio)
+        ds = create_dataset(select_fine_labels,ratio)
         if len(select_fine_labels) != 0 and (isinstance(label_map, dict)):
             ds = modify_coarse_label(ds, label_map)
         ds_list.append(ds)
@@ -260,3 +279,45 @@ def loader2dataset(dataloader):
     for i in range(len(img)):
         data.append((img[i], coarse_labels[i], fine_labels[i]))
     return data
+
+def set_up_indices(select_fine_labels, ratio):
+    train_ds, test_ds = get_raw_ds(data_config['ds_root'])
+
+    train_size = ratio["train_size"]
+    market_size = ratio["market_size"]
+
+    if len(select_fine_labels)>0:
+        train_ds = get_subset_by_labels(train_ds, select_fine_labels)
+        test_ds = get_subset_by_labels(test_ds, select_fine_labels)
+
+    label_summary = [i for i in range(max_subclass_num)] if len(select_fine_labels)==0 else select_fine_labels
+
+    train_labels = get_ds_labels(train_ds, use_fine_label=True)
+    train_indices, market_indices = get_split_indices(train_labels, label_summary, train_size/(train_size + market_size))
+
+    test_labels = get_ds_labels(test_ds, use_fine_label=True)
+    val_indices, test_indices = get_split_indices(test_labels, label_summary, 0.5)
+
+    indicies_dict = {
+        'train': train_indices,
+        'market': market_indices,
+        'test_shift': test_indices,
+        'val_shift': val_indices
+    }
+    return indicies_dict
+
+def load_indices(indicies_dict, select_fine_labels, label_map):
+    train_ds, test_ds = get_raw_ds(data_config['ds_root'])
+    train_ds = torch.utils.data.Subset(train_ds, indicies_dict['train'])
+    market_ds = torch.utils.data.Subset(train_ds, indicies_dict['market'])
+    test_shift = torch.utils.data.Subset(test_ds, indicies_dict['test_shift'])
+    val_shift = torch.utils.data.Subset(test_ds, indicies_dict['val_shift'])
+    ds_dict = {
+        'train': train_ds,
+        'market': market_ds,
+        'test_shift': test_shift,
+        'val_shift': val_shift
+    }
+    if len(select_fine_labels) != 0 and (isinstance(label_map, dict)):
+        ds_dict = modify_coarse_label(ds_dict, label_map)
+    return ds_dict
