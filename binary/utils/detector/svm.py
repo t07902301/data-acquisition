@@ -26,7 +26,6 @@ def shuffl_train(latents, model_gts, model_preds, balanced=True, split_and_searc
     best_clf.fit(latents, model_correctness)
     return best_clf, None  
 
-import random
 def choose_svm_hpara(clf_input, gt, class_weight, cv_splits, kernel, split_and_search):
     '''
     select the best hparameter for svm by cross validation
@@ -34,15 +33,11 @@ def choose_svm_hpara(clf_input, gt, class_weight, cv_splits, kernel, split_and_s
     best_C, best_cv, best_clf = 1, -np.inf, None
     if split_and_search:
         print('Grid Search')
-        random.seed(1)
-        shuffle_idx = np.arange(len(gt))
-        random.shuffle(shuffle_idx)
-        clf_input = clf_input[shuffle_idx]
-        gt = gt[shuffle_idx]
         for C_ in np.logspace(-6, 0, 7, endpoint=True):
+            cv = StratifiedKFold(shuffle=True, random_state=0, n_splits=cv_splits)
             # x_resampled, gt_resampled = SMOTE().fit_resample(x, gt)
             # clf, cv_score = fit_svm(C=C_, x=x_resampled, gt=gt_resampled, class_weight=class_weight, cv=cv, kernel=kernel)
-            clf, cv_score = fit_svm(C=C_, x=clf_input, gt=gt, class_weight=class_weight, cv=cv_splits, kernel=kernel)
+            clf, cv_score = fit_svm(C=C_, x=clf_input, gt=gt, class_weight=class_weight, cv=cv, kernel=kernel)
             if cv_score > best_cv:
                 best_cv = cv_score
                 best_C = C_
@@ -57,11 +52,11 @@ def fit_svm(C, class_weight, x, gt, cv=2, kernel='linear'):
     x : input of svm; gt: groud truth of svm; cv: #cross validation splits
     '''
     # clf = LinearSVC(C=C, class_weight=class_weight)
-    clf = SVC(C=C, kernel=kernel, class_weight=class_weight, gamma='auto')
+    clf = SVC(C=C, kernel=kernel, class_weight=class_weight, gamma='auto', random_state=0)
     scorer = sklearn_metrics.make_scorer(sklearn_metrics.balanced_accuracy_score)
     cv_scores = cross_val_score(clf, x, gt, cv=cv, scoring=scorer)
     average_cv_scores = np.mean(cv_scores)*100
-    print('cv scores',cv_scores)
+    # print('cv scores',cv_scores)
     return clf, average_cv_scores
 
 def predict(clf: SVC, latents, gts=None, compute_metrics=False):
