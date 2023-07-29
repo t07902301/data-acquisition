@@ -1,7 +1,7 @@
 import sys
 sys.path.append('/home/yiwei/data-acquisition/binary/')
 from utils.strategy import *
-from utils.set_up import set_up
+from utils.set_up import *
 import utils.statistics.checker as Checker
 import utils.statistics.distribution as Distribution
 
@@ -13,13 +13,6 @@ def get_cor_incor_dstr(model: Model.prototype, dataloader):
     cor_mask = (dataset_gts == dataset_preds)
     incor_mask = ~cor_mask
     return dataset_gts[cor_mask], dataset_preds[incor_mask]
-
-def n_data_run(operation:Config.Operation, checker: Checker.prototype, data_split:Dataset.DataSplits, pdf_method):
-    if 'seq' in operation.acquisition.method:
-        check_result = check_clf(operation, data_split, checker)
-    else:
-        check_result = check_data(operation, data_split, checker, pdf_method)
-    return check_result
 
 def dv_dstr_plot(cor_dv, incor_dv, n_data, pdf_method=None, range=None):
     pdf_name = '' if pdf_method == None else '_{}'.format(pdf_method)
@@ -50,7 +43,17 @@ def epoch_run(new_img_num_list, method_list, operation:Config.Operation, checker
     result_epoch = run(operation, method_list, new_img_num_list, checker, data_split, pdf_method)
     return result_epoch
 
-def check_data(operation:Config.Operation, data_split:Dataset.DataSplits, checker:Checker.prototype, pdf_method):
+def check_data(operation:Config.Operation, data_split:Dataset.DataSplits, checker:Checker.prototype):
+    model_config = checker.model_config
+    model_config.set_path(operation)
+
+    log = Log(model_config, 'data')
+    new_data = log.import_log(operation)
+    new_data_loader = torch.utils.data.DataLoader(new_data, batch_size= model_config.new_batch_size)
+    cor, incor = get_cor_incor_dstr(checker.base_model, new_data_loader)
+    return len(incor) / (len(cor) + len(incor)) * 100
+
+def check_indices(operation:Config.Operation, data_split:Dataset.DataSplits, checker:Checker.prototype, pdf_method):
     model_config = checker.model_config
     model_config.set_path(operation)
 
@@ -88,8 +91,15 @@ def check_clf(operation:Config.Operation, data_split:Dataset.DataSplits, checker
     log = Log(model_config, 'clf')
     detector = log.import_log(operation)
     _, prec = detector.predict(data_split.loader['test_shift'], checker.base_model, compute_metrics=True)
-    # _, prec = detector.predict(data_split.loader['val_shift'], checker.base_model, compute_metrics=True)
     return prec
+
+def n_data_run(operation:Config.Operation, checker: Checker.prototype, data_split:Dataset.DataSplits, pdf_method):
+    if 'seq' in operation.acquisition.method:
+        # check_result = check_data(operation, data_split, checker)
+        check_result = check_clf(operation, data_split, checker)
+    else:
+        check_result = check_indices(operation, data_split, checker, pdf_method)
+    return check_result
 
 def main(epochs, new_model_setter='retrain', pure=False, model_dir ='', device=0, probab_bound = 0.5, base_type='', detector_name = ''):
     print('Detector:', detector_name)
@@ -98,13 +108,13 @@ def main(epochs, new_model_setter='retrain', pure=False, model_dir ='', device=0
     print('Probab bound:', probab_bound)
     device_config = 'cuda:{}'.format(device)
     torch.cuda.set_device(device_config)
-    batch_size, label_map, new_img_num_list, superclass_num, ratio, seq_rounds_config, ds_list, device_config = set_up(epochs, device)
+    batch_size, new_img_num_list, superclass_num, seq_rounds_config, device_config, ds_list = set_up(epochs, model_dir, device)
     # method_list = ['dv','sm','conf'] if new_model_setter!='refine' else ['dv']
-    method_list = ['dv','sm','conf', 'seq_clf'] 
-    # method_list = ['dv']
+    # method_list = [ 'dv', 'seq_clf']
+    method_list = ['seq_clf']
 
     clip_processor = Detector.load_clip(device_config)
-    parse_args = (batch_size, superclass_num,model_dir, device_config, base_type, pure, new_model_setter, seq_rounds_config)
+    parse_args = (batch_size, superclass_num,model_dir, device_config, base_type, pure, new_model_setter, seq_rounds_config, None)
     stream_instruction = Config.ProbabStream(bound=probab_bound, pdf='kde', name='probab')
     detect_instruction = Config.Detection(detector_name, clip_processor)
     acquire_instruction = Config.Acquisition()

@@ -34,9 +34,6 @@ def run(ds:Dataset.DataSplits, model_config:Config.OldModel, train_flag:bool, de
 def main(epochs,  model_dir ='', train_flag=False, device_id=0, base_type='', detector_name=''):
     print('Detector Name:', detector_name)
     batch_size, new_img_num_list, superclass_num, seq_rounds_config, device_config, ds_list = set_up(epochs, model_dir, device_id)
-    np.random.seed(0)
-    # random.seed(0)   
-    print('after split dataset', np.random.randint(0,10,5))
     acc_list, acc_shift_list, detect_prec_list, shift_list = [], [], [], []
     clip_processor = Detector.load_clip(device_config)
     detect_instrution = Config.Detection(detector_name, clip_processor)

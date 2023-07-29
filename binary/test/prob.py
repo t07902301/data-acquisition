@@ -3,7 +3,7 @@ sys.path.append('/home/yiwei/data-acquisition/binary/')
 # sys.path.append('..')
 from utils.strategy import *
 import utils.statistics.checker as Checker
-from utils.set_up import set_up
+from utils.set_up import *
 
 def method_run(n_img_list, operation:Config.Operation, checker: Checker.prototype):
     acc_change_list = []
@@ -51,39 +51,42 @@ def bound_run(epochs, parse_args, dataset_list, new_img_num_list, method_list, o
         bound_stat_list.append(bound_stat)
     return results, bound_stat_list
 
-def dev(epochs, dev_name, device, detector_name, model_dir, stream_name):
+def dev(epochs, dev_name, device, detector_name, model_dir, stream_name, base_type):
     print(stream_name)
     new_model_setter = 'retrain'
     pure = True
     if dev_name == 'rs':
-        method_list, probab_bound = ['sm'], 0
+        method_list, probab_bound, stream_name = ['sm'], 0, 'probab'
     elif dev_name == 'refine':
-        method_list, new_model_setter, pure, probab_bound = ['dv'], 'refine', False, 0
+        method_list, new_model_setter, pure, probab_bound, stream_name = ['dv'], 'refine', False, 0, 'probab'
     else:
-        method_list, probab_bound = ['dv', 'sm', 'conf'], 0.5
-        # method_list, probab_bound = ['seq_clf'], 0.5 
+        # method_list, probab_bound = ['dv', 'sm', 'conf'], 0.5
+        method_list, probab_bound = ['dv'], 0.5
+        # method_list, probab_bound = ['seq_clf'], 0.5
+        # method_list, probab_bound = ['dv', 'seq_clf'], 0.5 
         # method_list, probab_bound = ['dv','sm','conf', 'seq_clf'], 0.5 
 
     device_config = 'cuda:{}'.format(device)
     torch.cuda.set_device(device_config)
-    batch_size, label_map, new_img_num_list, superclass_num, ratio, seq_rounds_config, ds_list, device_config = set_up(epochs, device)
+    batch_size, new_img_num_list, superclass_num, seq_rounds_config, device_config, ds_list = set_up(epochs, model_dir, device)
     clip_processor = Detector.load_clip(device_config)
     stream_instruction = Config.ProbabStream(bound=probab_bound, pdf='kde', name=stream_name)
     detect_instruction = Config.Detection(detector_name, clip_processor)
     acquire_instruction = Config.Acquisition()
     operation = Config.Operation(acquire_instruction, stream_instruction, detect_instruction)
-
-    base_type = 'resnet_1'
-
-    parse_args = (batch_size, superclass_num,model_dir, device_config, base_type, pure, new_model_setter, seq_rounds_config)
+    parse_args = (batch_size, superclass_num, model_dir, device_config, base_type, pure, new_model_setter, seq_rounds_config, dev_name)
     result, bound_stat = bound_run(epochs, parse_args, ds_list, new_img_num_list, method_list, operation)
     result = np.array(result)
-    print(result.shape)
     for idx, method in enumerate(method_list):
         method_result = result[:, idx, :]
         print(method)
+        # print(*np.round(np.mean(method_result[:4], axis=0), decimals=3).tolist(), sep=',')
         print(*np.round(np.mean(method_result, axis=0), decimals=3).tolist(), sep=',')
-
+    
+    for idx, method in enumerate(method_list):
+        method_result = result[:, idx, :]
+        print(method)
+        print(method_result)
 import argparse
 if __name__ == '__main__':
 
@@ -92,11 +95,12 @@ if __name__ == '__main__':
     parser.add_argument('-md','--model_dir',type=str,default='')
     parser.add_argument('-d','--device',type=int,default=0)
     parser.add_argument('-dn','--detector_name',type=str,default='svm')
-    parser.add_argument('-dev','--dev',type=str, default='rs')
+    parser.add_argument('-dev','--dev',type=str, default='ns')
     parser.add_argument('-s','--stream',type=str, default='probab')
+    parser.add_argument('-bt','--base_type',type=str,default='resnet_1')
 
     args = parser.parse_args()
-    dev(args.epochs, model_dir=args.model_dir, device=args.device, detector_name=args.detector_name, dev_name=args.dev, stream_name=args.stream)
+    dev(args.epochs, model_dir=args.model_dir, device=args.device, detector_name=args.detector_name, dev_name=args.dev, stream_name=args.stream, base_type=args.base_type)
 
 # def main(epochs, new_model_setter='retrain', pure=False, model_dir ='', device=0, probab_bound = 0.5, base_type='', detector_name = ''):
 #     print('Detector:', detector_name)
