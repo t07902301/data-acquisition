@@ -187,7 +187,6 @@ def parse():
     output = {
         'label_map': label_map,
         # 'ratio': ratio,
-        'removed_labels': config['data']['remove_fine_labels'],
         'svm_kernel': config['clf_args']['kernel'],
         # 'superclass': superclass_num,
     }
