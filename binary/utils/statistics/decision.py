@@ -16,7 +16,7 @@ class Confidence(Prototye):
     def __init__(self, class_number=1) -> None:
         super().__init__(class_number)
 
-    def get(self, model: Model.resnet, dataloader):
+    def get(self, model: Model.CNN, dataloader):
         _, _, probab  = model.eval(dataloader)
         if self.class_numer == 1:
             probab = self.transform_BDE_probab(probab)

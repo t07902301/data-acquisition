@@ -11,6 +11,7 @@ import utils.detector.wrappers as wrappers
 from abc import abstractmethod
 from utils.env import model_env
 hparams = config['hparams']
+import utils.objects.data_transform as DataTransform
 
 class prototype():
     @abstractmethod
@@ -38,13 +39,13 @@ class prototype():
         gts, preds, _ = self.eval(dataloader)
         return (gts==preds).mean()*100
 
-class resnet(prototype):
+class CNN(prototype):
     def __init__(self, num_class, use_pretrained=False) -> None:
         super().__init__()
         model_env()
         build_fn = model_utils.BUILD_FUNCTIONS[hparams['arch_type']] # init model factory
         self.model = build_fn(hparams['arch'], num_class, use_pretrained)
-        self.model = self.model.cuda() # attach to currect cuda
+        self.model = self.model.cuda() # attach to current cuda
         self.bce = (num_class==1)
 
     def load(self, path, device):
@@ -125,24 +126,21 @@ class resnet(prototype):
             self.train(train_loader,val_loader) # retrain 
 
 class svm(prototype):
-    def __init__(self, clip_processor:wrappers.CLIPProcessor, split_and_search=True) -> None:
+    def __init__(self, clip_processor:wrappers.CLIPProcessor, split_and_search=True, transform='clip') -> None:
         super().__init__()
+        self.transform = transform
         self.clip_processor = clip_processor
         self.model = wrappers.SVM(args=config['clf_args'], cv=config['clf_args']['k-fold'], split_and_search = split_and_search, do_normalize=True, do_standardize=False)
-        # #TODO take the mean and std assumed norm dstr
-        # set_up_latent = get_latent(set_up_dataloader, clip_processor, self.transform)
-        # self.model.set_preprocess(set_up_latent) 
-        assert self.clip_processor != None
 
     def eval(self, dataloader):
-        latent, gts = self.clip_processor.evaluate_clip_images(dataloader)  
+        latent, gts = DataTransform.get_latent(dataloader, self.clip_processor, self.transform)
         preds = self.model.raw_predict(latent)
         _, distance, _ = self.model.predict(latent)
         return gts, preds, distance
 
     def train(self, train_loader):
-        latent, gts = self.clip_processor.evaluate_clip_images(train_loader)  
-        self.model.set_preprocess(latent)
+        latent, gts = DataTransform.get_latent(train_loader, self.clip_processor, self.transform)
+        self.model.set_preprocess(latent)  #TODO take the mean and std assumed norm dstr
         _ = self.model.fit(latent, gts)
 
     def save(self, path):
@@ -161,7 +159,7 @@ def prototype_factory(base_type, cls_num, clip_processor=None):
     if base_type == 'svm':
         return svm(clip_processor)
     else:
-        return resnet(cls_num)
+        return CNN(cls_num)
     
 import numpy as np
 class ensembler(prototype):
@@ -169,7 +167,7 @@ class ensembler(prototype):
         self.n_member = 3
         self.n_class = num_class
         self.use_pretrained = use_pretrained
-        # self.learner_name = 'resnet'
+        # self.learner_name = 'CNN'
         self.weights = None
         self.members = []
 
@@ -200,13 +198,13 @@ class ensembler(prototype):
         self.base_train(train_loader, val_loader)
 
     def base_train(self, train_loader, val_loader):
-        base = resnet(self.n_class, self.use_pretrained)
+        base = CNN(self.n_class, self.use_pretrained)
         base.train(train_loader, val_loader)
         self.members = [base]
 
     def update(self, new_model_setter, data_split: Dataset.DataSplits):
         for i in range(1, self.n_member):
-            member = resnet(self.n_class, self.use_pretrained)
+            member = CNN(self.n_class, self.use_pretrained)
             self.get_weights(i, data_split.loader['anchor_train'])
             member.train(data_split.loader['train'], data_split.loader['val'], data_weights=self.weights)
             self.members.append(member)
@@ -228,7 +226,7 @@ class ensembler(prototype):
     def load(self, path, device):
         state_dict = torch.load(path, map_location=device)
         for _, member_para in state_dict.items():
-            member = resnet(self.n_class, self.use_pretrained)
+            member = CNN(self.n_class, self.use_pretrained)
             member.model.load_state_dict(member_para)
             self.members.append(member)
         assert (len(self.members) == 1) or (len(self.members) == self.n_member), len(self.members)
