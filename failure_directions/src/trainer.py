@@ -153,7 +153,7 @@ class LightWeightTrainer():
         acc = self.get_accuracy(logits, y)
         return loss, acc, len(x)
     
-    def train_epoch(self, epoch_num, model, train_dataloader, opt, scaler, scheduler):
+    def train_epoch(self, epoch_num, model, train_dataloader, opt, scaler):
         model.train()
         loss_meter = AverageMeter()
         acc_meter = AverageMeter()
@@ -168,7 +168,25 @@ class LightWeightTrainer():
             scaler.scale(loss).backward()
             scaler.step(opt)
             scaler.update()
-        # scheduler.step()   # TODO Does scheduler update optmizer per batch or per epoch?
+        avg_loss, avg_acc = loss_meter.calculate(), acc_meter.calculate()
+        return avg_loss, avg_acc
+
+    def cyclic_train_epoch(self, epoch_num, model, train_dataloader, opt, scaler, scheduler):
+        model.train()
+        loss_meter = AverageMeter()
+        acc_meter = AverageMeter()
+        for batch in train_dataloader:
+            opt.zero_grad(set_to_none=True)
+            with autocast():
+                loss, acc, sz = self.training_step(model, batch)
+            # t.set_postfix({'loss': loss.item(), 'acc': acc.item()})
+            loss_meter.update(loss.item(), sz)
+            acc_meter.update(acc.item(), sz)
+
+            scaler.scale(loss).backward()
+            scaler.step(opt)
+            scaler.update()
+            scheduler.step()   # TODO Does scheduler update optmizer per batch or per epoch?
                
         # with tqdm(train_dataloader) as t:
         #     t.set_description(f"Train Epoch: {epoch_num}")
@@ -207,21 +225,28 @@ class LightWeightTrainer():
             #         acc_meter.update(acc.item(), sz)
         avg_loss, avg_acc = loss_meter.calculate(), acc_meter.calculate()
         return avg_loss, avg_acc
-        
+    
+    def update_model(self, epoch, model, train_dataloader, opt, scaler, scheduler, val_dataloader, lr_scheduler_type):
+            if lr_scheduler_type == 'cyclic':
+                train_loss, train_acc = self.cyclic_train_epoch(epoch, model, train_dataloader, opt, scaler, scheduler)
+                val_loss, val_acc = self.val_epoch(epoch, model, val_dataloader)
+            else:
+                train_loss, train_acc = self.train_epoch(epoch, model, train_dataloader, opt, scaler)
+                val_loss, val_acc = self.val_epoch(epoch, model, val_dataloader)
+                if lr_scheduler_type == 'ReduceLROnPlateau': 
+                    scheduler.step(val_loss)   
+                else:
+                    scheduler.step()
+            return train_loss, train_acc, val_loss, val_acc
+
     def fit(self, model, train_dataloader, val_dataloader):
         epochs = self.training_args['epochs']
         opt, scaler, scheduler = self.get_opt_scaler_scheduler(model)
         best_val_loss = np.inf
         best_model_chkpnt = None
         for epoch in range(epochs):
-            train_loss, train_acc = self.train_epoch(epoch, model, train_dataloader, opt, scaler, scheduler)
-            # print('In epoch {}'.format(epoch), scheduler.get_last_lr())
-
-            val_loss, val_acc = self.val_epoch(epoch, model, val_dataloader)
-            if self.training_args['lr_scheduler']['type'] == 'ReduceLROnPlateau': # Early Stopping
-                scheduler.step(val_loss)      
-            else:
-                scheduler.step()
+            train_loss, train_acc, val_loss, val_acc = self.update_model(epoch, model, train_dataloader, 
+                                                                         opt, scaler, scheduler, val_dataloader, self.training_args['lr_scheduler']['type'])
 
             # curr_lr = scheduler.get_last_lr()[0]
             # if epoch%10 == 0:
