@@ -15,11 +15,12 @@ def count_minority(ds):
 
 def loader2dataset(dataloader):
     img, coarse_labels, fine_labels = [], [], []
-    for batch_info in dataloader:
-        x, y, fine_y, _  = batch_info
-        img.append(x)
-        coarse_labels.append(y)
-        fine_labels.append(fine_y)
+    with torch.no_grad():
+        for batch_info in dataloader:
+            x, y, fine_y, _  = batch_info
+            img.append(x)
+            coarse_labels.append(y)
+            fine_labels.append(fine_y)
     img = torch.cat(img)
     coarse_labels = torch.cat(coarse_labels)
     fine_labels = torch.cat(fine_labels)
@@ -29,35 +30,41 @@ def loader2dataset(dataloader):
         data.append((img[i], coarse_labels[i], fine_labels[i]))
     return data
 
-def get_dataloader_labels(dataloader):
-    gts = []
-    for batch_info in dataloader:
-        gts.append(batch_info[1].cpu())
-    return torch.concat(gts).numpy()
-
 def get_dataloader_size(dataloader):
     gts = []
-    for batch_info in dataloader:
-        gts.append(batch_info[1])
+    with torch.no_grad():
+        for batch_info in dataloader:
+            gts.append(batch_info[1])
     return len(torch.concat(gts))  
 
 def get_flattened(loader):
-    img = []
-    for batch_info in loader:
-        img.append(torch.flatten(batch_info[0], start_dim=1))
-    return torch.cat(img, dim=0)
+    img, gts = [], []
+    with torch.no_grad():
+        for batch_info in loader:
+            img.append(torch.flatten(batch_info[0], start_dim=1))
+            gts.append(batch_info[1].cpu())
+    return torch.cat(img, dim=0), torch.cat(gts).numpy()
+
+from utils.detector.fid.fid import encode
 
 def get_latent(data_loader, clip_processor:CLIPProcessor = None, transform: str = None):
+    '''
+    Return Latent and True Labels (avoid train loader shuffles!)
+    '''
     if transform == 'clip':
-        latent, _ = clip_processor.evaluate_clip_images(data_loader)  
+        latent, gts = clip_processor.evaluate_clip_images(data_loader)  
     elif transform == 'flatten':
-        latent = get_flattened(data_loader) 
+        latent, gts = get_flattened(data_loader) 
+    elif transform == 'incept':
+        latent, gts = encode(data_loader, dims=64)
     else:
-        latent = loader2data(data_loader)
-    return latent
+        latent, gts = loader2data(data_loader)
+    return latent, gts
 
 def loader2data(loader):
-    img = []
-    for batch_info in loader:
-        img.append(batch_info[0])
-    return torch.cat(img, dim=0)
+    img, gts = [], []
+    with torch.no_grad():
+        for batch_info in loader:
+            img.append(batch_info[0])
+            gts.append(batch_info[1].cpu())
+    return torch.cat(img, dim=0), torch.cat(gts).numpy()
