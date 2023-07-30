@@ -2,7 +2,7 @@ import numpy as np
 from scipy.stats import norm, gaussian_kde, kstest, skewnorm, skew
 import utils.statistics.data as DataStat
 import matplotlib.pyplot as plt
-
+import utils.objects.data_transform as DataTransform
 def get_intervals(values):
     max_val = max(values)
     min_val = min(values)
@@ -43,7 +43,7 @@ def get_correctness_dstr(model, detector, dataloader, pdf_type, correctness:bool
     Get decision value distribution of a dataloader against a base model
     '''
     target_dv =  DataStat.get_correctness_dv(model, dataloader, detector, correctness=correctness)
-    dataloader_size = DataStat.get_dataloader_size(dataloader)
+    dataloader_size = DataTransform.get_dataloader_size(dataloader)
     prior = (len(target_dv)) / dataloader_size
     dstr = disrtibution(prior, get_pdf(target_dv, pdf_type))
     return dstr
