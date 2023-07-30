@@ -34,10 +34,9 @@ def choose_svm_hpara(clf_input, gt, class_weight, cv_splits, kernel, split_and_s
     if split_and_search:
         print('Grid Search')
         for C_ in np.logspace(-6, 0, 7, endpoint=True):
-            cv = StratifiedKFold(shuffle=True, random_state=0, n_splits=cv_splits)
             # x_resampled, gt_resampled = SMOTE().fit_resample(x, gt)
             # clf, cv_score = fit_svm(C=C_, x=x_resampled, gt=gt_resampled, class_weight=class_weight, cv=cv, kernel=kernel)
-            clf, cv_score = fit_svm(C=C_, x=clf_input, gt=gt, class_weight=class_weight, cv=cv, kernel=kernel)
+            clf, cv_score = fit_svm(C=C_, x=clf_input, gt=gt, class_weight=class_weight, cv_splits=cv_splits, kernel=kernel)
             if cv_score > best_cv:
                 best_cv = cv_score
                 best_C = C_
@@ -47,12 +46,13 @@ def choose_svm_hpara(clf_input, gt, class_weight, cv_splits, kernel, split_and_s
         best_clf = SVC(C=1, kernel=kernel, class_weight=class_weight, gamma='auto')
     return best_clf, best_cv
 
-def fit_svm(C, class_weight, x, gt, cv=2, kernel='linear'):
+def fit_svm(C, class_weight, x, gt, cv_splits=2, kernel='linear'):
     '''
     x : input of svm; gt: groud truth of svm; cv: #cross validation splits
     '''
-    # clf = LinearSVC(C=C, class_weight=class_weight)
-    clf = SVC(C=C, kernel=kernel, class_weight=class_weight, gamma='auto', random_state=0)
+    cv = StratifiedKFold(shuffle=True, random_state=0, n_splits=cv_splits) # randomness in shuffling for cross validation
+    # clf = LinearSVC(C=C, class_weight=class_weight, random_state=0)
+    clf = SVC(C=C, kernel=kernel, class_weight=class_weight, gamma='auto', random_state=0) # randomness in shuffling for svm training
     scorer = sklearn_metrics.make_scorer(sklearn_metrics.balanced_accuracy_score)
     cv_scores = cross_val_score(clf, x, gt, cv=cv, scoring=scorer)
     average_cv_scores = np.mean(cv_scores)*100
