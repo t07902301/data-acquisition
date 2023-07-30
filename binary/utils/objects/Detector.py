@@ -102,12 +102,11 @@ def factory(detector_type, clip_processor:wrappers.CLIPProcessor, split_and_sear
     else:
         return RandomForest(data_transform, clip_processor)
 
-def load_clip(device):
-    clip_processor = wrappers.CLIPProcessor(ds_mean=config['data']['mean'], ds_std=config['data']['std'], device=device)
+def load_clip(device, mean, std):
+    clip_processor = wrappers.CLIPProcessor(ds_mean=mean, ds_std=std, device=device)
     return clip_processor
 
 import torch
-
 
 def get_correctness(data_loader, model:Model.prototype, transform: str = None, clip_processor:wrappers.CLIPProcessor = None):
     '''
@@ -115,7 +114,8 @@ def get_correctness(data_loader, model:Model.prototype, transform: str = None, c
     Data in Latent Space, Base Model Prediction Correctness of Data, Combined Latent Data and Model Correctness
     ''' 
     gts, preds, _ = model.eval(data_loader)
-    data = DataTransform.get_latent(data_loader, clip_processor, transform)
+    data, loader_gts = DataTransform.get_latent(data_loader, clip_processor, transform)
+    assert (gts != loader_gts).sum() == 0, 'Train Loader Shuffles!: {}'.format((gts != loader_gts).sum())
     correctness_mask = (gts == preds)
     correctness = np.zeros(len(data), dtype = int)
     correctness[correctness_mask] = 1

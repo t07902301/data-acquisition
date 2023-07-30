@@ -11,6 +11,7 @@ import numpy as np
 import utils.statistics.data as DataStat
 import utils.statistics.partitioner as Partitioner
 import utils.statistics.distribution as Distribution
+from utils.env import data_split_env
 
 #TODO add info class with base model and dataset, make strategy class more purified. 
 
@@ -148,7 +149,7 @@ class Greedy(NonSeqStrategy):
 class Sample(NonSeqStrategy):
     def __init__(self) -> None:
         super().__init__()
-        Dataset.data_split_env()
+        data_split_env()
 
     def get_new_data_indices(self, operation:Config.Operation, workspacce:WorkSpace):
         dataset_splits = workspacce.data_split

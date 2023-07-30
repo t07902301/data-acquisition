@@ -6,18 +6,9 @@ from utils.env import generator
 import utils.objects.cifar as cifar
 import utils.objects.Config as Config
 
-
 data_config = config['data']
+
 max_subclass_num = config['hparams']['subclass']
-base_transform = transforms.Compose([
-    transforms.ToTensor(),
-    transforms.Normalize(mean=np.array(data_config['mean'])/255, std=np.array(data_config['std'])/255),
-    ])
-augment_transform = transforms.Compose([
-    transforms.RandomCrop(32, padding=4),
-    transforms.RandomHorizontalFlip(),
-    base_transform
-])
 
 class DataSplits():
     dataset: dict
@@ -98,10 +89,10 @@ def load_cover_dataset(ds_dict, cover_rate, cover_labels):
         'test_shift': test_shift
     }
 
-def create_dataset(select_fine_labels, ratio):
+def create_dataset(select_fine_labels, ratio, mean, std):
     # When all classes are used, only work on removal
     # When some classes are neglected, test set and the big train set will be shrank.
-    train_ds, test_ds = get_raw_ds(data_config['ds_root'])
+    train_ds, test_ds = get_raw_ds(data_config['ds_root'], mean, std)
     train_size = ratio["train_size"]
     market_size = ratio["market_size"]
 
@@ -154,16 +145,25 @@ def modify_coarse_label(dataset, label_map):
         dataset[split] = cifar.ModifiedDataset(dataset=dataset[split],coarse_label_transform=label_map)
     return dataset
 
-def get_vis_transform(std,mean):
+def get_vis_transform(mean, std):
     # For visualization
     INV_NORM = transforms.Compose([ transforms.Normalize(mean = [ 0., 0., 0. ],
-                                                        std = [255/x for x in std]),
-                                    transforms.Normalize(mean = [-x /255 for x in mean],
-                                                        std = [ 1., 1., 1. ])])
+                                                     std = [ 1/x for x in std]),
+                                transforms.Normalize(mean = [-x for x in mean],
+                                                     std = [ 1., 1., 1. ]),])
     TOIMAGE = transforms.Compose([INV_NORM, transforms.ToPILImage()])
     return INV_NORM, TOIMAGE
 
-def get_raw_ds(ds_root):
+def get_raw_ds(ds_root, mean, std):
+    base_transform = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Normalize(mean=mean, std=std),
+        ])
+    # augment_transform = transforms.Compose([
+    #     transforms.RandomCrop(32, padding=4),
+    #     transforms.RandomHorizontalFlip(),
+    #     base_transform
+    # ])
     train_ds = cifar.CIFAR100(ds_root, train=True,transform=base_transform,coarse=True)
     # aug_train_ds = cifar.CIFAR100(ds_root, train=True,transform=augment_transform,coarse=True)
     test_ds = cifar.CIFAR100(ds_root, train=False,transform=base_transform,coarse=True)
@@ -238,10 +238,43 @@ def get_split_indices(dataset_labels, target_labels, split_1_ratio):
     return p1_indices,p2_indices
 
 def get_data_splits_list(epochs, select_fine_labels, label_map, ratio):
+    mean, std = normalize()
+    normalize_stat = {
+        'mean': mean,
+        'std': std
+    }
     ds_list = []
     for epo in range(epochs):
-        ds = create_dataset(select_fine_labels,ratio)
+        ds = create_dataset(select_fine_labels,ratio, mean, std)
         if len(select_fine_labels) != 0 and (isinstance(label_map, dict)):
             ds = modify_coarse_label(ds, label_map)
         ds_list.append(ds)
-    return ds_list
+    return ds_list, normalize_stat
+
+def check_labels(epochs, select_fine_labels, label_map, ratio):
+    for epo in range(epochs):
+        ds = create_dataset(select_fine_labels,ratio)
+        for key, value in ds.items():
+            labels = get_labels(value, False)
+            labels_sum = np.unique(labels)
+            print(key, 'coarse labels :', labels_sum)
+
+def normalize():
+    train_ds = cifar.CIFAR100(data_config['ds_root'], train=True, coarse=True)
+    select_fine_labels = data_config['train_label']
+    train_ds = get_subset_by_labels(train_ds, select_fine_labels)
+    r, g, b = [], [], []
+    train_size = len(train_ds)
+    for idx in range(train_size):
+        img = transforms.ToTensor()(train_ds[idx][0])
+        r.append(img[0])
+        g.append(img[1])
+        b.append(img[2])
+    result = [ r, g, b]
+    mean = []
+    std = []
+    for color in result:
+        color = torch.stack(color)
+        mean.append(torch.mean(color).item())
+        std.append(torch.std(color).item())
+    return mean, std

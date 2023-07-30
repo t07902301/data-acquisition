@@ -9,10 +9,9 @@ import torch.nn as nn
 def inv_norm(ds_mean, ds_std):
     if ds_std is None:
         return (lambda x: x)
-    # invert normalization (useful for visualizing)    
     return transforms.Compose([ transforms.Normalize(mean = [ 0., 0., 0. ],
-                                                     std = [255/x for x in ds_std]),
-                                transforms.Normalize(mean = [-x /255 for x in ds_mean],
+                                                     std = [ 1/x for x in ds_std]),
+                                transforms.Normalize(mean = [-x for x in ds_mean],
                                                      std = [ 1., 1., 1. ]),
                                ])
 class PreProcessing(nn.Module):
