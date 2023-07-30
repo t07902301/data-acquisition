@@ -66,15 +66,18 @@ def get_resnet(arch, num_classes, use_pretrained=False):
 def get_pretrained_resnet(arch, num_classes):
     return get_resnet(arch, num_classes, pretrained=True)
 
-def get_other(arch, num_classes):
-    import src.other_archs as other_archs
+from failure_directions.src.squeezenet import SqueezeNet
+
+def get_other(arch, num_classes, pretrain=False):
+    # import src.other_archs as other_archs
 
     if arch == 'alexnet':
         return torch.hub.load('pytorch/vision:v0.10.0','alexnet',pretrained=False)
-    elif arch == 'vgg16':
-        return other_archs.vgg16
+    # elif arch == 'vgg16':
+    #     return other_archs.vgg16
+    elif arch == 'squeezenet':
+        return SqueezeNet(num_classes)
     return None
-
 
 BUILD_FUNCTIONS = {
     'cifar_resnet': get_cifar_resnet,
