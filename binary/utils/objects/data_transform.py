@@ -1,15 +1,15 @@
 from utils.detector.wrappers import CLIPProcessor
 import torch
 
-def count_minority(ds):
+def count_labels(ds, labels, use_fine_label=True):
     '''
-    return #minority in ds
+    return #data of labels in ds
     '''
-    minority_labels = [4, 73, 54, 10, 51, 40, 84, 18, 3, 12, 33, 38, 64, 45, 2, 44, 80, 96, 13, 81]
     cnt = 0
     ds_size = len(ds)
+    label_idx = 2 if use_fine_label else 1
     for index in range(ds_size):
-        if ds[index][2] in minority_labels:
+        if ds[index][label_idx] in labels:
             cnt += 1
     return cnt
 
