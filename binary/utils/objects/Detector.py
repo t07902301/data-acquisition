@@ -85,28 +85,23 @@ class LogRegressor(Prototype):
         self.model.fit(latent, correctness)
         
     def predict(self, data_loader, base_model: Model.prototype, compute_metrics=False):
-        latent = DataTransform.get_latent(data_loader, self.clip_processor, self.transform)
-        gts = None
-        if compute_metrics:
-            _, gts, _ = get_correctness(data_loader, base_model, self.transform, self.clip_processor)
-        dv, metrics = self.model.predict(latent, gts, compute_metrics)
-        return dv, metrics     
+        latent, correctness, _ = get_correctness(data_loader, base_model, self.transform, self.clip_processor)
+        conf_distance, metrics = self.model.predict(latent, correctness, compute_metrics)
+        return conf_distance, metrics     
     
 def factory(detector_type, clip_processor:wrappers.CLIPProcessor, split_and_search=True, data_transform = 'clip'):
     if detector_type == 'svm':
         return SVM(clip_processor, split_and_search, data_transform)
-    elif detector_type == 'resnet':
-        return resnet()
     elif detector_type == 'logregs':
         return LogRegressor(data_transform, clip_processor)
-    else:
-        return RandomForest(data_transform, clip_processor)
+    # elif detector_type == 'resnet':
+    #     return resnet()
+    # else:
+    #     return RandomForest(data_transform, clip_processor)
 
 def load_clip(device, mean, std):
     clip_processor = wrappers.CLIPProcessor(ds_mean=mean, ds_std=std, device=device)
     return clip_processor
-
-import torch
 
 def get_correctness(data_loader, model:Model.prototype, transform: str = None, clip_processor:wrappers.CLIPProcessor = None):
     '''
@@ -124,54 +119,54 @@ def get_correctness(data_loader, model:Model.prototype, transform: str = None, c
         combined.append((data[idx], correctness[idx], correctness[idx]))
     return data, correctness, combined 
     
-class resnet(Prototype):
-    def __init__(self, data_transform: str = None) -> None:
-        super().__init__(data_transform)
-        self.model = Model.resnet(num_class=2, use_pretrained=False)
+# class resnet(Prototype):
+#     def __init__(self, data_transform: str = None) -> None:
+#         super().__init__(data_transform)
+#         self.model = Model.resnet(num_class=2, use_pretrained=False)
 
-    def fit(self, base_model:Model.prototype, data_loader, data=None, batch_size = None):
-        split_labels = Dataset.data_config['train_label']
-        train_indices, val_indices = Dataset.get_split_indices(Dataset.get_ds_labels(data), split_labels, 0.8)
-        _, _, data_correctness = get_correctness(data_loader, base_model, self.transform)
-        train_ds = torch.utils.data.Subset(data_correctness, train_indices)
-        val_ds = torch.utils.data.Subset(data_correctness, val_indices)   
-        print('Dstr CLF - training : validation =', len(train_ds), len(val_ds))
-        generator = torch.Generator()
-        generator.manual_seed(0)    
-        train_loader = torch.utils.data.DataLoader(train_ds, batch_size = batch_size, shuffle=True, drop_last=True)
-        val_loader = torch.utils.data.DataLoader(val_ds, batch_size = batch_size)
-        self.model.train(train_loader, val_loader)
+#     def fit(self, base_model:Model.prototype, data_loader, data=None, batch_size = None):
+#         split_labels = Dataset.data_config['train_label']
+#         train_indices, val_indices = Dataset.get_split_indices(Dataset.get_ds_labels(data), split_labels, 0.8)
+#         _, _, data_correctness = get_correctness(data_loader, base_model, self.transform)
+#         train_ds = torch.utils.data.Subset(data_correctness, train_indices)
+#         val_ds = torch.utils.data.Subset(data_correctness, val_indices)   
+#         print('Dstr CLF - training : validation =', len(train_ds), len(val_ds))
+#         generator = torch.Generator()
+#         generator.manual_seed(0)    
+#         train_loader = torch.utils.data.DataLoader(train_ds, batch_size = batch_size, shuffle=True, drop_last=True)
+#         val_loader = torch.utils.data.DataLoader(val_ds, batch_size = batch_size)
+#         self.model.train(train_loader, val_loader)
 
-    def predict(self, data_loader, base_model:Model.prototype, batch_size=16, compute_metrics=False):
-        _, _, data_correctness = get_correctness(data_loader, base_model, self.transform)
-        correctness_loader = torch.utils.data.DataLoader(data_correctness, batch_size = batch_size)
-        gts, preds, confs = self.model.eval(correctness_loader)
-        metrics = None
-        # if compute_metrics:
-        #     metrics = balanced_accuracy_score(gts, preds) * 100
-        return confs, metrics 
+#     def predict(self, data_loader, base_model:Model.prototype, batch_size=16, compute_metrics=False):
+#         _, _, data_correctness = get_correctness(data_loader, base_model, self.transform)
+#         correctness_loader = torch.utils.data.DataLoader(data_correctness, batch_size = batch_size)
+#         gts, preds, confs = self.model.eval(correctness_loader)
+#         metrics = None
+#         # if compute_metrics:
+#         #     metrics = balanced_accuracy_score(gts, preds) * 100
+#         return confs, metrics 
 
-from sklearn.ensemble import RandomForestClassifier
-class RandomForest(Prototype):
-    def __init__(self, data_transform: str, clip_processor:wrappers.CLIPProcessor) -> None:
-        super().__init__(data_transform)
-        self.clip_processor = clip_processor
-        self.model = RandomForestClassifier(n_estimators=5)
-    def fit(self, base_model: Model.prototype, data_loader, data=None, batch_size=None):
-        latent, correctness, _ = get_correctness(data_loader, base_model, self.transform, self.clip_processor)
-        self.model = self.model.fit(latent, correctness)
-    def predict(self, data_loader, base_model: Model.prototype, compute_metrics=False):
-        data = DataTransform.get_latent(data_loader, self.clip_processor, self.transform)
-        preds = self.model.predict(data)
-        dataset = Dataset.loader2dataset(data_loader)
-        gt_labels = Dataset.get_ds_labels(dataset)
-        # TODO 
-        confs = self.model.predict_proba(data)
-        cls_conf = []
-        for idx in (range(len(confs))):
-            cls_conf.append(confs[idx][gt_labels[idx]])
-        metrics = None
-        # if compute_metrics:
-        #     _, gts, _ = get_correctness(data_loader, base_model, self.transform, self.clip_processor)
-        #     metrics = balanced_accuracy_score(gts, preds) * 100
-        return np.array(cls_conf), metrics  
+# from sklearn.ensemble import RandomForestClassifier
+# class RandomForest(Prototype):
+#     def __init__(self, data_transform: str, clip_processor:wrappers.CLIPProcessor) -> None:
+#         super().__init__(data_transform)
+#         self.clip_processor = clip_processor
+#         self.model = RandomForestClassifier(n_estimators=5)
+#     def fit(self, base_model: Model.prototype, data_loader, data=None, batch_size=None):
+#         latent, correctness, _ = get_correctness(data_loader, base_model, self.transform, self.clip_processor)
+#         self.model = self.model.fit(latent, correctness)
+#     def predict(self, data_loader, base_model: Model.prototype, compute_metrics=False):
+#         data = DataTransform.get_latent(data_loader, self.clip_processor, self.transform)
+#         preds = self.model.predict(data)
+#         dataset = Dataset.loader2dataset(data_loader)
+#         gt_labels = Dataset.get_ds_labels(dataset)
+#         # TODO 
+#         confs = self.model.predict_proba(data)
+#         cls_conf = []
+#         for idx in (range(len(confs))):
+#             cls_conf.append(confs[idx][gt_labels[idx]])
+#         metrics = None
+#         # if compute_metrics:
+#         #     _, gts, _ = get_correctness(data_loader, base_model, self.transform, self.clip_processor)
+#         #     metrics = balanced_accuracy_score(gts, preds) * 100
+#         return np.array(cls_conf), metrics  
