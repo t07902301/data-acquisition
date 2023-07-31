@@ -1,7 +1,7 @@
 #Below is to measure FID scores
 import numpy as np
 from torch.nn.functional import adaptive_avg_pool2d
-from pytorch_fid.inception import InceptionV3
+from utils.detector.fid.inception import InceptionV3
 import torchvision.transforms as TF
 
 import torch
