@@ -68,8 +68,8 @@ def dev(epochs, dev_name, device, detector_name, model_dir, stream_name, base_ty
 
     device_config = 'cuda:{}'.format(device)
     torch.cuda.set_device(device_config)
-    batch_size, new_img_num_list, superclass_num, seq_rounds_config, device_config, ds_list = set_up(epochs, model_dir, device)
-    clip_processor = Detector.load_clip(device_config)
+    batch_size, new_img_num_list, superclass_num, seq_rounds_config, device_config, ds_list, normalize_stat = set_up(epochs, model_dir, device)
+    clip_processor = Detector.load_clip(device_config, normalize_stat['mean'], normalize_stat['std'])
     stream_instruction = Config.ProbabStream(bound=probab_bound, pdf='kde', name=stream_name)
     detect_instruction = Config.Detection(detector_name, clip_processor)
     acquire_instruction = Config.Acquisition()
@@ -80,7 +80,6 @@ def dev(epochs, dev_name, device, detector_name, model_dir, stream_name, base_ty
     for idx, method in enumerate(method_list):
         method_result = result[:, idx, :]
         print(method)
-        # print(*np.round(np.mean(method_result[:4], axis=0), decimals=3).tolist(), sep=',')
         print(*np.round(np.mean(method_result, axis=0), decimals=3).tolist(), sep=',')
     
     for idx, method in enumerate(method_list):
@@ -97,7 +96,7 @@ if __name__ == '__main__':
     parser.add_argument('-dn','--detector_name',type=str,default='svm')
     parser.add_argument('-dev','--dev',type=str, default='ns')
     parser.add_argument('-s','--stream',type=str, default='probab')
-    parser.add_argument('-bt','--base_type',type=str,default='resnet_1')
+    parser.add_argument('-bt','--base_type',type=str,default='cnn')
 
     args = parser.parse_args()
     dev(args.epochs, model_dir=args.model_dir, device=args.device, detector_name=args.detector_name, dev_name=args.dev, stream_name=args.stream, base_type=args.base_type)

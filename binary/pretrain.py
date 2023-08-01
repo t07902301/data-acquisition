@@ -33,9 +33,9 @@ def run(ds:Dataset.DataSplits, model_config:Config.OldModel, train_flag:bool, de
 
 def main(epochs,  model_dir ='', train_flag=False, device_id=0, base_type='', detector_name=''):
     print('Detector Name:', detector_name)
-    batch_size, new_img_num_list, superclass_num, seq_rounds_config, device_config, ds_list = set_up(epochs, model_dir, device_id)
+    batch_size, new_img_num_list, superclass_num, seq_rounds_config, device_config, ds_list, normalize_stat = set_up(epochs, model_dir, device_id)
     acc_list, acc_shift_list, detect_prec_list, shift_list = [], [], [], []
-    clip_processor = Detector.load_clip(device_config)
+    clip_processor = Detector.load_clip(device_config, normalize_stat['mean'], normalize_stat['std'])
     detect_instrution = Config.Detection(detector_name, clip_processor)
     for epo in range(epochs):
         print('in epoch {}'.format(epo))
@@ -63,7 +63,7 @@ if __name__ == '__main__':
     parser.add_argument('-tf','--train_flag',type=bool,default=False)
     parser.add_argument('-md','--model_dir',type=str,default='')
     parser.add_argument('-d','--device',type=int,default=0)
-    parser.add_argument('-bt','--base_type',type=str,default='resnet_1')
+    parser.add_argument('-bt','--base_type',type=str,default='cnn')
     parser.add_argument('-dn','--detector_name',type=str,default='svm')
 
     args = parser.parse_args()
