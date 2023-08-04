@@ -23,7 +23,7 @@ def epoch_run(parse_para, method_list, n_data_list, dataset:dict, epo, operation
     workspace = WorkSpace(old_model_config, dataset)
 
     print('Set up WorkSpace')
-
+    
     workspace.set_up(new_model_config.new_batch_size, operation.detection.vit)
     workspace.set_validation(operation.stream, old_model_config.batch_size, new_model_config.new_batch_size, detect_instruction=operation.detection)
     method_run(method_list, n_data_list, new_model_config, operation, workspace)
@@ -37,16 +37,14 @@ def bound_run(parse_para, epochs, ds_list, method_list, new_img_num_list, bound,
 
 def dev(epochs, dev_name, device, detector_name, model_dir, base_type):
     pure, new_model_setter = True, 'retrain'
-    if dev_name == 'rs':
-        method_list, probab_bound = ['sm'], 0
+    if dev_name == 'sm':
+        method_list, probab_bound = [dev_name], 0
     elif dev_name == 'refine':
         method_list, new_model_setter, pure, probab_bound = ['dv'], 'refine', False, 0
     else:
-        # method_list, probab_bound = ['dv','sm','conf', 'seq_clf'], 0.5 
-        # method_list, probab_bound = ['dv', 'sm', 'conf'], 0.5 
-        method_list, probab_bound = ['dv'], 0.5 
+        # method_list, probab_bound = ['conf'], 0.5 
+        method_list, probab_bound = [dev_name], 0.5 
         # method_list, probab_bound = ['seq_clf'], 0.5 
-        # method_list, probab_bound = ['dv', 'seq_clf'], 0.5 
 
     device_config = 'cuda:{}'.format(device)
     torch.cuda.set_device(device_config)
@@ -68,7 +66,7 @@ if __name__ == '__main__':
     parser.add_argument('-md','--model_dir',type=str,default='')
     parser.add_argument('-d','--device',type=int,default=0)
     parser.add_argument('-dn','--detector_name',type=str,default='svm')
-    parser.add_argument('-dev','--dev',type=str, default='ns')
+    parser.add_argument('-dev','--dev',type=str, default='dv')
     parser.add_argument('-bt','--base_type',type=str,default='cnn')
 
     args = parser.parse_args()
