@@ -27,7 +27,7 @@ class WorkSpace():
         '''
         set up base model + datasplits
         '''
-        self.base_model = Model.prototype_factory(self.base_model_config.base_type, self.base_model_config.class_number, clip_processor=clip_processor)
+        self.base_model = Model.factory(self.base_model_config.base_type, self.base_model_config.class_number, clip_processor=clip_processor)
         self.base_model.load(self.base_model_config.path, self.base_model_config.device)
         copied_dataset = deepcopy(self.init_dataset)
         self.data_split = Dataset.DataSplits(copied_dataset, new_batch_size)
@@ -92,6 +92,15 @@ class Strategy():
     def test_clf(self):
         pass
 
+    def update_model(self, new_model_config: Config.NewModel, workspace: WorkSpace):
+        '''
+        Update model after training set in worksapce is refreshed
+        '''
+        if new_model_config.base_type == 'cnn':
+            workspace.base_model.update(new_model_config, workspace.data_split.loader['train'], workspace.validation_loader)
+        else:
+            workspace.base_model.update(new_model_config, workspace.data_split.loader['train_non_cnn'], workspace.validation_loader)
+
 class NonSeqStrategy(Strategy):
     def __init__(self) -> None:
         super().__init__()
@@ -108,11 +117,17 @@ class NonSeqStrategy(Strategy):
 
         new_model_config.set_path(operation)
 
-        workspace.base_model.update(new_model_config, workspace.data_split.loader['train'], workspace.validation_loader)
+        self.update_model(new_model_config, workspace)
 
         workspace.base_model.save(new_model_config.path)
 
         self.export_indices(new_model_config, operation.acquisition, new_data_info['indices'], operation.stream)
+
+        # gts = []
+        # new_data_total_set = new_data_info['data']
+        # for idx in range(len(new_data_total_set)):
+        #     gts.append(new_data_total_set[idx][1])
+        # print(np.array(gts).mean(), len(gts))
 
     def export_indices(self, model_config:Config.NewModel, acquire_instruction: Config.Acquisition, data, stream: Config.Stream):
         if model_config.check_rs(acquire_instruction.method, stream.bound) is False:
@@ -170,17 +185,19 @@ class Confidence(NonSeqStrategy):
     def get_new_data_indices(self, operation:Config.Operation, workspacce:WorkSpace):
         dataset_splits = workspacce.data_split
         acquistion_n_data = operation.acquisition.n_ndata
-        model_n_class = workspacce.base_model_config.class_number
-        new_data_indices = self.run(acquistion_n_data, dataset_splits.loader['market'], workspacce.base_model, model_n_class)
+        new_data_indices = self.run(acquistion_n_data, dataset_splits.loader['market'], workspacce.base_model, workspacce.base_model_config)
         clf_info = None
         return new_data_indices, clf_info      
 
-    def run(self, n_data, market_loader, base_model:Model.prototype, model_n_class):
-        market_gts, _, market_probab = base_model.eval(market_loader)
-        if model_n_class == 1:
-            confs = acquistion.get_probab_diff(market_gts, market_probab)
+    def run(self, n_data, market_loader, base_model:Model.prototype, base_model_config: Config.OldModel):
+        market_gts, _, market_score = base_model.eval(market_loader)
+        if base_model_config.class_number == 1:
+            if base_model_config.base_type == 'cnn':
+                confs = acquistion.get_probab_diff(market_gts, market_score)
+            else:
+                confs = acquistion.get_distance_diff(market_gts, market_score)
         else:
-            confs = acquistion.get_probab_gts(market_gts, market_probab)
+            confs = acquistion.get_probab_gts(market_gts, market_score)
         new_data_indices = acquistion.get_top_values_indices(confs, n_data)
         return new_data_indices
 
@@ -208,7 +225,6 @@ class SeqCLF(Strategy):
         operation.acquisition.set_up()
         self.sub_strategy = StrategyFactory(operation.acquisition.round_acquire_method)
         new_data_total_set = None
-        
         for round_i in range(operation.acquisition.n_rounds):
             new_data_round_info = self.round_operate(round_i, operation, workspace)
             new_data_total_set = new_data_round_info['data'] if round_i==0 else torch.utils.data.ConcatDataset([new_data_total_set, new_data_round_info['data']])
@@ -217,12 +233,12 @@ class SeqCLF(Strategy):
         last_clf = new_data_round_info['clf']
 
         workspace.reset(new_model_config.new_batch_size, operation.detection.vit)
-        workspace.set_validation(operation.stream, new_model_config.batch_size, new_model_config.new_batch_size, last_clf)
+        workspace.set_validation(operation.stream, new_model_config.batch_size, new_model_config.new_batch_size, last_clf, operation.detection)
 
         # train model 
         workspace.data_split.use_new_data(new_data_total_set, new_model_config, operation.acquisition)
 
-        workspace.base_model.update(new_model_config.setter, workspace.data_split.loader['train'], workspace.validation_loader)
+        self.update_model(new_model_config, workspace)
 
         workspace.base_model.save(new_model_config.path)
 
