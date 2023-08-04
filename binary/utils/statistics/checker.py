@@ -28,7 +28,7 @@ class prototype():
         '''
         Use the old model and data split to set up a prototype (for each epoch) -> base_model, clf/detector, anchor loader
         '''
-        self.base_model = Model.prototype_factory(old_model_config.base_type, old_model_config.class_number, operation.detection.vit)
+        self.base_model = Model.factory(old_model_config.base_type, old_model_config.class_number, operation.detection.vit)
         self.base_model.load(old_model_config.path, old_model_config.device)
         self.clf = Detector.factory(operation.detection.name, clip_processor = operation.detection.vit)
         self.clf.fit(self.base_model, datasplits.loader['val_shift'])
@@ -65,7 +65,7 @@ class Partition(prototype):
         '''
         loader: new_model + old_model
         '''
-        new_model = Model.prototype_factory(self.model_config.base_type, self.model_config.class_number, self.vit)
+        new_model = Model.factory(self.model_config.base_type, self.model_config.class_number, self.vit)
         new_model.load(self.model_config.path, self.model_config.device)
         gt,pred,_  = new_model.eval(loader['new_model'])
         new_correct = (gt==pred)
@@ -210,7 +210,7 @@ class AverageEnsemble(Ensemble):
     def _target_test(self, dataloader):
         gts = self.get_gts(dataloader)
         size = len(gts)
-        new_model = Model.prototype_factory(self.model_config.base_type, self.model_config.class_number, self.vit)
+        new_model = Model.factory(self.model_config.base_type, self.model_config.class_number, self.vit)
         new_model.load(self.model_config.path, self.model_config.device)  
         new_probab = self.get_decision(new_model, dataloader)
         old_probab = self.get_decision(self.base_model, dataloader)
@@ -222,7 +222,11 @@ class AverageEnsemble(Ensemble):
         preds = np.argmax(probab, axis=-1)
 
         DataStat.pred_metric(dataloader, self.base_model, new_model)
-        return (gts==preds).mean() * 100 - self.base_acc 
+
+        final_acc = (gts==preds).mean() * 100 
+
+        print('ACC compare:',final_acc, self.base_acc)
+        return final_acc - self.base_acc   
      
 class DstrEnsemble(Ensemble):
     def __init__(self, model_config: Config.NewModel) -> None:
@@ -244,7 +248,7 @@ class DstrEnsemble(Ensemble):
         size = len(gts)
         dv, _ = self.clf.predict(dataloader, self.base_model)  
         decision_maker = Decision.factory(self.model_config.base_type, self.model_config.class_number)
-        new_model = Model.prototype_factory(self.model_config.base_type, self.model_config.class_number, self.vit)
+        new_model = Model.factory(self.model_config.base_type, self.model_config.class_number, self.vit)
         new_model.load(self.model_config.path, self.model_config.device)  
         new_probab = decision_maker.get(new_model, dataloader)
         old_probab = decision_maker.get(self.base_model, dataloader)
@@ -255,7 +259,9 @@ class DstrEnsemble(Ensemble):
         probab = self.ensemble_decision(new_probab, new_weight, old_probab, old_weight)
         decision = decision_maker.apply(probab)
         DataStat.pred_metric(dataloader, self.base_model, new_model)
-        return (gts==decision).mean() * 100 - self.base_acc   
+        final_acc = (gts==decision).mean() * 100 
+        print('ACC compare:',final_acc, self.base_acc)
+        return final_acc - self.base_acc   
     
 # class AdaBoostEnsemble(Ensemble):
 #     def __init__(self, model_config: Config.NewModel) -> None:
@@ -310,7 +316,7 @@ def factory(name, new_model_config):
 def get_configs(epoch, parse_args, dataset):
     batch_size, superclass_num,model_dir, device_config, base_type, pure, new_model_setter, seq_rounds_config, dev_name = parse_args
     old_model_config = Config.OldModel(batch_size['base'], superclass_num, model_dir, device_config, epoch, base_type=base_type)
-    new_model_dir = model_dir[:2] if dev_name == 'rs' else model_dir
+    new_model_dir = model_dir[:2] if dev_name == 'sm' else model_dir
     new_model_config = Config.NewModel(batch_size['base'], superclass_num, new_model_dir, device_config, epoch, pure, new_model_setter, batch_size['new'], base_type=base_type)
     dataset_splits = Dataset.DataSplits(dataset, old_model_config.batch_size)
     return old_model_config, new_model_config, dataset_splits
