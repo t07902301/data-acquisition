@@ -4,6 +4,7 @@ import clip
 import torchvision.transforms as transforms
 from torch.cuda.amp import autocast
 import utils.detector.svm as svm_utils
+import utils.detector.logreg as logreg_utils
 import torch.nn as nn
 
 def inv_norm(ds_mean, ds_std):
@@ -121,26 +122,55 @@ class Prototype:
         latents = self.pre_process(latents).numpy()
         return latents
 
-from sklearn.metrics import balanced_accuracy_score
-from sklearn.linear_model import LogisticRegression
 class LogRegressor(Prototype):
-    def __init__(self, do_normalize=False, do_standardize=True) -> None:
+    def __init__(self, split_and_search=True, balanced=True, cv=2, do_normalize=False, do_standardize=True):
         super().__init__(do_normalize, do_standardize)
+        self.split_and_search = split_and_search
+        self.balanced = balanced
+        self.cv = cv
+        self.clf = None
 
     def fit(self, latents, gts):
         latents = self.fit_preprocess(latents)
         # TODO add args 
-        self.clf = LogisticRegression(random_state=0, max_iter=50, solver='liblinear')
-        self.clf.fit(latents, gts)
+        self.clf, cv_score = logreg_utils.train(latents, gts, balanced=self.balanced, 
+                                    split_and_search=self.split_and_search)
+        return cv_score        
     
     def predict(self, latents, gts=None, compute_metrics=False):
-        latents = self.predict_preprocess(latents)
-        dv = self.clf.decision_function(latents)
-        preds = self.clf.predict(latents)
-        metrics = None
-        if compute_metrics and (gts is not None):
-            metrics = balanced_accuracy_score(gts, preds) * 100
-        return dv, metrics  
+        assert self.clf is not None, "must call fit first"
+        latents = self.pre_process(latents).numpy()
+        return logreg_utils.predict(self.clf, latents, gts, compute_metrics) 
+
+    def raw_predict(self, latents):
+        assert self.clf is not None, "must call fit first"
+        latents = self.pre_process(latents).numpy()
+        pred = logreg_utils.raw_predict(latents, self.clf) 
+        return pred
+
+    def export(self, filename):
+        args = {
+            'split_and_search': self.split_and_search,
+            'balanced': self.balanced,
+            'cv': self.cv,
+        }
+        with open(filename, 'wb') as f:
+            pkl.dump({
+                'clf': self.clf,
+                'pre_stats': self.pre_process._export(),
+                'args': args}, 
+                f
+            )
+    def import_model(self, filename):
+        with open(filename, 'rb') as f:
+            out = pkl.load(f)
+        self.clf = out['clf']
+        self.pre_process = PreProcessing()
+        self.pre_process._import(out['pre_stats'])
+
+        self.split_and_search=out['args']['split_and_search']
+        self.balanced = out['args']['balanced']
+        self.cv = out['args']['cv']
 
 class SVM(Prototype):
     def __init__(self, split_and_search=True, balanced=True, cv=2, do_normalize=False, args=None, do_standardize=True):
@@ -154,9 +184,8 @@ class SVM(Prototype):
     def fit(self, latents, gts):
         assert self.pre_process is not None, 'run set_preprocess on a training set first'
         latents = self.pre_process(latents).numpy()
-        clf, score = svm_utils.train(latents, gts, balanced=self.balanced, 
+        self.clf, score = svm_utils.train(latents, gts, balanced=self.balanced, 
                                     split_and_search=self.split_and_search,args=self.args)
-        self.clf = clf
         return score
     
     def predict(self, latents, gts=None, compute_metrics=False):

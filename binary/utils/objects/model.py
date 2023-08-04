@@ -138,7 +138,7 @@ class svm(prototype):
         _, distance, _ = self.model.predict(latent)
         return gts, preds, distance
 
-    def train(self, train_loader):
+    def train(self, train_loader, val_loader):
         latent, gts = DataTransform.get_latent(train_loader, self.clip_processor, self.transform)
         self.model.set_preprocess(latent)  #TODO take the mean and std assumed norm dstr
         _ = self.model.fit(latent, gts)
@@ -152,12 +152,45 @@ class svm(prototype):
         print('model load from {}'.format(path))
     
     def update(self, new_model_config, train_loader, val_loader):
-        self.train(train_loader)
+        print('Updating model has train loader of size:', DataTransform.get_dataloader_size(train_loader))
 
-def prototype_factory(base_type, cls_num, clip_processor=None):
+        self.train(train_loader, val_loader)
+
+class LogReg(prototype):
+    def __init__(self, clip_processor:wrappers.CLIPProcessor, split_and_search=True, transform='clip') -> None:
+        super().__init__()
+        self.transform = transform
+        self.clip_processor = clip_processor
+        self.model = wrappers.LogRegressor(cv=config['clf_args']['k-fold'], split_and_search = split_and_search, do_normalize=True, do_standardize=False)
+
+    def eval(self, dataloader):
+        latent, gts = DataTransform.get_latent(dataloader, self.clip_processor, self.transform)
+        preds = self.model.raw_predict(latent)
+        _, distance, _ = self.model.predict(latent)
+        return gts, preds, distance
+
+    def train(self, train_loader, val_loader):
+        latent, gts = DataTransform.get_latent(train_loader, self.clip_processor, self.transform)
+        self.model.set_preprocess(latent)  #TODO take the mean and std assumed norm dstr
+        _ = self.model.fit(latent, gts)
+
+    def save(self, path):
+        self.model.export(path)
+        print('model saved to {}'.format(path))
+
+    def load(self, path, device):
+        self.model.import_model(path)
+        print('model load from {}'.format(path))
+    
+    def update(self, new_model_config, train_loader, val_loader):
+        self.train(train_loader, val_loader)
+
+def factory(base_type, cls_num, clip_processor=None):
     assert clip_processor != None
     if base_type == 'svm':
         return svm(clip_processor)
+    elif base_type == 'logreg':
+        return LogReg(clip_processor)
     else:
         return CNN(cls_num)
     
