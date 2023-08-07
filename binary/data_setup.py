@@ -1,8 +1,11 @@
 from utils.set_up import *
 
 def main(epochs,  model_dir =''):
-    batch_size, train_labels, label_map, new_img_num_list, superclass_num, ratio, seq_rounds_config = Config.parse()
-    save_dataset(epochs, train_labels, label_map, ratio, model_dir[:2])
+    batch_size, total_labels, new_img_num_list, superclass_num, ratio, seq_rounds_config = Config.parse()
+    select_fine_labels = total_labels['select_fine_labels']
+    label_map = total_labels['label_map']
+    task_id = model_dir[:2]
+    save_dataset(epochs, select_fine_labels, label_map, ratio, task_id)
 
 import argparse
 if __name__ == '__main__':
