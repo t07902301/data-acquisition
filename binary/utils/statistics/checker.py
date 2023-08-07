@@ -316,7 +316,8 @@ def factory(name, new_model_config):
 def get_configs(epoch, parse_args, dataset):
     batch_size, superclass_num,model_dir, device_config, base_type, pure, new_model_setter, seq_rounds_config, dev_name = parse_args
     old_model_config = Config.OldModel(batch_size['base'], superclass_num, model_dir, device_config, epoch, base_type=base_type)
-    new_model_dir = model_dir[:2] if dev_name == 'sm' else model_dir
+    # new_model_dir = model_dir[:2] if dev_name == 'sm' else model_dir
+    new_model_dir = model_dir # For imbalanced test and market filtering
     new_model_config = Config.NewModel(batch_size['base'], superclass_num, new_model_dir, device_config, epoch, pure, new_model_setter, batch_size['new'], base_type=base_type)
     dataset_splits = Dataset.DataSplits(dataset, old_model_config.batch_size)
     return old_model_config, new_model_config, dataset_splits
