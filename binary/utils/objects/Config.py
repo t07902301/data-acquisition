@@ -124,9 +124,6 @@ class NewModel(ModelConfig):
             temp_root = os.path.join(self.root, 'no-detector')
         else:
             temp_root = os.path.join(self.root, detector_name)
-        #TODO dev: rs - baselines
-        if self.check_rs(acquisition_method, stream_bound):
-            temp_root = os.path.join(temp_root, 'rs')
         check_dir(temp_root)
         return temp_root
     
@@ -173,22 +170,20 @@ def parse():
     base_batch_size = hparams['batch_size']['base']
     new_batch_size = hparams['batch_size']['new']
     data_config = config['data']
-    label_map = data_config['label_map']
+    total_labels = data_config['total_labels']
     n_new_data = data_config['n_new_data']
     img_per_cls_list = n_new_data
     superclass_num = hparams['superclass']
     ratio = data_config['ratio']
     seq_rounds = 2
-    train_labels = data_config['train_label']
     batch_size = {
         'base': base_batch_size,
         'new': new_batch_size
     }
     output = {
-        'label_map': label_map,
-        # 'ratio': ratio,
+        'ratio': ratio['remove_rate'],
         'svm_kernel': config['clf_args']['kernel'],
-        # 'superclass': superclass_num,
+        'superclass': superclass_num,
     }
     print(output)
-    return batch_size, train_labels, label_map, img_per_cls_list, superclass_num, ratio, seq_rounds 
+    return batch_size, total_labels, img_per_cls_list, superclass_num, ratio, seq_rounds 
