@@ -17,7 +17,7 @@ def method_run(methods_list, new_img_num_list, new_model_config:Config.NewModel,
         data_run(new_img_num_list, operation, new_model_config, workspace)
 
 def epoch_run(parse_para, method_list, n_data_list, dataset:dict, epo, operation: Config.Operation):
-    batch_size, superclass_num,model_dir, device_config, base_type, pure, new_model_setter, seq_rounds_config = parse_para
+    batch_size, superclass_num, model_dir, device_config, base_type, pure, new_model_setter, seq_rounds_config = parse_para
     old_model_config = Config.OldModel(batch_size['base'], superclass_num, model_dir, device_config, epo, base_type)
     new_model_config = Config.NewModel(batch_size['base'], superclass_num, model_dir, device_config, epo, pure, new_model_setter, batch_size['new'], base_type)
     workspace = WorkSpace(old_model_config, dataset)
@@ -25,7 +25,17 @@ def epoch_run(parse_para, method_list, n_data_list, dataset:dict, epo, operation
     print('Set up WorkSpace')
     
     workspace.set_up(new_model_config.new_batch_size, operation.detection.vit)
+
     workspace.set_validation(operation.stream, old_model_config.batch_size, new_model_config.new_batch_size, detect_instruction=operation.detection)
+
+    # task_id, sub_task_id = model_dir[:2], model_dir[:3]
+
+    # known_labels = Dataset.data_config['cover_labels'][sub_task_id]['target']
+
+    # # known_labels = Dataset.data_config['total_labels'][task_id]['select_fine_labels']
+
+    # workspace.set_market(operation.detection.vit, known_labels)
+
     method_run(method_list, n_data_list, new_model_config, operation, workspace)
 
 def bound_run(parse_para, epochs, ds_list, method_list, new_img_num_list, bound, operation: Config.Operation):

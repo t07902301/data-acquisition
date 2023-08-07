@@ -54,8 +54,8 @@ class WorkSpace():
 
     def reset(self, new_batch_size, clip_processor):
         self.set_up(new_batch_size, clip_processor)
-        self.data_split.replace('market', self.market_dataset) # For OOD
-        print('Market size:', len(self.data_split.dataset['market']))
+        # self.data_split.replace('market', self.market_dataset) # For OOD
+        # print('Market size:', len(self.data_split.dataset['market']))
 
     def set_market(self, clip_processor, known_labels):
 
