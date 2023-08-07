@@ -35,9 +35,10 @@ def get_optimizer_and_lr_scheduler(training_params, model):
         scheduler = lr_scheduler.LambdaLR(opt, LRPolicy(lr_schedule))
 #         scheduler = lr_scheduler.LambdaLR(opt, lr_schedule.__getitem__)
             
-    elif scheduler_type == 'step_lr':
-        scheduler = lr_scheduler.StepLR(opt, step_size=lr_scheduler_args['step_size'], 
-                                        gamma=lr_scheduler_args['gamma'])
+    elif scheduler_type == 'step':
+        # scheduler = lr_scheduler.StepLR(opt, step_size=60, 
+        #                                 gamma=0.2)
+        scheduler = lr_scheduler.MultiStepLR(opt, milestones=[60, 60, 40, 40], gamma=0.2)
     else:
         # raise NotImplementedError("Unimplemented LR Scheduler Type")
         scheduler = lr_scheduler.ReduceLROnPlateau(opt, 'min',patience=lr_scheduler_args['patience'])
