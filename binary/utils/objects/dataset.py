@@ -50,43 +50,75 @@ class DataSplits():
         self.dataset[replaced_name] = new_data
         self.update_dataloader(replaced_name)
 
-    def use_new_data(self, new_data, new_model_config:Config.NewModel, acquisition_config:Config.Acquisition):
+    def use_new_data(self, new_data, new_model_config:Config.NewModel, acquisition_config:Config.Acquisition, target_name:str):
         '''
         new data to be added to train set or not, and update loader automatically
         '''
         assert len(new_data) == acquisition_config.n_ndata, 'size error - new data: {}, required new data: {} \n under {}'.format(len(new_data), acquisition_config.n_ndata, acquisition_config.get_info())
 
         if new_model_config.pure:
-            self.replace('train', new_data)
+            self.replace(target_name, new_data)
         else:
-            self.expand('train', new_data)
+            self.expand(target_name, new_data)
 
-def load_dataset(ds_dict, remove_rate, remove_labels):
-    _, old_train = split_dataset(ds_dict['train'], remove_labels, remove_rate)
-    _, old_val = split_dataset(ds_dict['val_shift'], remove_labels, remove_rate)
-    _, old_test = split_dataset(ds_dict['test_shift'], remove_labels, remove_rate)
+def load_dataset(ds_dict, remove_rate, remove_labels, old_labels=None):
+    train_remove_rate = remove_rate['train']
+    test_remove_rate = remove_rate['test']
+    market_remove_rate = remove_rate['market']
+    _, old_train = split_dataset(ds_dict['train'], remove_labels, train_remove_rate)
+    _, old_val = split_dataset(ds_dict['val_shift'], remove_labels, train_remove_rate)
+    _, old_test = split_dataset(ds_dict['test_shift'], remove_labels, train_remove_rate)
+    
+    if test_remove_rate != None:
+        _, val = split_dataset(ds_dict['val_shift'], old_labels, test_remove_rate)
+        _, test = split_dataset(ds_dict['test_shift'], old_labels, test_remove_rate)
+    else:
+        val, test = ds_dict['val_shift'], ds_dict['test_shift']
+    
+    if market_remove_rate != None:
+        _, market = split_dataset(ds_dict['market'], remove_labels, market_remove_rate)
+    else:
+        market = ds_dict['market']
+
     return {
         'train': old_train,
+        'train_non_cnn': old_train,
         'val': old_val,
         'test': old_test,
-        'market': ds_dict['market'],
-        'val_shift': ds_dict['val_shift'],
-        'test_shift': ds_dict['test_shift']
+        'val_shift': val,
+        'test_shift': test,
+        'market': market
     }
 
-def load_cover_dataset(ds_dict, cover_rate, cover_labels):
-    old_train, _ = split_dataset(ds_dict['train'], cover_labels['src'], cover_rate)
-    old_val, _ = split_dataset(ds_dict['val_shift'], cover_labels['src'], cover_rate)
-    old_test, _ = split_dataset(ds_dict['test_shift'], cover_labels['src'], cover_rate)
-    val_shift, _ = split_dataset(ds_dict['val_shift'], cover_labels['target'], cover_rate)
-    test_shift, _ = split_dataset(ds_dict['test_shift'], cover_labels['target'], cover_rate)
+def load_cover_dataset(ds_dict, remove_rate, cover_labels, old_labels=None):
+    train_remove_rate = remove_rate['train']
+    test_remove_rate = remove_rate['test']
+    market_remove_rate = remove_rate['market']
+
+    old_train, _ = split_dataset(ds_dict['train'], cover_labels['src'], train_remove_rate)
+    old_val, _ = split_dataset(ds_dict['val_shift'], cover_labels['src'], train_remove_rate)
+    old_test, _ = split_dataset(ds_dict['test_shift'], cover_labels['src'], train_remove_rate)
+    val_shift, _ = split_dataset(ds_dict['val_shift'], cover_labels['target'], train_remove_rate)
+    test_shift, _ = split_dataset(ds_dict['test_shift'], cover_labels['target'], train_remove_rate)
+
+    market_target, _ = split_dataset(ds_dict['market'], cover_labels['target'], 1.0)
+
+    if test_remove_rate != None:
+        _, val = split_dataset(val_shift, old_labels, test_remove_rate)
+        _, test = split_dataset(test_shift, old_labels, test_remove_rate)
+    else:
+        val, test = val_shift, test_shift
+    
     return {
         'train': old_train,
         'val': old_val,
         'test': old_test,
+        'val_shift': val,
+        'test_shift': test,
+        'train_non_cnn': old_train,
         'market': ds_dict['market'],
-        'val_shift': val_shift,
-        'test_shift': test_shift
+        # 'market': market_target,
+        # 'market_target': market_target
     }
 
 def create_dataset(select_fine_labels, ratio, mean, std):
@@ -225,11 +257,10 @@ def get_split_indices(dataset_labels, target_labels, split_1_ratio):
         return None, np.arange(ds_length)
     
     p1_indices = []
-    
+
     for c in target_labels:
         cls_indices = np.arange(ds_length)[dataset_labels == c]
         split_indices = sample_indices(cls_indices,split_1_ratio)
-        # split_indices = cls_indices
         p1_indices.append(split_indices)
 
     p1_indices = np.concatenate(p1_indices)
@@ -261,8 +292,9 @@ def check_labels(epochs, select_fine_labels, label_map, ratio):
 
 def normalize():
     train_ds = cifar.CIFAR100(data_config['ds_root'], train=True, coarse=True)
-    select_fine_labels = data_config['train_label']
-    train_ds = get_subset_by_labels(train_ds, select_fine_labels)
+    select_fine_labels = data_config['select_fine_labels']
+    if len(select_fine_labels) > 0:
+        train_ds = get_subset_by_labels(train_ds, select_fine_labels)
     r, g, b = [], [], []
     train_size = len(train_ds)
     for idx in range(train_size):
