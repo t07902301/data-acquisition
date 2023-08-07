@@ -2,14 +2,14 @@ from utils.strategy import *
 from utils.set_up import *
 import utils.statistics.data as DataStat
 def run(ds:Dataset.DataSplits, model_config:Config.OldModel, train_flag:bool, detect_instruction:Config.Detection):
-    base_model = Model.prototype_factory(model_config.base_type, model_config.class_number, detect_instruction.vit)
+    
+    base_model = Model.factory(model_config.base_type, model_config.class_number, detect_instruction.vit)
+
     if train_flag:
-        if model_config.base_type == 'svm':
-            base_model.train(ds.loader['train'])
-        else:
-            base_model.train(ds.loader['train'], ds.loader['val'])
+        base_model.train(ds.loader['train'], ds.loader['val'])
     else:
         base_model.load(model_config.path, model_config.device)
+    
     # Evaluate
     acc = base_model.acc(ds.loader['test'])
     acc_shift = base_model.acc(ds.loader['test_shift'])
@@ -26,7 +26,8 @@ def run(ds:Dataset.DataSplits, model_config:Config.OldModel, train_flag:bool, de
     if train_flag:
         base_model.save(model_config.path)
 
-    check_labels = Dataset.data_config['remove_fine_labels'][model_config.model_dir]
+    task_id = model_config.model_dir[:3]
+    check_labels = Dataset.data_config['remove_fine_labels'][task_id]
     shift_score = DataStat.mis_label_stat('val_shift', ds, base_model, check_labels)
 
     return acc, acc_shift, detect_prec, shift_score
