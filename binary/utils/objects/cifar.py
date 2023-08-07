@@ -206,7 +206,21 @@ class ModifiedDataset(data.Dataset):
         img, coarse_label, fine_label, real_idx = self.dataset[index]
         coarse_label = self.coarse_label_transform[coarse_label]
         return img, coarse_label, fine_label, real_idx
-    
+
+class Novelty(data.Dataset):
+    def __init__(self, dataset, cover_labels):
+        super().__init__()
+        self.dataset = dataset
+        self.labels = cover_labels
+    def __len__(self):
+        return len(self.dataset)
+    def __getitem__(self, index):
+        img, coarse_label, fine_label, real_idx = self.dataset[index]
+        if fine_label in self.labels:
+            novelty = 0
+        else:
+            novelty = 1
+        return img, novelty, index
 ## TODO base transform makes images tensor and not be further transformed
 # class Subset(data.Dataset):
 #     r"""

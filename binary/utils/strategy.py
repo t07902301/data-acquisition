@@ -12,6 +12,7 @@ import utils.statistics.data as DataStat
 import utils.statistics.partitioner as Partitioner
 import utils.statistics.distribution as Distribution
 from utils.env import data_split_env
+import utils.ood as OOD
 
 #TODO add info class with base model and dataset, make strategy class more purified. 
 
@@ -53,7 +54,15 @@ class WorkSpace():
 
     def reset(self, new_batch_size, clip_processor):
         self.set_up(new_batch_size, clip_processor)
-        
+        self.data_split.replace('market', self.market_dataset) # For OOD
+        print('Market size:', len(self.data_split.dataset['market']))
+
+    def set_market(self, clip_processor, known_labels):
+
+        cover_market_dataset = OOD.run(self.data_split, clip_processor, known_labels)
+
+        self.market_dataset = cover_market_dataset
+
 class Strategy():
     def __init__(self) -> None:
         pass
@@ -75,6 +84,7 @@ class Strategy():
     def get_new_data_info(self, operation: Config.Operation, workspace:WorkSpace):
 
         new_data_indices, detector = self.get_new_data_indices(operation, workspace)
+
         return {
             'data': torch.utils.data.Subset(workspace.data_split.dataset['market'], new_data_indices),
             'indices': new_data_indices,
@@ -101,6 +111,12 @@ class Strategy():
         else:
             workspace.base_model.update(new_model_config, workspace.data_split.loader['train_non_cnn'], workspace.validation_loader)
 
+    def update_dataset(self, new_model_config: Config.NewModel, workspace: WorkSpace, acquisition:Config.Acquisition, new_data):
+        if new_model_config.base_type == 'cnn':
+            workspace.data_split.use_new_data(new_data, new_model_config, acquisition, target_name='train')
+        else:
+            workspace.data_split.use_new_data(new_data, new_model_config, acquisition, target_name='train_non_cnn')
+
 class NonSeqStrategy(Strategy):
     def __init__(self) -> None:
         super().__init__()
@@ -113,7 +129,8 @@ class NonSeqStrategy(Strategy):
         workspace.reset(new_model_config.new_batch_size, operation.detection.vit)
 
         new_data_info = self.get_new_data_info(operation, workspace)
-        workspace.data_split.use_new_data(new_data_info['data'], new_model_config, operation.acquisition)
+
+        self.update_dataset(new_model_config, workspace, operation.acquisition, new_data_info['data'])
 
         new_model_config.set_path(operation)
 
@@ -123,11 +140,11 @@ class NonSeqStrategy(Strategy):
 
         self.export_indices(new_model_config, operation.acquisition, new_data_info['indices'], operation.stream)
 
-        # gts = []
-        # new_data_total_set = new_data_info['data']
-        # for idx in range(len(new_data_total_set)):
-        #     gts.append(new_data_total_set[idx][1])
-        # print(np.array(gts).mean(), len(gts))
+        # # gts = []
+        # # new_data_total_set = new_data_info['data']
+        # # for idx in range(len(new_data_total_set)):
+        # #     gts.append(new_data_total_set[idx][1])
+        # # print(np.array(gts).mean(), len(gts))
 
     def export_indices(self, model_config:Config.NewModel, acquire_instruction: Config.Acquisition, data, stream: Config.Stream):
         if model_config.check_rs(acquire_instruction.method, stream.bound) is False:
@@ -235,8 +252,7 @@ class SeqCLF(Strategy):
         workspace.reset(new_model_config.new_batch_size, operation.detection.vit)
         workspace.set_validation(operation.stream, new_model_config.batch_size, new_model_config.new_batch_size, last_clf, operation.detection)
 
-        # train model 
-        workspace.data_split.use_new_data(new_data_total_set, new_model_config, operation.acquisition)
+        self.update_dataset(new_model_config, workspace, operation.acquisition, new_data_total_set)
 
         self.update_model(new_model_config, workspace)
 
