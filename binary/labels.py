@@ -22,17 +22,30 @@ mapping = {
 'vehicles 2': ['lawn_mower', 'rocket', 'streetcar', 'tank', 'tractor'],
 }
 
-select_coarse_labels = ['flowers', 'people']
-coarse_labels = list(mapping.keys())
-print([coarse_labels.index(label) for label in select_coarse_labels])
-select_fine_labels = []
-for label in select_coarse_labels:
-    select_fine = mapping[label]
-    select_fine_labels += [fine_labels.index(i) for i in select_fine]
-print(select_fine_labels)
+# select_coarse_labels = ['large omnivores and herbivores', 'small mammals', 'large carnivores', 'medium-sized mammals']
+# coarse_labels = list(mapping.keys())
+# # print([coarse_labels.index(label) for label in select_coarse_labels])
 
-select_fine_labels = ['wolf', 'fox']
-print([fine_labels.index(label) for label in select_fine_labels])
+# for coarse in select_coarse_labels:
+#     print(coarse_labels.index(coarse))
+#     select_fine_labels = mapping[coarse]
+#     print( [fine_labels.index(label) for label in select_fine_labels])
+
+select_fine_labels = ['bicycle', 'lawn_mower']
+print( [fine_labels.index(label) for label in select_fine_labels])
+
+# # Coverage
+# select_fine_labels = ['bus', 'tank']
+# print('src:', [fine_labels.index(label) for label in select_fine_labels])
+
+# select_fine_labels = ['streetcar', 'train', ]
+# print('target:', [fine_labels.index(label) for label in select_fine_labels])
+
+# select_fine_labels = ['motorcycle','rocket', 'bicycle', 'lawn_mower',  'pickup_truck',  'tractor']
+# print('intersect:', [fine_labels.index(label) for label in select_fine_labels])
+
+# select_fine_labels = [3, 97, 34, 63, 43, 64]
+# print([fine_labels[label] for label in select_fine_labels])
 
 # label_map = {}
 # labels = [3, 42, 43, 88, 97, 34, 63, 64, 66, 75]
