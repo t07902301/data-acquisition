@@ -1,10 +1,10 @@
 import numpy as np
 import torch
-def get_loader_labels(dataloader):
-    gts = []
-    for batch_info in dataloader:
-        gts.append(batch_info[1])
-    return torch.cat(gts).numpy()
+# def get_loader_labels(dataloader):
+#     gts = []
+#     for batch_info in dataloader:
+#         gts.append(batch_info[1])
+#     return torch.cat(gts).numpy()
 
 def extract_class_indices(cls_label, ds_labels):
     '''
@@ -15,8 +15,8 @@ def extract_class_indices(cls_label, ds_labels):
     cls_indices = ds_indices[cls_mask]
     return cls_indices
         
-def sample_acquire(values, sample_size):
-    indices = np.arange(len(values))
+def sample(indices, sample_size):
+    print(len(indices), sample_size)
     return np.random.choice(indices,sample_size,replace=False)
 
 def dummy_acquire(cls_gt, cls_pred, method, img_num):
@@ -26,7 +26,7 @@ def dummy_acquire(cls_gt, cls_pred, method, img_num):
         result_mask = cls_gt == cls_pred
     result_mask_indices = np.arange(len(result_mask))[result_mask]
     if result_mask.sum() > img_num:
-        new_img_indices = sample_acquire(result_mask_indices,img_num)
+        new_img_indices = sample(result_mask_indices,img_num)
     else:
         print('class result_mask_indices with a length',len(result_mask_indices))
         new_img_indices = result_mask_indices
