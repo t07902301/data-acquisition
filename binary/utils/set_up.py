@@ -5,9 +5,9 @@ import os
 import pickle as pkl
 from utils.env import data_split_env
 
-def save_dataset(epochs, select_fine_labels, label_map, ratio, task_id):
+def save_dataset(epochs, config, task_id):
     data_split_env()
-    ds_list, normalize_stat = Dataset.get_data_splits_list(epochs, select_fine_labels, label_map, ratio)
+    ds_list, normalize_stat = Dataset.get_data_splits_list(epochs, config)
     data_root = os.path.join('data', task_id)
     Config.check_dir(data_root)
     for idx, ds in enumerate(ds_list):
@@ -17,6 +17,10 @@ def save_dataset(epochs, select_fine_labels, label_map, ratio, task_id):
             f.close()
         print(data_path, 'saved')
     save_stat(normalize_stat, data_root)
+
+    split_data = ds
+    for spit_name in split_data.keys():
+        print(spit_name, len(split_data[spit_name]))
 
 def save_stat(stat_dict, data_root):
     stat_path = os.path.join(data_root, 'normalize_stat.pt')
@@ -34,13 +38,14 @@ def load_stat(model_dir):
         f.close()
     return normalize_stat
 
-def load_dataset(epochs, remove_rate, model_dir, select_fine_labels):
-    task_id, sub_task_id = model_dir[:2], model_dir[:3]
-    data_root = os.path.join('data', task_id)
+def load_dataset(epochs, model_dir, data_config):
+    data_root = os.path.join('data', model_dir)
     ds_list = []
-    remove_labels = Dataset.data_config['remove_fine_labels'][sub_task_id]
+    remove_labels = data_config['remove_fine_labels']
+    remove_rate = data_config['ratio']['remove_rate']
     print('Removed Labels:', remove_labels)
-    old_labels = list(set(select_fine_labels) - set(remove_labels))
+    old_labels = list(set(data_config['select_fine_labels']) - set(remove_labels))
+
     for idx in range(epochs):
         data_path = os.path.join(data_root, '{}.pt'.format(idx))
         with open(data_path, 'rb') as f:
@@ -50,33 +55,51 @@ def load_dataset(epochs, remove_rate, model_dir, select_fine_labels):
         ds_list.append(final_dict)
     return ds_list
 
-def load_cover_dataset(epochs, remove_rate, model_dir, select_fine_labels):
-    task_id, sub_task_id = model_dir[:2], model_dir[:3]
-    data_root = os.path.join('data', task_id)
+def load_cover_dataset(epochs, model_dir, data_config):
+    data_root = os.path.join('data', model_dir)
     ds_list = []
-    cover_labels = Dataset.data_config['cover_labels'][sub_task_id]
+    remove_labels = data_config['remove_fine_labels']
+    remove_rate = data_config['ratio']['remove_rate']
+    cover_labels = data_config['cover_labels']
     print('Covered Labels:', cover_labels)
+    old_labels = list(set(data_config['select_fine_labels']) - set(remove_labels))
+
     for idx in range(epochs):
         data_path = os.path.join(data_root, '{}.pt'.format(idx))
         with open(data_path, 'rb') as f:
             ds_dict = pkl.load(f) 
         print(data_path, 'loaded')
-        final_dict = Dataset.load_cover_dataset(ds_dict, remove_rate, cover_labels, select_fine_labels)    
+        final_dict = Dataset.load_cover_dataset(ds_dict, remove_rate, cover_labels, old_labels)    
+
         ds_list.append(final_dict)
     return ds_list
+
+import yaml
+
+def load_config(model_dir):
+    config_path = os.path.join('log', model_dir, 'config.yaml')
+    with open(config_path, 'r') as file:
+        config = yaml.safe_load(file)
+        file.close()
+
+    # max_subclass_num = config['hparams']['subclass']
+    return config
 
 def set_up(epochs, model_dir, device_id=0):
     data_split_env()
     normalize_stat = load_stat(model_dir)
-    batch_size, total_labels, new_img_num_list, superclass_num, ratio, seq_rounds_config = Config.parse()
+
+    config = load_config(model_dir)
+
     device_config = 'cuda:{}'.format(device_id)
     torch.cuda.set_device(device_config)
-    task_id = model_dir[:2]
-    select_fine_labels = total_labels[task_id]['select_fine_labels']
-    label_map = total_labels[task_id]['label_map']
+
+    select_fine_labels = config['data']['select_fine_labels']
+    label_map = config['data']['label_map']
     print('Label Map:', label_map)
     print('select_fine_labels:', select_fine_labels)
-    # ds_list = load_dataset(epochs, ratio['remove_rate'], model_dir, select_fine_labels)
-    ds_list = load_cover_dataset(epochs, ratio['remove_rate'], model_dir, select_fine_labels)
 
-    return batch_size, new_img_num_list, superclass_num, seq_rounds_config, device_config, ds_list, normalize_stat
+    ds_list = load_dataset(epochs, model_dir, config['data'])
+    # ds_list = load_cover_dataset(epochs, model_dir, config['data'])
+
+    return config, device_config, ds_list, normalize_stat

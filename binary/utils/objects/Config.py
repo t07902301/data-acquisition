@@ -1,5 +1,4 @@
 import os
-from utils import config
 from abc import abstractmethod
 
 class Stream():
@@ -97,7 +96,7 @@ class ModelConfig():
         self.batch_size = batch_size
         self.class_number = class_number
         self.model_dir = model_dir
-        self.root = os.path.join(config['base_root'], model_dir, base_type, str(batch_size))
+        self.root = os.path.join('model/', model_dir, base_type, str(batch_size))
         check_dir(self.root)
         self.device = device
         self.base_type = base_type
@@ -164,26 +163,3 @@ def str2bool(value):
     
 def str2float(value):
     return float(value)
-
-def parse():
-    hparams = config['hparams']
-    base_batch_size = hparams['batch_size']['base']
-    new_batch_size = hparams['batch_size']['new']
-    data_config = config['data']
-    total_labels = data_config['total_labels']
-    n_new_data = data_config['n_new_data']
-    img_per_cls_list = n_new_data
-    superclass_num = hparams['superclass']
-    ratio = data_config['ratio']
-    seq_rounds = 2
-    batch_size = {
-        'base': base_batch_size,
-        'new': new_batch_size
-    }
-    output = {
-        'ratio': ratio['remove_rate'],
-        'svm_kernel': config['clf_args']['kernel'],
-        'superclass': superclass_num,
-    }
-    print(output)
-    return batch_size, total_labels, img_per_cls_list, superclass_num, ratio, seq_rounds 

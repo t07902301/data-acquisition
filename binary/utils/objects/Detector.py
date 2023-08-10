@@ -2,24 +2,22 @@ import sys
 sys.path.append('..')
 import numpy as np
 import utils.detector.wrappers as wrappers
-from utils import config
 import utils.objects.model as Model
-import utils.objects.dataset as Dataset
 from abc import abstractmethod
 import utils.objects.data_transform as DataTransform
 
-def statistics(values, stat_type, n_data_list = None):
+def statistics(values, n_data_list = None):
     '''
     pretrained model | seq_clf\n
     score/precision: (epoch, value)
     '''
     values = np.array(values)
     if n_data_list is None:
-        print('Distribution Classifier Average Precision {}: {}%'.format(stat_type, np.round(np.mean(values), decimals=3).tolist()))
+        print('Distribution Classifier Average Precision: {}%'.format(np.round(np.mean(values), decimals=3).tolist()))
     else: 
         for idx, n_data in enumerate(n_data_list):
             print('#new data:', n_data)       
-            print('Distribution Classifier Average Precision {}: {}%'.format(stat_type, np.round(np.mean(values[:,idx]), decimals=3).tolist()))
+            print('Distribution Classifier Average Precision: {}%'.format(np.round(np.mean(values[:,idx]), decimals=3).tolist()))
 
 def precision(clf, clip_processor, dataloader, base_model):
     data_clip = clip_processor.evaluate_clip_images(dataloader)
@@ -53,7 +51,7 @@ class Prototype():
         print('{} log load from {}'.format('Detector', path))
         
 class SVM(Prototype):
-    def __init__(self, clip_processor:wrappers.CLIPProcessor, split_and_search=True, data_transform = 'clip') -> None:
+    def __init__(self, config, clip_processor:wrappers.CLIPProcessor, split_and_search=True, data_transform = 'clip') -> None:
         super().__init__(data_transform)
         self.clip_processor = clip_processor
         self.model = wrappers.SVM(args=config['clf_args'], cv=config['clf_args']['k-fold'], split_and_search = split_and_search, do_normalize=True, do_standardize=False)
@@ -74,7 +72,7 @@ class SVM(Prototype):
         return dv, metric 
 
 class LogRegressor(Prototype):
-    def __init__(self, data_transform: str, clip_processor:wrappers.CLIPProcessor) -> None:
+    def __init__(self, config, data_transform: str, clip_processor:wrappers.CLIPProcessor) -> None:
         super().__init__(data_transform)
         self.clip_processor = clip_processor
         self.model = wrappers.LogRegressor(do_normalize=True, do_standardize=False)
@@ -89,11 +87,11 @@ class LogRegressor(Prototype):
         conf_distance, metrics = self.model.predict(latent, correctness, compute_metrics)
         return conf_distance, metrics     
     
-def factory(detector_type, clip_processor:wrappers.CLIPProcessor, split_and_search=True, data_transform = 'clip'):
+def factory(detector_type, config, clip_processor:wrappers.CLIPProcessor, split_and_search=True, data_transform = 'clip'):
     if detector_type == 'svm':
-        return SVM(clip_processor, split_and_search, data_transform)
+        return SVM(config, clip_processor, split_and_search, data_transform)
     elif detector_type == 'logregs':
-        return LogRegressor(data_transform, clip_processor)
+        return LogRegressor(config, data_transform, clip_processor)
     # elif detector_type == 'resnet':
     #     return resnet()
     # else:

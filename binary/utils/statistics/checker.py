@@ -1,3 +1,4 @@
+import binary.utils.objects.Config as Config
 import utils.objects.Config as Config
 import utils.objects.model as Model
 import utils.objects.Detector as Detector
@@ -16,8 +17,9 @@ class prototype():
     '''
     Decide what to test the new and the old model
     '''
-    def __init__(self,model_config:Config.NewModel) -> None:
+    def __init__(self,model_config:Config.NewModel, general_config) -> None:
         self.model_config = model_config
+        self.general_config = general_config
     @abstractmethod
     def run(self, operation:Config.Operation):
         '''
@@ -28,9 +30,9 @@ class prototype():
         '''
         Use the old model and data split to set up a prototype (for each epoch) -> base_model, clf/detector, anchor loader
         '''
-        self.base_model = Model.factory(old_model_config.base_type, old_model_config.class_number, operation.detection.vit)
+        self.base_model = Model.factory(old_model_config.base_type, self.general_config, operation.detection.vit)
         self.base_model.load(old_model_config.path, old_model_config.device)
-        self.clf = Detector.factory(operation.detection.name, clip_processor = operation.detection.vit)
+        self.clf = Detector.factory(operation.detection.name, self.general_config, clip_processor = operation.detection.vit)
         self.clf.fit(self.base_model, datasplits.loader['val_shift'])
         self.anchor_loader = datasplits.loader['val_shift']
 
@@ -40,9 +42,9 @@ class Partition(prototype):
     If split with threshold, then test set can get dv when setting up this checker.\n
     If split with mistakes, TBD
     '''
-    def __init__(self, model_config: Config.NewModel) -> None:
-        super().__init__(model_config)
-    
+    def __init__(self, model_config: Config.NewModel, general_config) -> None:
+        super().__init__(model_config, general_config)
+
     def setup(self, old_model_config:Config.OldModel, datasplits:Dataset.DataSplits, operation:Config.Operation, plot:bool):
         '''
         set base model, test data info and vit
@@ -65,7 +67,7 @@ class Partition(prototype):
         '''
         loader: new_model + old_model
         '''
-        new_model = Model.factory(self.model_config.base_type, self.model_config.class_number, self.vit)
+        new_model = Model.factory(self.model_config.base_type, self.general_config, self.vit)
         new_model.load(self.model_config.path, self.model_config.device)
         gt,pred,_  = new_model.eval(loader['new_model'])
         new_correct = (gt==pred)
@@ -97,8 +99,8 @@ class Partition(prototype):
         return acc_change
 
 class Probability(Partition):
-    def __init__(self, model_config: Config.NewModel) -> None:
-        super().__init__(model_config)  
+    def __init__(self, model_config: Config.NewModel, general_config) -> None:
+        super().__init__(model_config, general_config)
    
     def mistake_stat(self, dataloader, loader_name=None, plot=False, plot_name=None, pdf=None):
         cor_dv = DataStat.get_correctness_dv(self.base_model, dataloader, self.clf, correctness=True)
@@ -171,8 +173,8 @@ class Probability(Partition):
         print('Save fig to {}'.format(fig_name))
 
 class Ensemble(Partition):
-    def __init__(self, model_config: Config.NewModel) -> None:
-        super().__init__(model_config)
+    def __init__(self, model_config: Config.NewModel, general_config) -> None:
+        super().__init__(model_config, general_config)
     
     def setup(self, old_model_config:Config.OldModel, datasplits:Dataset.DataSplits, operation:Config.Operation, plot:bool):
         super().setup(old_model_config, datasplits, operation, plot)
@@ -201,8 +203,8 @@ class Ensemble(Partition):
         return torch.concat(gts).numpy()
     
 class AverageEnsemble(Ensemble):
-    def __init__(self, model_config: Config.NewModel) -> None:
-        super().__init__(model_config)
+    def __init__(self, model_config: Config.NewModel, general_config) -> None:
+        super().__init__(model_config, general_config)
 
     def get_weight(self, size):
         return np.repeat([0.5], size).reshape((size,1))
@@ -210,7 +212,7 @@ class AverageEnsemble(Ensemble):
     def _target_test(self, dataloader):
         gts = self.get_gts(dataloader)
         size = len(gts)
-        new_model = Model.factory(self.model_config.base_type, self.model_config.class_number, self.vit)
+        new_model = Model.factory(self.model_config.base_type, self.general_config, self.vit)
         new_model.load(self.model_config.path, self.model_config.device)  
         new_probab = self.get_decision(new_model, dataloader)
         old_probab = self.get_decision(self.base_model, dataloader)
@@ -229,8 +231,8 @@ class AverageEnsemble(Ensemble):
         return final_acc - self.base_acc   
      
 class DstrEnsemble(Ensemble):
-    def __init__(self, model_config: Config.NewModel) -> None:
-        super().__init__(model_config)
+    def __init__(self, model_config: Config.NewModel, general_config) -> None:
+        super().__init__(model_config, general_config)
     
     def get_correctness_dstr(self, dataloader, pdf_type, correctness):
         dstr = Distribution.get_correctness_dstr(self.base_model, self.clf, dataloader, pdf_type, correctness=correctness)
@@ -248,7 +250,7 @@ class DstrEnsemble(Ensemble):
         size = len(gts)
         dv, _ = self.clf.predict(dataloader, self.base_model)  
         decision_maker = Decision.factory(self.model_config.base_type, self.model_config.class_number)
-        new_model = Model.factory(self.model_config.base_type, self.model_config.class_number, self.vit)
+        new_model = Model.factory(self.model_config.base_type, self.general_config, self.vit)
         new_model.load(self.model_config.path, self.model_config.device)  
         new_probab = decision_maker.get(new_model, dataloader)
         old_probab = decision_maker.get(self.base_model, dataloader)
@@ -296,35 +298,39 @@ class DstrEnsemble(Ensemble):
 #     def ensemble_probab(self, dataloader, new_probab, old_probab):
 #         return max(new_probab, old_probab)
     
-def factory(name, new_model_config):
+def factory(name, new_model_config, general_config):
     if name == 'subset':
-        checker = Partition(new_model_config)
+        checker = Partition(new_model_config, general_config)
     elif name == 'probab':
-        checker = Probability(new_model_config)
+        checker = Probability(new_model_config, general_config)
     elif name == 'dstr':
-        checker = DstrEnsemble(new_model_config)
+        checker = DstrEnsemble(new_model_config, general_config)
     elif name == 'avg':
-        checker = AverageEnsemble(new_model_config)
+        checker = AverageEnsemble(new_model_config, general_config)
     # elif name == 'max_dstr':
     #     checker = MaxDstr(new_model_config)
     # elif name == 'max_avg':
     #     checker = MaxAverage(new_model_config)
     else:
-        checker = prototype(new_model_config)
+        checker = prototype(new_model_config, general_config)
     return checker
 
-def get_configs(epoch, parse_args, dataset):
-    batch_size, superclass_num,model_dir, device_config, base_type, pure, new_model_setter, seq_rounds_config, dev_name = parse_args
+def get_configs(epoch, parse_param, dataset):
+    model_dir, device_config, base_type, pure, new_model_setter, general_config = parse_param
+
+    batch_size = general_config['hparams']['batch_size']
+    superclass_num = general_config['hparams']['superclass']
+
     old_model_config = Config.OldModel(batch_size['base'], superclass_num, model_dir, device_config, epoch, base_type=base_type)
     # new_model_dir = model_dir[:2] if dev_name == 'sm' else model_dir
     new_model_dir = model_dir # For imbalanced test and market filtering
     new_model_config = Config.NewModel(batch_size['base'], superclass_num, new_model_dir, device_config, epoch, pure, new_model_setter, batch_size['new'], base_type=base_type)
     dataset_splits = Dataset.DataSplits(dataset, old_model_config.batch_size)
-    return old_model_config, new_model_config, dataset_splits
+    return old_model_config, new_model_config, dataset_splits, general_config
 
 def instantiate(epoch, parse_args, dataset, operation: Config.Operation, plot=True):
-    old_model_config, new_model_config, dataset_splits = get_configs(epoch, parse_args, dataset)
-    checker = factory(operation.stream.name, new_model_config)
+    old_model_config, new_model_config, dataset_splits, general_config = get_configs(epoch, parse_args, dataset)
+    checker = factory(operation.stream.name, new_model_config, general_config)
     checker.setup(old_model_config, dataset_splits, operation, plot)
     return checker
 

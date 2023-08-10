@@ -6,17 +6,16 @@ import failure_directions.src.trainer as trainer_utils
 import torch
 from torch.cuda.amp import autocast
 import torch.nn as nn
-from utils import config
 import utils.detector.wrappers as wrappers
 from abc import abstractmethod
 from utils.env import model_env
-hparams = config['hparams']
 import utils.objects.data_transform as DataTransform
 
 class prototype():
-    @abstractmethod
-    def __init__(self) -> None:
+    def __init__(self, config) -> None:
         self.model = None
+        self.config = config
+
     @abstractmethod
     def eval(self, dataloader):
         '''
@@ -40,13 +39,13 @@ class prototype():
         return (gts==preds).mean()*100
 
 class CNN(prototype):
-    def __init__(self, num_class, use_pretrained=False) -> None:
-        super().__init__()
+    def __init__(self, config, use_pretrained=False) -> None:
+        super().__init__(config)
         model_env()
-        build_fn = model_utils.BUILD_FUNCTIONS[hparams['arch_type']] # init model factory
-        self.model = build_fn(hparams['arch'], num_class, use_pretrained)
+        build_fn = model_utils.BUILD_FUNCTIONS[self.config['hparams']['arch_type']] # init model factory
+        self.model = build_fn(self.config['hparams']['arch'], self.config['hparams']['superclass'], use_pretrained)
         self.model = self.model.cuda() # attach to current cuda
-        self.bce = (num_class==1)
+        self.bce = (self.config['hparams']['superclass']==1)
 
     def load(self, path, device):
         out = torch.load(path, map_location=device)
@@ -92,10 +91,10 @@ class CNN(prototype):
 
     def train(self, train_loader, val_loader, log_model=False, model_save_path='', data_weights=None):
         '''return the last checkpoint'''
-        training_args=hparams['training']
-        training_args['optimizer'] = hparams['optimizer']
+        training_args=self.config['hparams']['training']
+        training_args['optimizer'] = self.config['hparams']['optimizer']
         training_args['iters_per_epoch'] = len(train_loader)
-        trainer = trainer_utils.LightWeightTrainer(training_args=hparams['training'],
+        trainer = trainer_utils.LightWeightTrainer(training_args=self.config['hparams']['training'],
                                                         exp_name=model_save_path, enable_logging=log_model,
                                                         bce=self.bce, set_device=True, loss_upweight_vec=data_weights)
         best_model_chkpnt = trainer.fit(self.model, train_loader, val_loader)
@@ -103,8 +102,8 @@ class CNN(prototype):
 
     def tune(self,train_loader,val_loader, weights=None,log_model=False,model_save_path=''):
         '''return the best checkpoint'''
-        training_args=hparams['tuning']
-        training_args['optimizer'] = hparams['optimizer']
+        training_args=self.config['hparams']['tuning']
+        training_args['optimizer'] = self.config['hparams']['optimizer']
         training_args['iters_per_epoch'] = len(train_loader)
         trainer = trainer_utils.LightWeightTrainer(training_args=training_args,
                                                         exp_name=model_save_path, enable_logging=log_model,
@@ -126,11 +125,11 @@ class CNN(prototype):
             self.train(train_loader,val_loader) # retrain 
 
 class svm(prototype):
-    def __init__(self, clip_processor:wrappers.CLIPProcessor, split_and_search=True, transform='clip') -> None:
-        super().__init__()
+    def __init__(self, config, clip_processor:wrappers.CLIPProcessor, split_and_search=True, transform='clip') -> None:
+        super().__init__(config)
         self.transform = transform
         self.clip_processor = clip_processor
-        self.model = wrappers.SVM(args=config['clf_args'], cv=config['clf_args']['k-fold'], split_and_search = split_and_search, do_normalize=True, do_standardize=False)
+        self.model = wrappers.SVM(args=self.config['clf_args'], cv=self.config['clf_args']['k-fold'], split_and_search = split_and_search, do_normalize=True, do_standardize=False)
 
     def eval(self, dataloader):
         latent, gts = DataTransform.get_latent(dataloader, self.clip_processor, self.transform)
@@ -138,7 +137,7 @@ class svm(prototype):
         _, distance, _ = self.model.predict(latent)
         return gts, preds, distance
 
-    def train(self, train_loader, val_loader):
+    def train(self, train_loader):
         latent, gts = DataTransform.get_latent(train_loader, self.clip_processor, self.transform)
         self.model.set_preprocess(latent)  #TODO take the mean and std assumed norm dstr
         _ = self.model.fit(latent, gts)
@@ -151,17 +150,17 @@ class svm(prototype):
         self.model.import_model(path)
         print('model load from {}'.format(path))
     
-    def update(self, new_model_config, train_loader, val_loader):
+    def update(self, new_model_config, train_loader):
         print('Updating model has train loader of size:', DataTransform.get_dataloader_size(train_loader))
 
-        self.train(train_loader, val_loader)
+        self.train(train_loader)
 
 class LogReg(prototype):
-    def __init__(self, clip_processor:wrappers.CLIPProcessor, split_and_search=True, transform='clip') -> None:
-        super().__init__()
+    def __init__(self, config, clip_processor:wrappers.CLIPProcessor, split_and_search=True, transform='clip') -> None:
+        super().__init__(config)
         self.transform = transform
         self.clip_processor = clip_processor
-        self.model = wrappers.LogRegressor(cv=config['clf_args']['k-fold'], split_and_search = split_and_search, do_normalize=True, do_standardize=False)
+        self.model = wrappers.LogRegressor(cv=self.config['clf_args']['k-fold'], split_and_search = split_and_search, do_normalize=True, do_standardize=False)
 
     def eval(self, dataloader):
         latent, gts = DataTransform.get_latent(dataloader, self.clip_processor, self.transform)
@@ -169,7 +168,7 @@ class LogReg(prototype):
         _, distance, _ = self.model.predict(latent)
         return gts, preds, distance
 
-    def train(self, train_loader, val_loader):
+    def train(self, train_loader):
         latent, gts = DataTransform.get_latent(train_loader, self.clip_processor, self.transform)
         self.model.set_preprocess(latent)  #TODO take the mean and std assumed norm dstr
         _ = self.model.fit(latent, gts)
@@ -182,17 +181,17 @@ class LogReg(prototype):
         self.model.import_model(path)
         print('model load from {}'.format(path))
     
-    def update(self, new_model_config, train_loader, val_loader):
-        self.train(train_loader, val_loader)
+    def update(self, new_model_config, train_loader):
+        self.train(train_loader)
 
-def factory(base_type, cls_num, clip_processor=None):
+def factory(base_type, config, clip_processor=None):
     assert clip_processor != None
     if base_type == 'svm':
-        return svm(clip_processor)
+        return svm(config, clip_processor)
     elif base_type == 'logreg':
-        return LogReg(clip_processor)
+        return LogReg(config, clip_processor)
     else:
-        return CNN(cls_num)
+        return CNN(config)
     
 import numpy as np
 class ensembler(prototype):
