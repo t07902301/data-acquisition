@@ -1,14 +1,11 @@
 import torchvision.transforms as transforms
-from utils import config
 import torch
 import numpy as np
 from utils.env import generator
 import utils.objects.cifar as cifar
 import utils.objects.Config as Config
 
-data_config = config['data']
-
-max_subclass_num = config['hparams']['subclass']
+n_workers = 1
 
 class DataSplits():
     dataset: dict
@@ -19,7 +16,7 @@ class DataSplits():
         self.loader = {
             k: torch.utils.data.DataLoader(self.dataset[k], batch_size=batch_size, 
                                         shuffle=(k=='train'), drop_last=(k=='train'),
-                                        num_workers=config['num_workers'],generator=generator)
+                                        num_workers=n_workers,generator=generator)
             for k in self.dataset.keys()
         }        
         self.batch_size = batch_size
@@ -44,7 +41,7 @@ class DataSplits():
         generator.manual_seed(0)        
         self.loader[split_name] = torch.utils.data.DataLoader(self.dataset[split_name], batch_size= self.batch_size, 
                                                               shuffle=(split_name=='train'), drop_last=(split_name=='train'),
-                                                              num_workers=config['num_workers'],generator=generator)
+                                                              num_workers=n_workers, generator=generator)
         
     def replace(self, replaced_name, new_data):
         self.dataset[replaced_name] = new_data
@@ -64,7 +61,7 @@ class DataSplits():
 def load_dataset(ds_dict, remove_rate, remove_labels, old_labels=None):
     train_remove_rate = remove_rate['train']
     test_remove_rate = remove_rate['test']
-    market_remove_rate = remove_rate['market']
+
     _, old_train = split_dataset(ds_dict['train'], remove_labels, train_remove_rate)
     _, old_val = split_dataset(ds_dict['val_shift'], remove_labels, train_remove_rate)
     _, old_test = split_dataset(ds_dict['test_shift'], remove_labels, train_remove_rate)
@@ -74,11 +71,6 @@ def load_dataset(ds_dict, remove_rate, remove_labels, old_labels=None):
         _, test = split_dataset(ds_dict['test_shift'], old_labels, test_remove_rate)
     else:
         val, test = ds_dict['val_shift'], ds_dict['test_shift']
-    
-    if market_remove_rate != None:
-        _, market = split_dataset(ds_dict['market'], remove_labels, market_remove_rate)
-    else:
-        market = ds_dict['market']
 
     return {
         'train': old_train,
@@ -87,13 +79,12 @@ def load_dataset(ds_dict, remove_rate, remove_labels, old_labels=None):
         'test': old_test,
         'val_shift': val,
         'test_shift': test,
-        'market': market
+        'market': ds_dict['market']
     }
 
 def load_cover_dataset(ds_dict, remove_rate, cover_labels, old_labels=None):
     train_remove_rate = remove_rate['train']
     test_remove_rate = remove_rate['test']
-    market_remove_rate = remove_rate['market']
 
     old_train, _ = split_dataset(ds_dict['train'], cover_labels['src'], train_remove_rate)
     old_val, _ = split_dataset(ds_dict['val_shift'], cover_labels['src'], train_remove_rate)
@@ -118,15 +109,21 @@ def load_cover_dataset(ds_dict, remove_rate, cover_labels, old_labels=None):
         'train_non_cnn': old_train,
         'market': ds_dict['market'],
         # 'market': market_target,
-        # 'market_target': market_target
     }
 
-def create_dataset(select_fine_labels, ratio, mean, std):
+def create_dataset( mean, std, config):
     # When all classes are used, only work on removal
     # When some classes are neglected, test set and the big train set will be shrank.
+    data_config = config['data']
+    ratio = data_config['ratio']
+    select_fine_labels = data_config['select_fine_labels']
+    max_subclass_num = config['hparams']['subclass']
+
     train_ds, test_ds = get_raw_ds(data_config['ds_root'], mean, std)
+
     train_size = ratio["train_size"]
     market_size = ratio["market_size"]
+    val_size = ratio['val_size']
 
     if len(select_fine_labels)>0:
         train_ds = get_subset_by_labels(train_ds, select_fine_labels)
@@ -136,7 +133,7 @@ def create_dataset(select_fine_labels, ratio, mean, std):
     
     train_ds, market_ds = split_dataset(train_ds, label_summary, train_size/ (train_size + market_size) )
 
-    test_ds, val_ds = split_dataset(test_ds, label_summary, 0.5)
+    val_ds, test_ds = split_dataset(test_ds, label_summary, val_size)
 
     ds = {}
     # modified_labels = list(set(select_fine_labels) - set(target_test_label))
@@ -224,7 +221,7 @@ def get_labels(ds,use_fine_label=True):
     return np.array(labels)
     
 def sample_indices(indices,ratio):
-    if type(ratio) == int:
+    if type(ratio) == int and ratio!=1:
         return np.random.choice(indices,ratio,replace=False)
     else:
         return np.random.choice(indices,int(ratio*len(indices)),replace=False)
@@ -268,31 +265,27 @@ def get_split_indices(dataset_labels, target_labels, split_1_ratio):
     p2_indices = np.arange(ds_length)[mask_p2]
     return p1_indices,p2_indices
 
-def get_data_splits_list(epochs, select_fine_labels, label_map, ratio):
-    mean, std = normalize()
+def get_data_splits_list(epochs, config):
+    data_config = config['data']
+    select_fine_labels = data_config['select_fine_labels']
+    label_map = data_config['label_map']
+    dataset_root = data_config['ds_root']
+    
+    mean, std = normalize(select_fine_labels, dataset_root)
     normalize_stat = {
         'mean': mean,
         'std': std
     }
     ds_list = []
     for epo in range(epochs):
-        ds = create_dataset(select_fine_labels,ratio, mean, std)
+        ds = create_dataset(mean, std, config)
         if len(select_fine_labels) != 0 and (isinstance(label_map, dict)):
             ds = modify_coarse_label(ds, label_map)
         ds_list.append(ds)
     return ds_list, normalize_stat
 
-def check_labels(epochs, select_fine_labels, label_map, ratio):
-    for epo in range(epochs):
-        ds = create_dataset(select_fine_labels,ratio)
-        for key, value in ds.items():
-            labels = get_labels(value, False)
-            labels_sum = np.unique(labels)
-            print(key, 'coarse labels :', labels_sum)
-
-def normalize():
-    train_ds = cifar.CIFAR100(data_config['ds_root'], train=True, coarse=True)
-    select_fine_labels = data_config['select_fine_labels']
+def normalize(select_fine_labels, ds_root):
+    train_ds = cifar.CIFAR100(ds_root, train=True, coarse=True)
     if len(select_fine_labels) > 0:
         train_ds = get_subset_by_labels(train_ds, select_fine_labels)
     r, g, b = [], [], []
