@@ -9,10 +9,10 @@ from sklearn.ensemble import IsolationForest
 from sklearn.neighbors import LocalOutlierFactor
 from novelty.src.dev import dev
 
-def get_raw_novelty(dataset, cover_labels):
+def get_raw_novelty(dataset, known_labels):
     novelty = []
     for idx in range(len(dataset)):
-        label = 1 if dataset[idx][2] in cover_labels else -1
+        label = 1 if dataset[idx][2] in known_labels else -1
         novelty.append(label)
     return np.array(novelty)
 
@@ -26,9 +26,9 @@ def run(ds:Dataset.DataSplits, clip_processor, cover_labels):
 
     ref_latent, _ = Transform.get_latent(ds.loader['val_shift'], clip_processor, 'clip')
 
-    # clf = OneClassSVM(gamma='auto', kernel='rbf').fit(ref_latent)
+    clf = OneClassSVM(gamma='auto', kernel='rbf').fit(ref_latent)
     # clf = SGDOneClassSVM(random_state=0).fit(ref_latent)
-    clf = IsolationForest(random_state=0).fit(ref_latent)
+    # clf = IsolationForest(random_state=0).fit(ref_latent)
     # clf = LocalOutlierFactor(novelty=True).fit(ref_latent)
 
     test_latent, _ = Transform.get_latent(ds.loader['market'], clip_processor, 'clip')
@@ -72,12 +72,11 @@ def svd(ds:Dataset.DataSplits, cover_labels, batch_size):
     return (sklearn_metrics.balanced_accuracy_score(gt, pred)*100)
 
 def main(epochs,  model_dir =''):
-    batch_size, new_img_num_list, superclass_num, seq_rounds_config, device_config, ds_list, normalize_stat = set_up(epochs, model_dir)
+    config, device_config, ds_list, normalize_stat = set_up(epochs, model_dir, 0)
     clip_processor = Detector.load_clip(device_config, normalize_stat['mean'], normalize_stat['std'])
     odd_acc_list = []
 
-    cover_labels = Dataset.data_config['cover_labels'][model_dir]['target']
-    # cover_labels = Dataset.data_config['total_labels'][model_dir[:2]]['select_fine_labels']
+    cover_labels = config['data']['cover_labels']['target']
 
     for epo in range(epochs):
         print('in epoch {}'.format(epo))
@@ -94,9 +93,6 @@ def main(epochs,  model_dir =''):
     split_data = ds.dataset
     for spit_name in split_data.keys():
         print(spit_name, len(split_data[spit_name]))
-
-
-
 
 import argparse
 if __name__ == '__main__':
