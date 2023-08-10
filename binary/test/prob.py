@@ -61,19 +61,17 @@ def dev(epochs, dev_name, device, detector_name, model_dir, stream_name, base_ty
     elif dev_name == 'refine':
         method_list, new_model_setter, pure, probab_bound, stream_name = ['dv'], 'refine', False, 0, 'probab'
     else:
-        # method_list, probab_bound = ['conf'], 0.5 
         method_list, probab_bound = [dev_name], 0.5 
 
-    device_config = 'cuda:{}'.format(device)
-    torch.cuda.set_device(device_config)
-    batch_size, new_img_num_list, superclass_num, seq_rounds_config, device_config, ds_list, normalize_stat = set_up(epochs, model_dir, device)
+    config, device_config, ds_list, normalize_stat = set_up(epochs, model_dir, device)
     clip_processor = Detector.load_clip(device_config, normalize_stat['mean'], normalize_stat['std'])
     stream_instruction = Config.ProbabStream(bound=probab_bound, pdf='kde', name=stream_name)
     detect_instruction = Config.Detection(detector_name, clip_processor)
     acquire_instruction = Config.Acquisition()
     operation = Config.Operation(acquire_instruction, stream_instruction, detect_instruction)
-    parse_args = (batch_size, superclass_num, model_dir, device_config, base_type, pure, new_model_setter, seq_rounds_config, dev_name)
-    result, bound_stat = bound_run(epochs, parse_args, ds_list, new_img_num_list, method_list, operation)
+    parse_param = (model_dir, device_config, base_type, pure, new_model_setter, config)
+
+    result, bound_stat = bound_run(epochs, parse_param, ds_list, config['data']['n_new_data'], method_list, operation)
     result = np.array(result)
     for idx, method in enumerate(method_list):
         method_result = result[:, idx, :]
