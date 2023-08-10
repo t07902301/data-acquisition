@@ -20,15 +20,17 @@ class WorkSpace():
     '''
     Data + Base Model: reset before each strategy operation
     '''
-    def __init__(self, model_config: Config.OldModel, dataset:dict) -> None:
+    def __init__(self, model_config: Config.OldModel, dataset:dict, config) -> None:
         self.base_model_config = model_config
         self.init_dataset = dataset
+        self.general_config = config
+        self.market_dataset = None
     
     def set_up(self, new_batch_size, clip_processor):
         '''
         set up base model + datasplits
         '''
-        self.base_model = Model.factory(self.base_model_config.base_type, self.base_model_config.class_number, clip_processor=clip_processor)
+        self.base_model = Model.factory(self.base_model_config.base_type, self.general_config, clip_processor=clip_processor)
         self.base_model.load(self.base_model_config.path, self.base_model_config.device)
         copied_dataset = deepcopy(self.init_dataset)
         self.data_split = Dataset.DataSplits(copied_dataset, new_batch_size)
@@ -42,7 +44,7 @@ class WorkSpace():
 
         if clf is None and detect_instruction != None:
             # TODO unify detector args
-            clf = Detector.factory(detect_instruction.name, clip_processor = detect_instruction.vit, split_and_search=True)
+            clf = Detector.factory(detect_instruction.name, self.general_config, clip_processor = detect_instruction.vit, split_and_search=True)
             _ = clf.fit(self.base_model, self.data_split.loader['val_shift']) 
 
         correct_dstr = Distribution.get_correctness_dstr(self.base_model, clf, self.data_split.loader['val_shift'], stream_instruction.pdf, correctness=True)
@@ -54,8 +56,9 @@ class WorkSpace():
 
     def reset(self, new_batch_size, clip_processor):
         self.set_up(new_batch_size, clip_processor)
-        # self.data_split.replace('market', self.market_dataset) # For OOD
-        # print('Market size:', len(self.data_split.dataset['market']))
+        if self.market_dataset != None:
+            self.data_split.replace('market', self.market_dataset) # For OOD
+            print('Market size:', len(self.data_split.dataset['market']))
 
     def set_market(self, clip_processor, known_labels):
 
@@ -109,7 +112,7 @@ class Strategy():
         if new_model_config.base_type == 'cnn':
             workspace.base_model.update(new_model_config, workspace.data_split.loader['train'], workspace.validation_loader)
         else:
-            workspace.base_model.update(new_model_config, workspace.data_split.loader['train_non_cnn'], workspace.validation_loader)
+            workspace.base_model.update(new_model_config, workspace.data_split.loader['train_non_cnn'])
 
     def update_dataset(self, new_model_config: Config.NewModel, workspace: WorkSpace, acquisition:Config.Acquisition, new_data):
         if new_model_config.base_type == 'cnn':
@@ -160,13 +163,13 @@ class Greedy(NonSeqStrategy):
         acquistion_n_data = operation.acquisition.n_ndata
         detector_instruction = operation.detection
         detector_train_dict = {'loader': dataset_splits.loader['val_shift'], 'dataset': dataset_splits.dataset['val_shift']}
-        detector = self.get_Detector(detector_instruction, workspacce.base_model, detector_train_dict)
+        detector = self.get_Detector(detector_instruction, workspacce.base_model, detector_train_dict, workspacce.general_config)
         new_data_indices = self.run(acquistion_n_data, dataset_splits.loader['market'], detector, workspacce.base_model)
         return new_data_indices, detector  
 
-    def get_Detector(self, detector_instruction: Config.Detection, base_model: Model.prototype, validation_dict):
+    def get_Detector(self, detector_instruction: Config.Detection, base_model: Model.prototype, validation_dict, general_config):
         val_loader, val_dataset = validation_dict['loader'], validation_dict['dataset']
-        detector = Detector.factory(detector_instruction.name, clip_processor = detector_instruction.vit)
+        detector = Detector.factory(detector_instruction.name, general_config, detector_instruction.vit)
         _ = detector.fit(base_model, val_loader, val_dataset, batch_size=None)
         return detector
     
@@ -186,13 +189,14 @@ class Sample(NonSeqStrategy):
     def get_new_data_indices(self, operation:Config.Operation, workspacce:WorkSpace):
         dataset_splits = workspacce.data_split
         acquistion_n_data = operation.acquisition.n_ndata
-        new_data_indices = self.run(acquistion_n_data, dataset_splits.loader['market'])
+        new_data_indices = self.run(acquistion_n_data, dataset_splits.dataset['market'])
         clf_info = None
         return new_data_indices, clf_info      
     
-    def run(self, n_data, market_loader):
-        market_gts = acquistion.get_loader_labels(market_loader)
-        new_data_indices = acquistion.sample_acquire(market_gts, n_data)
+    def run(self, n_data, market_dataset):
+        # Market sampling does not know data subclass labels which are often inaccessible
+        market_indices = np.arange(len(market_dataset))
+        new_data_indices = acquistion.sample(market_indices, n_data)
         return new_data_indices
 
 class Confidence(NonSeqStrategy):
