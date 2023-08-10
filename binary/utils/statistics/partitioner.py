@@ -1,9 +1,9 @@
-from utils import config
 import utils.objects.Config as Config
 from abc import abstractmethod
 import numpy as np
 import torch
 from utils.statistics.distribution import disrtibution
+from utils.objects.dataset import n_workers
 
 class Prototype():
     def __init__(self) -> None:
@@ -51,8 +51,8 @@ class Probability(Prototype):
         dataset_indices = np.arange(len(data_info['dataset']))
         test_selected = torch.utils.data.Subset(data_info['dataset'],dataset_indices[selected_mask])
         remained_test = torch.utils.data.Subset(data_info['dataset'],dataset_indices[~selected_mask])
-        test_selected_loader = torch.utils.data.DataLoader(test_selected, batch_size=data_info['new_batch_size'], num_workers=config['num_workers'])
-        remained_test_loader = torch.utils.data.DataLoader(remained_test, batch_size=data_info['old_batch_size'], num_workers=config['num_workers'])       
+        test_selected_loader = torch.utils.data.DataLoader(test_selected, batch_size=data_info['new_batch_size'], num_workers=n_workers)
+        remained_test_loader = torch.utils.data.DataLoader(remained_test, batch_size=data_info['old_batch_size'], num_workers=n_workers)       
         test_loader = {
             'new_model':test_selected_loader,
             'old_model': remained_test_loader
@@ -71,14 +71,15 @@ class Threshold(Prototype):
         dataset_indices = np.arange(len(data_info['dataset']))
         test_selected = torch.utils.data.Subset(data_info['dataset'],dataset_indices[selected_mask])
         remained_test = torch.utils.data.Subset(data_info['dataset'],dataset_indices[~selected_mask])
-        test_selected_loader = torch.utils.data.DataLoader(test_selected, batch_size=data_info['new_batch_size'], num_workers=config['num_workers'])
-        remained_test_loader = torch.utils.data.DataLoader(remained_test, batch_size=data_info['old_batch_size'], num_workers=config['num_workers'])
+        test_selected_loader = torch.utils.data.DataLoader(test_selected, batch_size=data_info['new_batch_size'], num_workers=n_workers)
+        remained_test_loader = torch.utils.data.DataLoader(remained_test, batch_size=data_info['old_batch_size'], num_workers=n_workers)
         test_loader = {
             'new_model':test_selected_loader,
             'old_model': remained_test_loader
         }   
         print('selected test images:', len(test_selected))
         return test_loader
+    
 class Mistakes(Prototype):
     def __init__(self) -> None:
         pass
@@ -87,8 +88,8 @@ class Mistakes(Prototype):
         corr_cls_indices = (data_info['gt'] == data_info['pred'])
         incorr_cls_set = torch.utils.data.Subset( data_info['dataset'],np.arange(len(data_info['dataset']))[incorr_cls_indices])
         corr_cls_set = torch.utils.data.Subset( data_info['dataset'],np.arange(len(data_info['dataset']))[corr_cls_indices])
-        corr_cls_loader = torch.utils.data.DataLoader(corr_cls_set, batch_size=data_info['batch_size'], num_workers=config['num_workers'])
-        incorr_cls_loader = torch.utils.data.DataLoader(incorr_cls_set, batch_size=data_info['batch_size'], num_workers=config['num_workers'])
+        corr_cls_loader = torch.utils.data.DataLoader(corr_cls_set, batch_size=data_info['batch_size'], num_workers=n_workers)
+        incorr_cls_loader = torch.utils.data.DataLoader(incorr_cls_set, batch_size=data_info['batch_size'], num_workers=n_workers)
         test_loader = {
             'new_model':incorr_cls_loader,
             'old_model': corr_cls_loader

@@ -1,4 +1,3 @@
-from utils import config
 import utils.objects.model as Model
 import utils.objects.Config as Config
 from utils.objects.log import Log
@@ -15,7 +14,7 @@ def get_new_data_max_dv(clf:Detector.SVM , acquisition_config:Config.Acquisition
     new_data_indices = log.import_log(acquisition_config)
     new_data = torch.utils.data.Subset(data_splits.dataset['market'], new_data_indices)    
     train_data_loader = torch.utils.data.DataLoader(new_data, batch_size=model_config.batch_size, 
-                            num_workers= config['num_workers'])
+                            num_workers= Dataset.n_workers)
     train_dv, _ = clf.predict(train_data_loader)
     return np.max(train_dv)
 
