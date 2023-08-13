@@ -1,8 +1,8 @@
 import sys
 import utils.objects.dataset as Dataset
 sys.path.append('..')
-import failure_directions.src.model_utils as model_utils
-import failure_directions.src.trainer as trainer_utils
+import utils.cnn.model_utils as model_utils
+import utils.cnn.trainer as trainer_utils
 import torch
 from torch.cuda.amp import autocast
 import torch.nn as nn
