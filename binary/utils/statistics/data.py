@@ -70,7 +70,7 @@ def build_info(dataset_splits: Dataset.DataSplits, name, clf:Detector.Prototype,
     
 def get_correctness_dv(model: Model.prototype, dataloader, clf:Detector.Prototype, correctness):
     '''
-    DV of hard and easy data wrt the given model
+    DV of data wrt the correctness of a given model
     '''
     dataset_gts, dataset_preds, _ = model.eval(dataloader)
     dv, _ = clf.predict(dataloader, model)
