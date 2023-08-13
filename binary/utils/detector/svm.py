@@ -1,4 +1,3 @@
-import torch
 import numpy as np
 # from sklearn import svm
 from sklearn.svm import LinearSVC, SVC
