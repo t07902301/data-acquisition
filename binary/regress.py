@@ -1,23 +1,64 @@
 from sklearn.linear_model import LinearRegression, Ridge
+from sklearn.preprocessing import MinMaxScaler
 import numpy as np
 import pickle as pkl
 import os
-
-class linear_regressor():
+from sklearn.svm import SVR
+from sklearn.gaussian_process import GaussianProcessRegressor
+from sklearn.gaussian_process.kernels import RBF
+# from sklearn.neural_network import MLPRegressor
+from typing import List
+class regressor():
     def __init__(self) -> None:
         # self.model = LinearRegression()
         self.model = Ridge()
-    
+        # self.model = SVR(kernel='rbf')
+
+        # kernel = RBF(length_scale_bounds = (0.1, 1.0))
+        # self.model = GaussianProcessRegressor(kernel=kernel, alpha=0.1)
+        # self.model = MLPRegressor(random_state=1, hidden_layer_sizes=(16, 8), learning_rate='adaptive', max_iter=100)
+
     def train(self, inputs):
         X = [each[0] for each in inputs]
         y = [each[1] for each in inputs]
         X = np.array(X).reshape(-1, 1)
+        scaler =None
+
+        # scaler = MinMaxScaler()
+        # scaler.fit(X)
+        # X = scaler.transform(X)
+        # y = np.array(y).reshape(-1, 1)
+        # y = scaler.transform(y)
+
         self.model.fit(X, y)
 
-    def test(self, inputs):
+        # y_pred, y_pred_std = self.model.predict(X, return_std=True)
+
+        # plt.plot(X, y, 'ko', label = 'Training Data')
+        # plt.plot(x1, y1, 'b-', label = "Predicted Function Mean")
+        # plt.title("Zero Shear Viscosity of Wormlike Micelles")
+        # plt.xlabel('X')
+        # plt.ylabel('y')
+
+        # # Plotting the uncertainty
+        # y1 = y1.flatten()
+        # plt.fill_between(x1, y1 - y1std, y1 + y1std, alpha=0.3, color='k', label="Uncertainty")
+
+        # plt.xlabel("log (Salt concentration)")
+        # plt.ylabel("log (zero shear viscosity)")
+        # plt.legend()
+
+        return scaler
+
+    def test(self, inputs, scaler: MinMaxScaler):
         X = [each[0] for each in inputs]
         y = [each[1] for each in inputs]
         X = np.array(X).reshape(-1, 1)
+
+        # X = scaler.transform(X)
+        # y = np.array(y).reshape(-1, 1)
+        # y = scaler.transform(y)
+
         return self.model.score(X, y)
     
     def predict(self, inputs):
@@ -37,7 +78,7 @@ def regression_split_train_test(pairs):
     
 def import_file(model_dir, dev):
    
-    file = os.path.join('log/{}'.format(model_dir), 'val_{}.pkl'.format(dev))
+    file = os.path.join('log/{}/dev'.format(model_dir), 'val_{}.pkl'.format(dev))
    
     with open(file, 'rb') as f:
         out = pkl.load(f)
@@ -52,47 +93,66 @@ def plot(inputs):
     inputs.sort(key=lambda tup: tup[0])
     X = [each[0] for each in inputs]
     y = [each[1] for each in inputs]
-    
-    # fig, ax = plt.subplots()
     plt.plot(X, y)
-
-    # ax.set(xlabel='time (s)', ylabel='voltage (mV)',
-    #     title='About as simple as it gets, folks')
-    # ax.grid()
-
-    # fig.savefig("test.png")
     plt.show()
 
-def main(epochs, model_dir, dev):
+def plot_regress(epochs, pairs, model_dir, dev_mode):
 
-    pairs = import_file(model_dir, dev)
+    for epo in range(epochs):
 
-    score_list = []
+        plot(pairs[epo])
+    
+    file = os.path.join('log/{}/dev'.format(model_dir), '{}.png'.format(dev_mode))
 
-    test_list = [100, 150, 200, 250, 300, 400, 500]
+    plt.savefig(file)
+
+    print('figure save to', file)
+
+def predict(epochs, pairs, models: List[regressor], test_list):
 
     pred_list = []
 
     for epo in range(epochs):
 
-        plot(pairs[epo])
+        model = models[epo]
 
-    plt.savefig("test.png")
+        pred = model.predict(test_list)
+        pred_list.append(pred)
+    
+    print(np.round(np.mean(pred_list, axis=0), decimals=3))
+    print(*pred_list)
 
-    #     train, test = regression_split_train_test(pairs[epo])
-    #     solver = linear_regressor()
-    #     solver.train(train)
+def train(epochs, pairs) -> List[regressor]:
 
-    #     # score = solver.test(test)
-    #     # score_list.append(score)
-        
-    #     pred = solver.predict(test_list)
-    #     pred_list.append(pred)
-  
-    # print(np.round(np.mean(pred_list, axis=0), decimals=3))
-    # print(pred_list)
-    # # print(np.round(np.mean(score_list), decimals=3))
-    # # print(score_list)
+    score_list, model_list = [], []
+
+    for epo in range(epochs):
+
+        train, test = regression_split_train_test(pairs[epo])
+        model = regressor()
+        scaler = model.train(train)
+        score = model.test(test, scaler)
+        score_list.append(score)
+        model_list.append(model)
+
+    print(np.round(np.mean(score_list), decimals=3))
+    print(score_list)
+
+    return model_list
+
+def main(epochs, model_dir, dev):
+
+    pairs = import_file(model_dir, dev)
+
+    test_list = [225, 275, 325, 375, 425]
+    # test_list = [225, 325, 425, 525, 625]
+
+    # plot_regress(epochs, pairs, model_dir, dev)
+
+    models = train(epochs, pairs)
+
+    predict(epochs, pairs, models, test_list)
+
 
 import argparse
 if __name__ == '__main__':
