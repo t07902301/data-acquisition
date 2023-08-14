@@ -5,10 +5,10 @@ import os
 import pickle as pkl
 from utils.env import data_split_env
 
-def save_dataset(epochs, config, task_id):
+def save_dataset(epochs, config, model_dir):
     data_split_env()
     ds_list, normalize_stat = Dataset.get_data_splits_list(epochs, config)
-    data_root = os.path.join('data', task_id)
+    data_root = os.path.join('data', model_dir)
     Config.check_dir(data_root)
     for idx, ds in enumerate(ds_list):
         data_path = os.path.join(data_root, '{}.pt'.format(idx))
@@ -30,8 +30,7 @@ def save_stat(stat_dict, data_root):
     print(stat_path, 'saved')
 
 def load_stat(model_dir):
-    task_id = model_dir[:2]
-    data_root = os.path.join('data', task_id)
+    data_root = os.path.join('data', model_dir)
     stat_path = os.path.join(data_root, 'normalize_stat.pt')
     with open(stat_path, 'rb') as f:
         normalize_stat = pkl.load(f) 
@@ -82,12 +81,15 @@ def load_config(model_dir):
         config = yaml.safe_load(file)
         file.close()
 
-    # max_subclass_num = config['hparams']['subclass']
     return config
 
 def set_up(epochs, model_dir, device_id=0):
+
     data_split_env()
-    normalize_stat = load_stat(model_dir)
+
+    data_dir = model_dir[:3] # For shift degree control
+
+    normalize_stat = load_stat(data_dir)
 
     config = load_config(model_dir)
 
@@ -99,7 +101,7 @@ def set_up(epochs, model_dir, device_id=0):
     print('Label Map:', label_map)
     print('select_fine_labels:', select_fine_labels)
 
-    ds_list = load_dataset(epochs, model_dir, config['data'])
-    # ds_list = load_cover_dataset(epochs, model_dir, config['data'])
+    ds_list = load_dataset(epochs, data_dir, config['data'])
+    # ds_list = load_cover_dataset(epochs, data_dir, config['data'])
 
     return config, device_config, ds_list, normalize_stat
