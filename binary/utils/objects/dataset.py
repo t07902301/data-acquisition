@@ -92,8 +92,6 @@ def load_cover_dataset(ds_dict, remove_rate, cover_labels, old_labels=None):
     val_shift, _ = split_dataset(ds_dict['val_shift'], cover_labels['target'], train_remove_rate)
     test_shift, _ = split_dataset(ds_dict['test_shift'], cover_labels['target'], train_remove_rate)
 
-    market_target, _ = split_dataset(ds_dict['market'], cover_labels['target'], 1.0)
-
     if test_remove_rate != None:
         _, val = split_dataset(val_shift, old_labels, test_remove_rate)
         _, test = split_dataset(test_shift, old_labels, test_remove_rate)
@@ -108,7 +106,6 @@ def load_cover_dataset(ds_dict, remove_rate, cover_labels, old_labels=None):
         'test_shift': test,
         'train_non_cnn': old_train,
         'market': ds_dict['market'],
-        # 'market': market_target,
     }
 
 def create_dataset( mean, std, config):
@@ -302,4 +299,4 @@ def normalize(select_fine_labels, ds_root):
         color = torch.stack(color)
         mean.append(torch.mean(color).item())
         std.append(torch.std(color).item())
-    return mean, std
+    return mean, std #superclass
