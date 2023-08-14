@@ -33,6 +33,7 @@ def epoch_run(parse_param, method_list, n_data_list, dataset:dict, epo, operatio
     workspace.set_validation(operation.stream, old_model_config.batch_size, new_model_config.new_batch_size, detect_instruction=operation.detection)
 
     # known_labels = config['data']['cover_labels']['target']
+    # print('known labels from target')
 
     # workspace.set_market(operation.detection.vit, known_labels)
 
@@ -51,7 +52,7 @@ def dev(epochs, dev_name, device, detector_name, model_dir, base_type):
 
     pure, new_model_setter = True, 'retrain'
 
-    if dev_name == 'sm':
+    if dev_name == 'rs':
         method_list, probab_bound = [dev_name], 0
     elif dev_name == 'refine':
         method_list, new_model_setter, pure, probab_bound = ['dv'], 'refine', False, 0
