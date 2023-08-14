@@ -5,9 +5,9 @@ class Checker():
     def __init__(self) -> None:
         pass
 
-    def get_test_info(self, dataset, dataloader, clf:Detector.Prototype, base_model, batch_size):
+    def get_test_info(self, dataset, dataloader, clf:Detector.Prototype, batch_size):
         data_info = {}
-        dv, _ = clf.predict(dataloader, base_model)        
+        dv, _ = clf.predict(dataloader)        
         data_info['dv'] = dv
         data_info['old_batch_size'] = batch_size
         data_info['new_batch_size'] = batch_size
@@ -24,7 +24,7 @@ class Checker():
         test_loader, _ = Partitioner.Probability().run(test_info, {'target': dstr['incorrect'], 'other': dstr['correct']}, stream)
         return test_loader
 
-    def _target_test(self, structural_loader, new_model:Model.prototype, base_model: Model.prototype):
+    def _target_test(self, structural_loader, new_model:Model.prototype):
         '''
         loader: new_model + old_model
         '''
@@ -35,16 +35,20 @@ class Checker():
             total_correct = new_correct
 
         else:
-            gt,pred,_  = base_model.eval(structural_loader['old_model'])
+            gt,pred,_  = self.base_model.eval(structural_loader['old_model'])
             old_correct = (gt==pred)
             total_correct = np.concatenate((old_correct,new_correct))
         
         return total_correct.mean()*100 
+        # return new_correct.mean() * 100
     
-    def run(self, test_dataset, test_loader, clf, base_model:Model.prototype, batch_size, set_up_loader, stream, new_model):
-        test_info = self.get_test_info(test_dataset, test_loader, clf, base_model, batch_size)
-        test_structural_loader = self.test_dstr_probab(base_model, set_up_loader, test_info, clf, stream)
-        return self._target_test(test_structural_loader, new_model, base_model)
+    def set_up(self, test_dataset, test_loader, clf, base_model:Model.prototype, batch_size, set_up_loader, stream):
+        test_info = self.get_test_info(test_dataset, test_loader, clf, batch_size)
+        self.test_structural_loader = self.test_dstr_probab(base_model, set_up_loader, test_info, clf, stream) 
+        self.base_model = base_model
+
+    def run(self, new_model):
+        return self._target_test(self.test_structural_loader, new_model)
 
 class Random_Sample():
     def __init__(self) -> None:
@@ -65,14 +69,12 @@ class Random_Sample():
 
         new_model = Model.factory(model_config.base_type, config, detect_instruction.vit)
         new_model.train(train_loader)
-        base_model = Model.factory(model_config.base_type, config, detect_instruction.vit)
-        base_model.load(model_config.path, model_config.device)
-        base_acc = base_model.acc(test_loader)
+
         new_acc = new_model.acc(test_loader)
 
-        return new_acc - base_acc
+        return new_acc
     
-    def get_sample_performance(self, samples_indices, model_config, data_split: Dataset.DataSplits, detect_instruction, config):
+    def get_sample_performance(self, samples_indices, model_config, data_split: Dataset.DataSplits, detect_instruction, config, base_acc):
 
         pairs = []
 
@@ -80,9 +82,9 @@ class Random_Sample():
 
             val_sample = torch.utils.data.Subset(data_split.dataset['val_shift'], indices)
 
-            result = self.get_model_performance(model_config, detect_instruction, config, val_sample, data_split.loader['test_shift'])
+            new_acc = self.get_model_performance(model_config, detect_instruction, config, val_sample, data_split.loader['test_shift'])
 
-            pairs.append((n_sample, result))
+            pairs.append((n_sample, new_acc - base_acc))
 
         return pairs
 
@@ -97,8 +99,13 @@ class Random_Sample():
             model_config = Config.OldModel(config['hparams']['batch_size']['base'], config['hparams']['superclass'], model_dir, device_config, epo, base_type)        
             ds = ds_list[epo]
             ds = Dataset.DataSplits(ds, model_config.batch_size)
+
+            base_model = Model.factory(model_config.base_type, config, detect_instrution.vit)
+            base_model.load(model_config.path, model_config.device)
+            base_acc = base_model.acc(ds.loader['test_shift'])
+
             regression_pairs = self.get_sample_performance(sample_indices, model_config, ds,
-                                                           detect_instrution, config)
+                                                           detect_instrution, config, base_acc)
 
             regression_pairs_dict[epo] = regression_pairs
         
@@ -117,33 +124,35 @@ class Greedy():
             samples_indices[size] = acquistion.get_top_values_indices(dv, size)
 
         return samples_indices
-    
-    def get_model_performance(self, data_split: Dataset.DataSplits, model_config:Config.OldModel, detect_instruction:Config.Detection, config, clf, train_data):
-        
+
+    def get_model_performance_dev(self, model_config:Config.OldModel, detect_instruction:Config.Detection, config, train_data, test_loader):
+
         train_loader = torch.utils.data.DataLoader(train_data, 16)
+
         new_model = Model.factory(model_config.base_type, config, detect_instruction.vit)
         new_model.train(train_loader)
 
-        base_model = Model.factory(model_config.base_type, config, detect_instruction.vit)
-        base_model.load(model_config.path, model_config.device)
+        new_acc = new_model.acc(test_loader)
 
-        stream = Config.ProbabStream(bound=0.5, pdf='kde', name='probab')
+        return new_acc
 
-        checker = Checker()
-        new_acc = checker.run(data_split.dataset['test_shift'], data_split.loader['test_shift'], clf, base_model, 16, data_split.loader['val_shift'], stream, new_model)
-
-        base_acc = base_model.acc(data_split.loader['test_shift'])
-
-        return new_acc - base_acc
+    def get_model_performance(self, model_config:Config.OldModel, detect_instruction:Config.Detection, config, train_data, checker:Checker):
+        train_loader = torch.utils.data.DataLoader(train_data, 16)
+        new_model = Model.factory(model_config.base_type, config, detect_instruction.vit)
+        new_model.train(train_loader)
+        new_acc = checker.run(new_model)
+        return new_acc
     
-    def get_sample_performance(self, samples_indices:dict, model_config:Config.OldModel, detect_instruction:Config.Detection, config, data_split: Dataset.DataSplits, clf):
+    def get_sample_performance(self, samples_indices:dict, model_config:Config.OldModel, detect_instruction:Config.Detection, config, data_split: Dataset.DataSplits, checker:Checker, base_acc):
 
         pairs = []
 
         for n_sample, indices in samples_indices.items():
             val_sample = torch.utils.data.Subset(data_split.dataset['val_shift'], indices)
-            result = self.get_model_performance(data_split, model_config, detect_instruction, config, clf, val_sample)
-            pairs.append((n_sample, result))
+            new_acc = self.get_model_performance(model_config, detect_instruction, config, val_sample, checker)
+            # new_acc = self.get_model_performance_dev(model_config, detect_instruction, config, val_sample, data_split.loader['test_shift'])
+            pairs.append((n_sample, new_acc - base_acc))
+            # pairs.append((n_sample, new_acc))
 
         return pairs
     
@@ -154,6 +163,7 @@ class Greedy():
     
     def run(self, n_samples, epochs, ds_list, config, device_config, base_type, model_dir, detect_instrution):
         regression_pairs_dict = {}
+        stream = Config.ProbabStream(bound=0.5, pdf='kde', name='probab')
 
         for epo in range(epochs):
             print('in epoch {}'.format(epo))
@@ -163,12 +173,16 @@ class Greedy():
 
             base_model = Model.factory(model_config.base_type, config, detect_instrution.vit)
             base_model.load(model_config.path, model_config.device)
+            base_acc = base_model.acc(ds.loader['test_shift'])
 
             clf = self.get_dstr_clf(detect_instrution, config, ds.loader['val_shift'], base_model)
 
             sample_indices = self.acquisition(n_samples, ds.loader['val_shift'], clf, base_model)
 
-            regression_pairs = self.get_sample_performance(sample_indices, model_config, detect_instrution, config, ds, clf)
+            checker = Checker()
+            checker.set_up(ds.dataset['test_shift'], ds.loader['test_shift'], clf, base_model, 16, ds.loader['val_shift'], stream)
+
+            regression_pairs = self.get_sample_performance(sample_indices, model_config, detect_instrution, config, ds, checker, base_acc)
 
             regression_pairs_dict[epo] = regression_pairs
         
@@ -176,7 +190,7 @@ class Greedy():
 
 def export(model_dir, dev, data):
    
-    file = os.path.join('log/{}'.format(model_dir), 'val_{}.pkl'.format(dev))
+    file = os.path.join('log/{}/dev'.format(model_dir), 'val_{}.pkl'.format(dev))
    
     with open(file, 'wb') as f:
         out = pkl.dump(data, f)
@@ -193,7 +207,8 @@ def main(epochs,  model_dir ='', device_id=0, base_type='', detector_name='', de
     detect_instrution = Config.Detection(detector_name, clip_processor)
 
     np.random.seed(0)
-    sample_size = np.random.choice(np.arange(30, len(ds_list[0]['val_shift'])), 40, replace=False)
+    sample_size = np.random.choice(np.arange(50, len(ds_list[0]['val_shift'])), 75, replace=False)
+    # sample_size = [i for i in range(30, len(ds_list[0]['val_shift']), 10)]
 
     if dev == 'rs':
         rs = Random_Sample()
