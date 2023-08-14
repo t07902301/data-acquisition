@@ -5,19 +5,19 @@ from utils.strategy import *
 import utils.statistics.checker as Checker
 from utils.set_up import *
 
-def method_run(n_img_list, operation:Config.Operation, checker: Checker.prototype):
+def method_run(n_data_list, operation:Config.Operation, checker: Checker.Prototype):
     acc_change_list = []
-    for n_img in n_img_list:
-        operation.acquisition.n_ndata = n_img
+    for n_data in n_data_list:
+        operation.acquisition.n_ndata = n_data
         acc_change = n_data_run(operation, checker)
         acc_change_list.append(acc_change)
     return acc_change_list
 
-def n_data_run(operation:Config.Operation, checker: Checker.prototype):
+def n_data_run(operation:Config.Operation, checker: Checker.Prototype):
     check_result = checker.run(operation)
     return check_result
 
-def run(operation:Config.Operation, methods, new_img_num_list, checker:Checker.prototype):
+def run(operation:Config.Operation, methods, new_img_num_list, checker:Checker.Prototype):
     result_list = []
     for method in methods:
         print('In method', method)
@@ -35,7 +35,7 @@ def run(operation:Config.Operation, methods, new_img_num_list, checker:Checker.p
 #     market_dv, _ = clf.predict(datasplit.loader['market'])
 #     return (market_dv <= acquire_instruction.bound).sum()
 
-def epoch_run(new_img_num_list, method_list, operation: Config.Operation, checker: Checker.prototype):
+def epoch_run(new_img_num_list, method_list, operation: Config.Operation, checker: Checker.Prototype):
     result_epoch = run(operation, method_list, new_img_num_list, checker)
     # bound_stat = check_bound(old_model_config, dataset_splits,acquire_instruction, clip_processor)
     return result_epoch, 0
@@ -56,7 +56,7 @@ def dev(epochs, dev_name, device, detector_name, model_dir, stream_name, base_ty
     new_model_setter = 'retrain'
     pure = True
 
-    if dev_name == 'sm':
+    if dev_name == 'rs':
         method_list, probab_bound, stream_name = [dev_name], 0, 'probab'
     elif dev_name == 'refine':
         method_list, new_model_setter, pure, probab_bound, stream_name = ['dv'], 'refine', False, 0, 'probab'
@@ -73,6 +73,7 @@ def dev(epochs, dev_name, device, detector_name, model_dir, stream_name, base_ty
 
     result, bound_stat = bound_run(epochs, parse_param, ds_list, config['data']['n_new_data'], method_list, operation)
     result = np.array(result)
+    
     for idx, method in enumerate(method_list):
         method_result = result[:, idx, :]
         print(method)
@@ -82,6 +83,7 @@ def dev(epochs, dev_name, device, detector_name, model_dir, stream_name, base_ty
         method_result = result[:, idx, :]
         print(method)
         print(method_result)
+
 import argparse
 if __name__ == '__main__':
 
