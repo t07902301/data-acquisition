@@ -91,7 +91,7 @@ def check_dir(dir):
     if os.path.exists(dir) is False:
         os.makedirs(dir)
 
-class ModelConfig():
+class Model():
     def __init__(self, batch_size, class_number, model_dir, device, base_type) -> None:
         self.batch_size = batch_size
         self.class_number = class_number
@@ -102,13 +102,13 @@ class ModelConfig():
         self.base_type = base_type
         self.path = None
             
-class OldModel(ModelConfig):
+class OldModel(Model):
     def __init__(self, batch_size, class_number, model_dir, device, model_cnt, base_type) -> None:
         super().__init__(batch_size, class_number, model_dir, device, base_type)
         self.model_cnt = model_cnt # can be redundant if dv_stat_test not epoch-wised
         self.path = os.path.join(self.root,'{}.pt'.format(model_cnt))
 
-class NewModel(ModelConfig):
+class NewModel(Model):
     def __init__(self, batch_size, class_number, model_dir, device, model_cnt, pure:bool, setter, new_batch_size, base_type) -> None:
         super().__init__(batch_size, class_number, model_dir, device, base_type)
         self.pure = pure
