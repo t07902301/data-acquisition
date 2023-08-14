@@ -36,7 +36,7 @@ class Prototype():
     def fit(self, base_model:Model.prototype, data_loader, data=None, batch_size = None):
         pass
     @abstractmethod
-    def predict(self, data_loader, base_model:Model.prototype, compute_metrics=False):
+    def predict(self, data_loader, base_model:Model.prototype=None, compute_metrics=False):
         '''
         Decision Scores + Performance Metrics
         '''
@@ -60,15 +60,21 @@ class SVM(Prototype):
         # self.model.set_preprocess(set_up_latent) 
     
     def fit(self, base_model:Model.prototype, data_loader, data=None, batch_size=None):
-        latent, correctness, _ = get_correctness(data_loader, base_model, self.transform, self.clip_processor)
+        latent, latent_gts = DataTransform.get_latent(data_loader, self.clip_processor, self.transform)
+        correctness = get_correctness(data_loader, base_model, latent_gts)
         self.model.set_preprocess(latent) 
         score = self.model.fit(latent, correctness)
         print('Best CV Score:', score)
         # return score
     
-    def predict(self, data_loader, base_model:Model.prototype, compute_metrics=False):
-        latent, correctness, _ = get_correctness(data_loader, base_model, self.transform, self.clip_processor)
-        _, dv, metric = self.model.predict(latent, correctness, compute_metrics)
+    def predict(self, data_loader, base_model:Model.prototype=None, compute_metrics=False):
+        latent, latent_gts = DataTransform.get_latent(data_loader, self.clip_processor, self.transform)
+        if compute_metrics:
+            correctness = get_correctness(data_loader, base_model, latent_gts)
+            _, dv, metric = self.model.predict(latent, correctness, compute_metrics)
+        else:
+            _, dv, _ = self.model.predict(latent)
+            metric = None
         return dv, metric 
 
 class LogRegressor(Prototype):
@@ -78,14 +84,20 @@ class LogRegressor(Prototype):
         self.model = wrappers.LogRegressor(do_normalize=True, do_standardize=False)
 
     def fit(self, base_model:Model.prototype, data_loader, data=None, batch_size = None):
-        latent, correctness, _ = get_correctness(data_loader, base_model, self.transform, self.clip_processor)
-        self.model.set_preprocess(latent) #TODO val set norm stat may be accurate as those from train_clip
+        latent, latent_gts = DataTransform.get_latent(data_loader, self.clip_processor, self.transform)
+        correctness = get_correctness(data_loader, base_model, latent_gts)
+        self.model.set_preprocess(latent) #TODO val set norm stat may be not accurate as those from train_clip
         self.model.fit(latent, correctness)
         
-    def predict(self, data_loader, base_model: Model.prototype, compute_metrics=False):
-        latent, correctness, _ = get_correctness(data_loader, base_model, self.transform, self.clip_processor)
-        conf_distance, metrics = self.model.predict(latent, correctness, compute_metrics)
-        return conf_distance, metrics     
+    def predict(self, data_loader, base_model: Model.prototype=None, compute_metrics=False):
+        latent, latent_gts = DataTransform.get_latent(data_loader, self.clip_processor, self.transform)
+        if compute_metrics:
+            correctness = get_correctness(data_loader, base_model, latent_gts)
+            _, conf_distance, metric = self.model.predict(latent, correctness, compute_metrics)
+        else:
+            _, conf_distance, _ = self.model.predict(latent)
+            metric = None
+        return conf_distance, metric 
     
 def factory(detector_type, config, clip_processor:wrappers.CLIPProcessor, split_and_search=True, data_transform = 'clip'):
     if detector_type == 'svm':
@@ -101,22 +113,25 @@ def load_clip(device, mean, std):
     clip_processor = wrappers.CLIPProcessor(ds_mean=mean, ds_std=std, device=device)
     return clip_processor
 
-def get_correctness(data_loader, model:Model.prototype, transform: str = None, clip_processor:wrappers.CLIPProcessor = None):
+def get_correctness(data_loader, model:Model.prototype, loader_gts):
     '''
-    Return : \n 
-    Data in Latent Space, Base Model Prediction Correctness of Data, Combined Latent Data and Model Correctness
+    Base Model Prediction Correctness as True Labels for Detectors
     ''' 
     gts, preds, _ = model.eval(data_loader)
-    data, loader_gts = DataTransform.get_latent(data_loader, clip_processor, transform)
     assert (gts != loader_gts).sum() == 0, 'Train Loader Shuffles!: {}'.format((gts != loader_gts).sum())
+
     correctness_mask = (gts == preds)
-    correctness = np.zeros(len(data), dtype = int)
+    data_loader_size = DataTransform.get_dataloader_size(data_loader)
+    correctness = np.zeros(data_loader_size, dtype = int)
     correctness[correctness_mask] = 1
-    combined = []
-    for idx in range(len(data)):
-        combined.append((data[idx], correctness[idx], correctness[idx]))
-    return data, correctness, combined 
+    return correctness
     
+# def combine_latent_correctness(latent, correctness):
+#     combined = []
+#     for idx in range(len(latent)):
+#         combined.append((latent[idx], correctness[idx]))
+#     return combined
+
 # class resnet(Prototype):
 #     def __init__(self, data_transform: str = None) -> None:
 #         super().__init__(data_transform)

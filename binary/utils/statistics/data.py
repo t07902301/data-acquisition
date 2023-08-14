@@ -59,9 +59,9 @@ def pred_metric(dataloader, old_model:Model.prototype, new_model:Model.prototype
     print(tn, tp)
     print(fn, fp)
 
-def build_info(dataset_splits: Dataset.DataSplits, name, clf:Detector.Prototype, old_batch_size, new_batch_size, base_model:Model.prototype):
+def build_info(dataset_splits: Dataset.DataSplits, name, clf:Detector.Prototype, old_batch_size, new_batch_size):
     data_info = {}
-    dv, _ = clf.predict(dataset_splits.loader[name], base_model)        
+    dv, _ = clf.predict(dataset_splits.loader[name])        
     data_info['dv'] = dv
     data_info['old_batch_size'] = old_batch_size
     data_info['new_batch_size'] = new_batch_size
@@ -73,7 +73,7 @@ def get_correctness_dv(model: Model.prototype, dataloader, clf:Detector.Prototyp
     DV of data wrt the correctness of a given model
     '''
     dataset_gts, dataset_preds, _ = model.eval(dataloader)
-    dv, _ = clf.predict(dataloader, model)
+    dv, _ = clf.predict(dataloader)
     if correctness:
         mask = (dataset_gts == dataset_preds)
     else:

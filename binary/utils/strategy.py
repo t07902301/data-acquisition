@@ -50,7 +50,7 @@ class WorkSpace():
         correct_dstr = Distribution.get_correctness_dstr(self.base_model, clf, self.data_split.loader['val_shift'], stream_instruction.pdf, correctness=True)
         incorrect_dstr = Distribution.get_correctness_dstr(self.base_model, clf, self.data_split.loader['val_shift'], stream_instruction.pdf, correctness=False)
 
-        val_shift_info = DataStat.build_info(self.data_split, 'val_shift', clf, old_batch_size, new_batch_size, self.base_model)
+        val_shift_info = DataStat.build_info(self.data_split, 'val_shift', clf, old_batch_size, new_batch_size)
         val_shift_split, _ = Partitioner.Probability().run(val_shift_info, {'target': incorrect_dstr, 'other': correct_dstr}, stream_instruction)
         self.validation_loader = val_shift_split['new_model']
 
@@ -164,7 +164,7 @@ class Greedy(NonSeqStrategy):
         detector_instruction = operation.detection
         detector_train_dict = {'loader': dataset_splits.loader['val_shift'], 'dataset': dataset_splits.dataset['val_shift']}
         detector = self.get_Detector(detector_instruction, workspacce.base_model, detector_train_dict, workspacce.general_config)
-        new_data_indices = self.run(acquistion_n_data, dataset_splits.loader['market'], detector, workspacce.base_model)
+        new_data_indices = self.run(acquistion_n_data, dataset_splits.loader['market'], detector)
         return new_data_indices, detector  
 
     def get_Detector(self, detector_instruction: Config.Detection, base_model: Model.prototype, validation_dict, general_config):
@@ -173,8 +173,8 @@ class Greedy(NonSeqStrategy):
         _ = detector.fit(base_model, val_loader, val_dataset, batch_size=None)
         return detector
     
-    def run(self, n_data, market_loader, detector: Detector.Prototype, base_model:Model.prototype, bound=None):
-        market_dv, _ = detector.predict(market_loader, base_model)
+    def run(self, n_data, market_loader, detector: Detector.Prototype, bound=None):
+        market_dv, _ = detector.predict(market_loader)
         if bound == None:
             new_data_indices = acquistion.get_top_values_indices(market_dv, n_data)
         else:
@@ -336,7 +336,7 @@ class SeqCLF(Strategy):
 def StrategyFactory(strategy):
     if strategy=='dv':
         return Greedy()
-    elif strategy =='sm':
+    elif strategy =='rs':
         return Sample()
     elif strategy == 'conf':
         return Confidence()
