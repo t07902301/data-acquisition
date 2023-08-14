@@ -22,7 +22,7 @@ def get_cover_samples(dataset, is_covered):
 
     return torch.utils.data.Subset(dataset, cover_indicies)
 
-def run(ds:Dataset.DataSplits, clip_processor, cover_labels):
+def run(ds:Dataset.DataSplits, clip_processor, known_labels):
 
     ref_latent, _ = Transform.get_latent(ds.loader['val_shift'], clip_processor, 'clip')
 
@@ -35,29 +35,29 @@ def run(ds:Dataset.DataSplits, clip_processor, cover_labels):
 
     pred_novelty = clf.predict(test_latent)
 
-    gt_novelty = get_raw_novelty(ds.dataset['market'], cover_labels)
+    gt_novelty = get_raw_novelty(ds.dataset['market'], known_labels)
 
-    detect_acc = sklearn_metrics.balanced_accuracy_score(gt_novelty, pred_novelty)*100
+    score = sklearn_metrics.precision_score(gt_novelty, pred_novelty, pos_label=1) * 100
 
-    return detect_acc
+    return score
 
 def get_novelty_label(dataset:Dataset.cifar.Novelty):
     labels = [dataset[idx][1] for idx in range(len(dataset))]
     return np.array(labels)
 
-def svd(ds:Dataset.DataSplits, cover_labels, batch_size):
+def svd(ds:Dataset.DataSplits, known_labels, batch_size):
 
-    # train_dataset = Dataset.cifar.Novelty(ds.dataset['val_shift'], cover_labels)
+    # train_dataset = Dataset.cifar.Novelty(ds.dataset['val_shift'], known_labels)
 
     train_loader = ds.loader['val_shift']
 
-    test_dataset = Dataset.cifar.Novelty(ds.dataset['market'], cover_labels)
+    test_dataset = Dataset.cifar.Novelty(ds.dataset['market'], known_labels)
 
     test_loader = torch.utils.data.DataLoader(test_dataset, batch_size)
 
     svd_indices = dev(train_loader, test_loader, xp_path='log/dev')
     
-    cover_ds = Dataset.get_indices_by_labels(ds.dataset['market'], cover_labels)
+    cover_ds = Dataset.get_indices_by_labels(ds.dataset['market'], known_labels)
 
     cover_size = len(cover_ds)
 
@@ -76,14 +76,14 @@ def main(epochs,  model_dir =''):
     clip_processor = Detector.load_clip(device_config, normalize_stat['mean'], normalize_stat['std'])
     odd_acc_list = []
 
-    cover_labels = config['data']['cover_labels']['target']
+    known_labels = config['data']['cover_labels']['target']
 
     for epo in range(epochs):
         print('in epoch {}'.format(epo))
         ds = ds_list[epo]
         ds = Dataset.DataSplits(ds, 32)
-        # ood_acc = svd( ds, cover_labels, batch_size['new'])
-        ood_acc = run( ds, clip_processor, cover_labels)
+        # ood_acc = svd( ds, known_labels, batch_size['new'])
+        ood_acc = run( ds, clip_processor, known_labels)
 
         odd_acc_list.append(ood_acc)
 
