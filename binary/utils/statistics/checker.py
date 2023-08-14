@@ -13,7 +13,7 @@ import utils.statistics.partitioner as Partitioner
 import utils.statistics.data as DataStat
 import utils.statistics.decision as Decision
 
-class prototype():
+class Prototype():
     '''
     Decide what to test the new and the old model
     '''
@@ -28,15 +28,18 @@ class prototype():
         pass
     def setup(self, old_model_config:Config.OldModel, datasplits:Dataset.DataSplits, operation:Config.Operation, plot:bool):
         '''
-        Use the old model and data split to set up a prototype (for each epoch) -> base_model, clf/detector, anchor loader
+        Use the old model and data split to set up a Prototype (for each epoch) -> base_model, clf/detector, anchor loader
         '''
         self.base_model = Model.factory(old_model_config.base_type, self.general_config, operation.detection.vit)
         self.base_model.load(old_model_config.path, old_model_config.device)
         self.clf = Detector.factory(operation.detection.name, self.general_config, clip_processor = operation.detection.vit)
         self.clf.fit(self.base_model, datasplits.loader['val_shift'])
         self.anchor_loader = datasplits.loader['val_shift']
+        self.base_acc = self.base_model.acc(datasplits.loader['test_shift'])
+        self.test_info = DataStat.build_info(datasplits, 'test_shift', self.clf, self.model_config.batch_size, self.model_config.new_batch_size)
+        self.vit = operation.detection.vit
 
-class Partition(prototype):
+class Partition(Prototype):
     '''
     Split test set by a dv threshold or model mistakes, and then feed test splits into models. \n
     If split with threshold, then test set can get dv when setting up this checker.\n
@@ -50,9 +53,6 @@ class Partition(prototype):
         set base model, test data info and vit
         '''
         super().setup(old_model_config, datasplits, operation, plot) 
-        self.base_acc = self.base_model.acc(datasplits.loader['test_shift'])
-        self.test_info = DataStat.build_info(datasplits, 'test_shift', self.clf, self.model_config.batch_size, self.model_config.new_batch_size, self.base_model)
-        self.vit = operation.detection.vit
 
     def get_subset_loader(self, threshold):
         loader = Partitioner.threshold_subset_setter().get_subset_loders(self.test_info,threshold)        
@@ -67,21 +67,32 @@ class Partition(prototype):
         '''
         loader: new_model + old_model
         '''
-        new_model = Model.factory(self.model_config.base_type, self.general_config, self.vit)
-        new_model.load(self.model_config.path, self.model_config.device)
-        gt,pred,_  = new_model.eval(loader['new_model'])
-        new_correct = (gt==pred)
 
         if len(loader['old_model']) == 0:
+            print('Nothing for New Model')
+            new_model = Model.factory(self.model_config.base_type, self.general_config, self.vit)
+            new_model.load(self.model_config.path, self.model_config.device)
+            gt,pred,_  = new_model.eval(loader['new_model'])
+            new_correct = (gt==pred)
             total_correct = new_correct
 
+        elif len(loader['new_model']) == 0:
+            print('Nothing for Old Model')
+            gt,pred,_  = self.base_model.eval(loader['old_model'])
+            old_correct = (gt==pred)
+            total_correct = old_correct
+
         else:
+            new_model = Model.factory(self.model_config.base_type, self.general_config, self.vit)
+            new_model.load(self.model_config.path, self.model_config.device)
+            gt,pred,_  = new_model.eval(loader['new_model'])
+            new_correct = (gt==pred)
             gt,pred,_  = self.base_model.eval(loader['old_model'])
             old_correct = (gt==pred)
             total_correct = np.concatenate((old_correct,new_correct))
         
-        DataStat.pred_metric(loader['new_model'], self.base_model, new_model)
-        print('ACC compare:', total_correct.mean()*100, self.base_acc)
+        # DataStat.pred_metric(loader['new_model'], self.base_model, new_model)
+        # print('ACC compare:', total_correct.mean()*100, self.base_acc)
         return total_correct.mean()*100 - self.base_acc 
     
     def iter_test(self):
@@ -112,9 +123,10 @@ class Probability(Partition):
     
     def setup(self, old_model_config:Config.OldModel, datasplits:Dataset.DataSplits, operation:Config.Operation, plot:bool):
         super().setup(old_model_config, datasplits, operation, plot) 
-        self.test_loader, selected_probab = self.get_subset_loader(operation.stream, self.anchor_loader)
+        setup_dstr = self.set_up_dstr(self.anchor_loader, operation.stream.pdf)
+        self.test_loader, selected_probab = self.get_subset_loader(setup_dstr, operation.stream)
         print('Set up: ')
-        self.mistake_stat(self.test_loader['new_model'], 'New Model Test')
+        # self.mistake_stat(self.test_loader['new_model'], 'New Model Test')
         if plot:
             pdf_name = self.get_pdf_name(operation.stream.pdf)
             fig_name = 'figure/test/probab.png'
@@ -123,10 +135,13 @@ class Probability(Partition):
             self.mistake_stat(datasplits.loader['test_shift'], plot=True, plot_name=fig_name, pdf=operation.stream.pdf)
             self.selected_dstr_plot(self.test_loader['new_model'], fig_name, operation.stream.pdf)
 
-    def get_subset_loader(self, stream_instruction:Config.Stream, set_up_loader):
-        correct_dstr = Distribution.get_correctness_dstr(self.base_model, self.clf, set_up_loader, stream_instruction.pdf, correctness=True)
-        incorrect_dstr = Distribution.get_correctness_dstr(self.base_model, self.clf, set_up_loader, stream_instruction.pdf, correctness=False)
-        loader, selected_probab = Partitioner.Probability().run(self.test_info, {'target': incorrect_dstr, 'other': correct_dstr}, stream_instruction)
+    def set_up_dstr(self, set_up_loader, pdf_type):
+        correct_dstr = Distribution.get_correctness_dstr(self.base_model, self.clf, set_up_loader, pdf_type, correctness=True)
+        incorrect_dstr = Distribution.get_correctness_dstr(self.base_model, self.clf, set_up_loader, pdf_type, correctness=False)
+        return {'correct': correct_dstr, 'incorrect': incorrect_dstr}
+
+    def get_subset_loader(self, setup_dstr, stream_instruction:Config.ProbabStream):
+        loader, selected_probab = Partitioner.Probability().run(self.test_info, {'target': setup_dstr['incorrect'], 'other': setup_dstr['correct']}, stream_instruction)
         return loader, selected_probab
     
     def selected_dstr_plot(self, selected_loader, fig_name, pdf=None):
@@ -172,7 +187,7 @@ class Probability(Partition):
         Distribution.plt.close()
         print('Save fig to {}'.format(fig_name))
 
-class Ensemble(Partition):
+class Ensemble(Prototype):
     def __init__(self, model_config: Config.NewModel, general_config) -> None:
         super().__init__(model_config, general_config)
     
@@ -180,7 +195,7 @@ class Ensemble(Partition):
         super().setup(old_model_config, datasplits, operation, plot)
         self.pdf_type = operation.stream.pdf
         self.probab_partitioner = Partitioner.Probability()
-        self.test_loader = torch.utils.data.DataLoader(self.test_info['dataset'], batch_size=self.model_config.new_batch_size)
+        self.test_loader = datasplits.loader['test_shift']
     
     def run(self, operation:Config.Operation):
         self.model_config.set_path(operation)
@@ -234,10 +249,6 @@ class DstrEnsemble(Ensemble):
     def __init__(self, model_config: Config.NewModel, general_config) -> None:
         super().__init__(model_config, general_config)
     
-    def get_correctness_dstr(self, dataloader, pdf_type, correctness):
-        dstr = Distribution.get_correctness_dstr(self.base_model, self.clf, dataloader, pdf_type, correctness=correctness)
-        return dstr
-
     def get_weight(self, dstr_dict, observations, size):
         weights = []
         for value in observations:
@@ -248,7 +259,7 @@ class DstrEnsemble(Ensemble):
     def _target_test(self, dataloader):
         gts = self.get_gts(dataloader)
         size = len(gts)
-        dv, _ = self.clf.predict(dataloader, self.base_model)  
+        dv, _ = self.clf.predict(dataloader)  
         decision_maker = Decision.factory(self.model_config.base_type, self.model_config.class_number)
         new_model = Model.factory(self.model_config.base_type, self.general_config, self.vit)
         new_model.load(self.model_config.path, self.model_config.device)  
@@ -269,7 +280,7 @@ class DstrEnsemble(Ensemble):
 #     def __init__(self, model_config: Config.NewModel) -> None:
 #         super().__init__(model_config)
     
-#     def get_boosting_alpha(self, model:Model.prototype, dataloader):
+#     def get_boosting_alpha(self, model:Model.Prototype, dataloader):
 #         gts, preds, _  = model.eval(dataloader)
 #         err_mask = (gts!=preds)
 #         total_err = err_mask.mean()
@@ -312,7 +323,7 @@ def factory(name, new_model_config, general_config):
     # elif name == 'max_avg':
     #     checker = MaxAverage(new_model_config)
     else:
-        checker = prototype(new_model_config, general_config)
+        checker = Prototype(new_model_config, general_config)
     return checker
 
 def get_configs(epoch, parse_param, dataset):
@@ -334,7 +345,7 @@ def instantiate(epoch, parse_args, dataset, operation: Config.Operation, plot=Tr
     checker.setup(old_model_config, dataset_splits, operation, plot)
     return checker
 
-class total(prototype):
+class total(Prototype):
     def __init__(self, model_config: Config.NewModel) -> None:
         super().__init__(model_config)
     def setup(self, old_model_config, datasplits):
