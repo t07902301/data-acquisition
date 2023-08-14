@@ -96,7 +96,7 @@ class ModelConfig():
         self.batch_size = batch_size
         self.class_number = class_number
         self.model_dir = model_dir
-        self.root = os.path.join('model/', model_dir, base_type, str(batch_size))
+        self.root = os.path.join('model', model_dir, base_type, str(batch_size))
         check_dir(self.root)
         self.device = device
         self.base_type = base_type

@@ -40,7 +40,7 @@ class disrtibution():
 
 def get_correctness_dstr(model, detector, dataloader, pdf_type, correctness:bool):
     '''
-    Get decision value distribution of a dataloader against a base model
+    Get decision value distribution of a dataloader against a given model
     '''
     target_dv =  DataStat.get_correctness_dv(model, dataloader, detector, correctness=correctness)
     dataloader_size = DataTransform.get_dataloader_size(dataloader)
