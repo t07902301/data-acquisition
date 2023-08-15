@@ -13,6 +13,7 @@ import torch
 import utils.statistics.partitioner as Partitioner
 import utils.statistics.data as DataStat
 import utils.statistics.decision as Decision
+import utils.objects.dataloader as dataloader_utils
 
 class Prototype():
     '''
@@ -223,12 +224,6 @@ class Ensemble(Prototype):
     @abstractmethod
     def get_weight(self):
         pass
-
-    def get_gts(self, dataloader):
-        gts = []
-        for batch_info in dataloader:
-            gts.append(batch_info[1].cpu())
-        return torch.concat(gts).numpy()
     
 class DstrEnsemble(Ensemble):
     def __init__(self, model_config: Config.NewModel, general_config) -> None:
@@ -264,7 +259,7 @@ class DstrEnsemble(Ensemble):
         probab = self.ensemble_decision(new_decision_probab, new_weight, old_decision_probab, old_weight)
         decision = decision_maker.apply(probab)
 
-        gts = self.get_gts(dataloader)
+        gts = dataloader_utils.get_labels(dataloader)
         final_acc = (gts==decision).mean() * 100 
         print('ACC compare:',final_acc, self.base_acc)
 
@@ -280,7 +275,7 @@ class AverageEnsemble(Ensemble):
         return np.repeat([0.5], size).reshape((size,1))
     
     def _target_test(self, dataloader, new_model):
-        gts = self.get_gts(dataloader)
+        gts = dataloader_utils.get_labels(dataloader)
         size = len(gts)
         new_probab = self.get_decision(new_model, dataloader)
         old_probab = self.get_decision(self.base_model, dataloader)

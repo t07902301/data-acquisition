@@ -4,7 +4,7 @@ import numpy as np
 import utils.detector.wrappers as wrappers
 import utils.objects.model as Model
 from abc import abstractmethod
-import utils.objects.data_transform as DataTransform
+import utils.objects.dataloader as dataloader_utils
 
 def statistics(values, n_data_list = None):
     '''
@@ -60,7 +60,7 @@ class SVM(Prototype):
         # self.model.set_preprocess(set_up_latent) 
     
     def fit(self, base_model:Model.prototype, data_loader, data=None, batch_size=None):
-        latent, latent_gts = DataTransform.get_latent(data_loader, self.clip_processor, self.transform)
+        latent, latent_gts = dataloader_utils.get_latent(data_loader, self.clip_processor, self.transform)
         correctness = get_correctness(data_loader, base_model, latent_gts)
         self.model.set_preprocess(latent) 
         score = self.model.fit(latent, correctness)
@@ -68,7 +68,7 @@ class SVM(Prototype):
         # return score
     
     def predict(self, data_loader, base_model:Model.prototype=None, compute_metrics=False):
-        latent, latent_gts = DataTransform.get_latent(data_loader, self.clip_processor, self.transform)
+        latent, latent_gts = dataloader_utils.get_latent(data_loader, self.clip_processor, self.transform)
         if compute_metrics:
             correctness = get_correctness(data_loader, base_model, latent_gts)
             _, dv, metric = self.model.predict(latent, correctness, compute_metrics)
@@ -84,13 +84,13 @@ class LogRegressor(Prototype):
         self.model = wrappers.LogRegressor(do_normalize=True, do_standardize=False)
 
     def fit(self, base_model:Model.prototype, data_loader, data=None, batch_size = None):
-        latent, latent_gts = DataTransform.get_latent(data_loader, self.clip_processor, self.transform)
+        latent, latent_gts = dataloader_utils.get_latent(data_loader, self.clip_processor, self.transform)
         correctness = get_correctness(data_loader, base_model, latent_gts)
         self.model.set_preprocess(latent) #TODO val set norm stat may be not accurate as those from train_clip
         self.model.fit(latent, correctness)
         
     def predict(self, data_loader, base_model: Model.prototype=None, compute_metrics=False):
-        latent, latent_gts = DataTransform.get_latent(data_loader, self.clip_processor, self.transform)
+        latent, latent_gts = dataloader_utils.get_latent(data_loader, self.clip_processor, self.transform)
         if compute_metrics:
             correctness = get_correctness(data_loader, base_model, latent_gts)
             _, conf_distance, metric = self.model.predict(latent, correctness, compute_metrics)
@@ -121,7 +121,7 @@ def get_correctness(data_loader, model:Model.prototype, loader_gts):
     assert (gts != loader_gts).sum() == 0, 'Train Loader Shuffles!: {}'.format((gts != loader_gts).sum())
 
     correctness_mask = (gts == preds)
-    data_loader_size = DataTransform.get_dataloader_size(data_loader)
+    data_loader_size = dataloader_utils.get_size(data_loader)
     correctness = np.zeros(data_loader_size, dtype = int)
     correctness[correctness_mask] = 1
     return correctness
@@ -169,7 +169,7 @@ def get_correctness(data_loader, model:Model.prototype, loader_gts):
 #         latent, correctness, _ = get_correctness(data_loader, base_model, self.transform, self.clip_processor)
 #         self.model = self.model.fit(latent, correctness)
 #     def predict(self, data_loader, base_model: Model.prototype, compute_metrics=False):
-#         data = DataTransform.get_latent(data_loader, self.clip_processor, self.transform)
+#         data = dataloader_utils.get_latent(data_loader, self.clip_processor, self.transform)
 #         preds = self.model.predict(data)
 #         dataset = Dataset.loader2dataset(data_loader)
 #         gt_labels = Dataset.get_ds_labels(dataset)

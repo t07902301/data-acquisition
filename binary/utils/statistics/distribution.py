@@ -2,7 +2,7 @@ import numpy as np
 from scipy.stats import norm, gaussian_kde, kstest, skewnorm, skew
 import utils.statistics.data as DataStat
 import matplotlib.pyplot as plt
-import utils.objects.data_transform as DataTransform
+import utils.objects.dataloader as dataloader_utils
 
 def get_intervals(values):
     max_val = max(values)
@@ -40,7 +40,7 @@ class disrtibution():
     '''
     def __init__(self, model, detector, dataloader, pdf_type, correctness:bool) -> None:
         target_dv =  DataStat.get_correctness_dv(model, dataloader, detector, correctness=correctness)
-        dataloader_size = DataTransform.get_dataloader_size(dataloader)
+        dataloader_size = dataloader_utils.get_size(dataloader)
         self.prior = (len(target_dv)) / dataloader_size
         self.dstr = get_pdf(target_dv, pdf_type)
         self.correctness = correctness

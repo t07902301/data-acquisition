@@ -30,12 +30,18 @@ def loader2dataset(dataloader):
         data.append((img[i], coarse_labels[i], fine_labels[i]))
     return data
 
-def get_dataloader_size(dataloader):
+def get_size(dataloader):
     gts = []
     with torch.no_grad():
         for batch_info in dataloader:
             gts.append(batch_info[1])
     return len(torch.concat(gts))  
+
+def get_labels(dataloader):
+    gts = []
+    for batch_info in dataloader:
+        gts.append(batch_info[1].cpu())
+    return torch.concat(gts).numpy()
 
 def get_flattened(loader):
     img, gts = [], []

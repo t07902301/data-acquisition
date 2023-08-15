@@ -9,7 +9,7 @@ import torch.nn as nn
 import utils.detector.wrappers as wrappers
 from abc import abstractmethod
 from utils.env import model_env
-import utils.objects.data_transform as DataTransform
+import utils.objects.dataloader as dataloader_utils
 
 class prototype():
     def __init__(self, config) -> None:
@@ -132,13 +132,13 @@ class svm(prototype):
         self.model = wrappers.SVM(args=self.config['clf_args'], cv=self.config['clf_args']['k-fold'], split_and_search = split_and_search, do_normalize=True, do_standardize=False)
 
     def eval(self, dataloader):
-        latent, gts = DataTransform.get_latent(dataloader, self.clip_processor, self.transform)
+        latent, gts = dataloader_utils.get_latent(dataloader, self.clip_processor, self.transform)
         preds = self.model.raw_predict(latent)
         _, distance, _ = self.model.predict(latent)
         return gts, preds, distance
 
     def train(self, train_loader):
-        latent, gts = DataTransform.get_latent(train_loader, self.clip_processor, self.transform)
+        latent, gts = dataloader_utils.get_latent(train_loader, self.clip_processor, self.transform)
         self.model.set_preprocess(latent)  #TODO take the mean and std assumed norm dstr
         _ = self.model.fit(latent, gts)
 
@@ -151,7 +151,7 @@ class svm(prototype):
         print('model load from {}'.format(path))
     
     def update(self, new_model_config, train_loader):
-        print('Updating model has train loader of size:', DataTransform.get_dataloader_size(train_loader))
+        print('Updating model has train loader of size:', dataloader_utils.get_size(train_loader))
 
         self.train(train_loader)
 
@@ -163,13 +163,13 @@ class LogReg(prototype):
         self.model = wrappers.LogRegressor(cv=self.config['clf_args']['k-fold'], split_and_search = split_and_search, do_normalize=True, do_standardize=False)
 
     def eval(self, dataloader):
-        latent, gts = DataTransform.get_latent(dataloader, self.clip_processor, self.transform)
+        latent, gts = dataloader_utils.get_latent(dataloader, self.clip_processor, self.transform)
         preds = self.model.raw_predict(latent)
         _, distance, _ = self.model.predict(latent)
         return gts, preds, distance
 
     def train(self, train_loader):
-        latent, gts = DataTransform.get_latent(train_loader, self.clip_processor, self.transform)
+        latent, gts = dataloader_utils.get_latent(train_loader, self.clip_processor, self.transform)
         self.model.set_preprocess(latent)  #TODO take the mean and std assumed norm dstr
         _ = self.model.fit(latent, gts)
 
