@@ -42,25 +42,28 @@ class Probability(Prototype):
         return probability_target
 
     def run(self, data_info, dstr_dict:dict, stream_instruction:Config.ProbabStream):
-        selected_probab = []
-        for value in data_info['dv']:
-            target_posterior = self.get_posterior(value, dstr_dict, stream_instruction.pdf)
-            selected_probab.append(target_posterior)
-        selected_probab = np.array(selected_probab).reshape((len(selected_probab),))
-        selected_mask = (selected_probab >= stream_instruction.bound)
+        '''
+        Partition by posterior probab
+        '''
         dataset_indices = np.arange(len(data_info['dataset']))
-        test_selected = torch.utils.data.Subset(data_info['dataset'],dataset_indices[selected_mask])
+        posterior_list = []
+        for idx in dataset_indices:
+            target_posterior = self.get_posterior(data_info['dv'][idx], dstr_dict, stream_instruction.pdf)
+            posterior_list.append(target_posterior)
+        posterior_list = np.array(posterior_list).reshape((len(dataset_indices),))
+        selected_mask = (posterior_list >= stream_instruction.bound)
+        selected_test = torch.utils.data.Subset(data_info['dataset'],dataset_indices[selected_mask])
         remained_test = torch.utils.data.Subset(data_info['dataset'],dataset_indices[~selected_mask])
-        test_selected_loader = torch.utils.data.DataLoader(test_selected, batch_size=data_info['new_batch_size'], num_workers=n_workers)
+        selected_test_loader = torch.utils.data.DataLoader(selected_test, batch_size=data_info['new_batch_size'], num_workers=n_workers)
         remained_test_loader = torch.utils.data.DataLoader(remained_test, batch_size=data_info['old_batch_size'], num_workers=n_workers)       
         test_loader = {
-            'new_model':test_selected_loader,
+            'new_model':selected_test_loader,
             'old_model': remained_test_loader
         }   
         # print('selected test images: {}%'.format(np.round(len(test_selected)/len(data_info['dv']), decimals=3)*100))
         # print('new cls percent:', new_label_stat(test_selected))
         # print('the max dv:', np.max(data_info['dv'][dataset_indices[selected_mask]]))
-        return test_loader, selected_probab
+        return test_loader, posterior_list
     
 class Threshold(Prototype):
     def __init__(self) -> None:

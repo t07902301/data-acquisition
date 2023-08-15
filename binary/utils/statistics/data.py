@@ -61,6 +61,7 @@ def pred_metric(dataloader, old_model:Model.prototype, new_model:Model.prototype
 
 def build_info(dataset_splits: Dataset.DataSplits, name, clf:Detector.Prototype, old_batch_size, new_batch_size):
     data_info = {}
+    assert name != 'train', 'Avoid dataloader shuffles!'
     dv, _ = clf.predict(dataset_splits.loader[name])        
     data_info['dv'] = dv
     data_info['old_batch_size'] = old_batch_size

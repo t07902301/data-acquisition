@@ -7,9 +7,15 @@ class Prototye():
         self.class_numer = class_number
     @abstractmethod
     def get(self, model: Model.prototype, dataloader):
+        '''
+        Get a Model's decision
+        '''
         pass
     @abstractmethod
     def apply(self, ensembled_decision):
+        '''
+        Get final decision from ensembled results
+        '''
         pass
     
 class Confidence(Prototye):
@@ -32,6 +38,7 @@ class Confidence(Prototye):
         return np.concatenate((class_0_probab, class_1_probab), axis=1)
     
     def apply(self, ensembled_decision):
+        # ensembled_decision: array (n_size, n_class) - multi-class
         preds = np.argmax(ensembled_decision, axis=-1)
         return preds
     
@@ -46,10 +53,11 @@ class Distance(Prototye):
         return distance
     
     def apply(self, ensembled_decision):
+        # ensembled_decision: array (n_size, n_class) - binary
         size = len(ensembled_decision)
-        preds = np.zeros(size)
         ensembled_decision = ensembled_decision.reshape(size)
         class_1_mask = (ensembled_decision >= 0)
+        preds = np.zeros(size)
         preds[class_1_mask] = 1
         return preds
     

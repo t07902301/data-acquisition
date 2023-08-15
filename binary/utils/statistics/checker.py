@@ -50,6 +50,11 @@ class Prototype():
         model = Model.factory(model_config.base_type, self.general_config, self.vit)
         model.load(model_config.path, model_config.device)
         return model
+    
+    def get_new_model(self, operation:Config.Operation):
+        self.new_model_config.set_path(operation)
+        new_model = self.load_model(self.new_model_config)
+        return new_model
 
 class Partition(Prototype):
     '''
@@ -64,13 +69,12 @@ class Partition(Prototype):
         super().setup(old_model_config, datasplits, operation, plot) 
         self.test_info = DataStat.build_info(datasplits, 'test_shift', self.clf, self.new_model_config.batch_size, self.new_model_config.new_batch_size)
 
-    def get_subset_loader(self, threshold):
-        loader = Partitioner.Threshold().run(self.test_info, threshold)        
+    def get_subset_loader(self, acquisition_bound):
+        loader = Partitioner.Threshold().run(self.test_info, acquisition_bound)        
         return loader
 
     def run(self, operation: Config.Operation):
-        self.new_model_config.set_path(operation)
-        new_model = self.load_model(self.new_model_config)
+        new_model = self.get_new_model(operation)
         test_loader = self.get_subset_loader(operation.acquisition.bound)
         return self._target_test(test_loader, new_model)
 
@@ -124,35 +128,34 @@ class Probability(Partition):
         super().setup(old_model_config, datasplits, operation, plot) 
         self.anchor_loader = datasplits.loader['val_shift'] # keep for Seq
         anchor_dstr = self.set_up_dstr(self.anchor_loader, operation.stream.pdf)
-        self.test_loader, selected_probab = self.get_subset_loader(anchor_dstr, operation.stream)
+        self.test_loader, posteriors = self.get_subset_loader(anchor_dstr, operation.stream)
         print('Set up: ')
         # self.mistake_stat(self.test_loader['new_model'], 'New Model Test')
         if plot:
             pdf_name = self.get_pdf_name(operation.stream.pdf)
             fig_name = 'figure/test/probab.png'
-            self.probab_dstr_plot(selected_probab, fig_name)
+            self.probab_dstr_plot(posteriors, fig_name)
             fig_name = 'figure/test/dv.png'
             self.mistake_stat(datasplits.loader['test_shift'], plot=True, plot_name=fig_name, pdf=operation.stream.pdf)
             self.selected_dstr_plot(self.test_loader['new_model'], fig_name, operation.stream.pdf)
 
     def set_up_dstr(self, set_up_loader, pdf_type):
-        correct_dstr = Distribution.get_correctness_dstr(self.base_model, self.clf, set_up_loader, pdf_type, correctness=True)
-        incorrect_dstr = Distribution.get_correctness_dstr(self.base_model, self.clf, set_up_loader, pdf_type, correctness=False)
+        correct_dstr = Distribution.disrtibution(self.base_model, self.clf, set_up_loader, pdf_type, correctness=True)
+        incorrect_dstr = Distribution.disrtibution(self.base_model, self.clf, set_up_loader, pdf_type, correctness=False)
         return {'correct': correct_dstr, 'incorrect': incorrect_dstr}
 
     def get_subset_loader(self, anchor_dstr, stream_instruction:Config.ProbabStream):
-        loader, selected_probab = Partitioner.Probability().run(self.test_info, {'target': anchor_dstr['incorrect'], 'other': anchor_dstr['correct']}, stream_instruction)
-        return loader, selected_probab
+        loader, posteriors = Partitioner.Probability().run(self.test_info, {'target': anchor_dstr['incorrect'], 'other': anchor_dstr['correct']}, stream_instruction)
+        return loader, posteriors
     
     def selected_dstr_plot(self, selected_loader, fig_name, pdf=None):
         self.mistake_stat(selected_loader, plot=True, plot_name=fig_name, pdf=pdf, loader_name='Selected Test')
 
     def run(self, operation:Config.Operation):
         '''
-        Use a new CLF and reset DSTR in testing seq
+        Use a new CLF and reset DSTR, test_loader in testing seq
         '''
-        self.new_model_config.set_path(operation)
-        new_model = self.load_model(self.new_model_config)
+        new_model = self.get_new_model(operation)
         if 'seq' in operation.acquisition.method:
             clf_log = Log(self.new_model_config, 'clf')
             self.clf = clf_log.import_log(operation)
@@ -208,8 +211,7 @@ class Ensemble(Prototype):
         self.test_loader = datasplits.loader['test_shift']
     
     def run(self, operation:Config.Operation):
-        self.new_model_config.set_path(operation)
-        new_model = self.load_model(self.new_model_config)
+        new_model = self.get_new_model(operation)
         return self._target_test(self.test_loader, new_model)
 
     def ensemble_decision(self, new_probab, new_weights, old_probab, old_weights):
@@ -235,10 +237,10 @@ class DstrEnsemble(Ensemble):
     def setup(self, old_model_config: Config.OldModel, datasplits: Dataset.DataSplits, operation: Config.Operation, plot: bool):
         super().setup(old_model_config, datasplits, operation, plot)
         self.anchor_dstr = self.set_up_dstr(datasplits.loader['val_shift'], self.pdf_type)
-    
+
     def set_up_dstr(self, set_up_loader, pdf_type):
-        correct_dstr = Distribution.get_correctness_dstr(self.base_model, self.clf, set_up_loader, pdf_type, correctness=True)
-        incorrect_dstr = Distribution.get_correctness_dstr(self.base_model, self.clf, set_up_loader, pdf_type, correctness=False)
+        correct_dstr = Distribution.disrtibution(self.base_model, self.clf, set_up_loader, pdf_type, correctness=True)
+        incorrect_dstr = Distribution.disrtibution(self.base_model, self.clf, set_up_loader, pdf_type, correctness=False)
         return {'correct': correct_dstr, 'incorrect': incorrect_dstr}
 
     def get_weight(self, dstr_dict, observations, size):

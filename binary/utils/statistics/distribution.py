@@ -3,6 +3,7 @@ from scipy.stats import norm, gaussian_kde, kstest, skewnorm, skew
 import utils.statistics.data as DataStat
 import matplotlib.pyplot as plt
 import utils.objects.data_transform as DataTransform
+
 def get_intervals(values):
     max_val = max(values)
     min_val = min(values)
@@ -34,19 +35,15 @@ def ecdf(raw_values, cut_value=None):
 
 
 class disrtibution():
-    def __init__(self, prior, dstr) -> None:
-        self.prior = prior
-        self.dstr = dstr
-
-def get_correctness_dstr(model, detector, dataloader, pdf_type, correctness:bool):
     '''
     Get decision value distribution of a dataloader against a given model
     '''
-    target_dv =  DataStat.get_correctness_dv(model, dataloader, detector, correctness=correctness)
-    dataloader_size = DataTransform.get_dataloader_size(dataloader)
-    prior = (len(target_dv)) / dataloader_size
-    dstr = disrtibution(prior, get_pdf(target_dv, pdf_type))
-    return dstr
+    def __init__(self, model, detector, dataloader, pdf_type, correctness:bool) -> None:
+        target_dv =  DataStat.get_correctness_dv(model, dataloader, detector, correctness=correctness)
+        dataloader_size = DataTransform.get_dataloader_size(dataloader)
+        self.prior = (len(target_dv)) / dataloader_size
+        self.dstr = get_pdf(target_dv, pdf_type)
+        self.correctness = correctness
 
 def get_pdf(value, method):
     if method == 'norm':
