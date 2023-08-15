@@ -210,8 +210,10 @@ class Confidence(NonSeqStrategy):
         clf_info = None
         return new_data_indices, clf_info      
 
-    def run(self, n_data, market_loader, base_model:Model.prototype, base_model_config: Config.OldModel):
+    def get_confs_score(self,  base_model_config: Config.OldModel, base_model:Model.prototype,market_loader):
+
         market_gts, _, market_score = base_model.eval(market_loader)
+
         if base_model_config.class_number == 1:
             if base_model_config.base_type == 'cnn':
                 confs = acquistion.get_probab_diff(market_gts, market_score)
@@ -219,7 +221,14 @@ class Confidence(NonSeqStrategy):
                 confs = acquistion.get_distance_diff(market_gts, market_score)
         else:
             confs = acquistion.get_probab_gts(market_gts, market_score)
+        return confs
+
+    def run(self, n_data, market_loader,  base_model:Model.prototype, base_model_config: Config.OldModel):
+
+        confs = self.get_confs_score(market_loader, base_model, base_model_config)
+
         new_data_indices = acquistion.get_top_values_indices(confs, n_data)
+
         return new_data_indices
 
 # class Mix(NonSeqStrategy):
