@@ -99,7 +99,6 @@ class Prototype:
     def set_preprocess(self, train_latents=None):
         self.pre_process = PreProcessing(do_normalize=self.do_normalize)
         if train_latents is not None:
-            print("updating whitening")
             self.pre_process.update_stats(train_latents)
         else:
             print("No whitening")
