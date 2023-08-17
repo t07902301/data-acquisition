@@ -47,8 +47,8 @@ class WorkSpace():
             clf = Detector.factory(detect_instruction.name, self.general_config, clip_processor = detect_instruction.vit, split_and_search=True)
             _ = clf.fit(self.base_model, self.data_split.loader['val_shift']) 
 
-        correct_dstr = Distribution.get_correctness_dstr(self.base_model, clf, self.data_split.loader['val_shift'], stream_instruction.pdf, correctness=True)
-        incorrect_dstr = Distribution.get_correctness_dstr(self.base_model, clf, self.data_split.loader['val_shift'], stream_instruction.pdf, correctness=False)
+        correct_dstr = Distribution.disrtibution(self.base_model, clf, self.data_split.loader['val_shift'], stream_instruction.pdf, correctness=True)
+        incorrect_dstr = Distribution.disrtibution(self.base_model, clf, self.data_split.loader['val_shift'], stream_instruction.pdf, correctness=False)
 
         val_shift_info = DataStat.build_info(self.data_split, 'val_shift', clf, old_batch_size, new_batch_size)
         val_shift_split, _ = Partitioner.Probability().run(val_shift_info, {'target': incorrect_dstr, 'other': correct_dstr}, stream_instruction)
@@ -88,8 +88,15 @@ class Strategy():
 
         new_data_indices, detector = self.get_new_data_indices(operation, workspace)
 
+        if workspace.base_model_config.base_type == 'cnn':
+
+            new_data = torch.utils.data.Subset(workspace.data_split.dataset['aug_market'], new_data_indices)
+        
+        else:
+            new_data = torch.utils.data.Subset(workspace.data_split.dataset['market'], new_data_indices)
+
         return {
-            'data': torch.utils.data.Subset(workspace.data_split.dataset['market'], new_data_indices),
+            'data': new_data,
             'indices': new_data_indices,
             'clf': detector
         }
@@ -225,7 +232,7 @@ class Confidence(NonSeqStrategy):
 
     def run(self, n_data, market_loader,  base_model:Model.prototype, base_model_config: Config.OldModel):
 
-        confs = self.get_confs_score(market_loader, base_model, base_model_config)
+        confs = self.get_confs_score(base_model_config, base_model, market_loader)
 
         new_data_indices = acquistion.get_top_values_indices(confs, n_data)
 
@@ -281,6 +288,7 @@ class SeqCLF(Strategy):
         new_data_round_info = self.sub_strategy.get_new_data_info(sub_operation, workspace)
 
         data_split.reduce('market', new_data_round_info['indices'])
+        data_split.reduce('aug_market', new_data_round_info['indices'])
         data_split.expand('val_shift', new_data_round_info['data'])
 
         return new_data_round_info

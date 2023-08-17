@@ -5,7 +5,6 @@ from __future__ import print_function
 from PIL import Image
 import os
 import os.path
-import errno
 import numpy as np
 import sys
 if sys.version_info[0] == 2:
@@ -67,7 +66,7 @@ class CIFAR10(data.Dataset):
             self.train_data = []
             self.train_labels = []
             self.train_coarse_labels = []
-            for fentry in self.train_list:
+            for fentry in self.train_list: # dataset is divided to batches. From each batch, retreive images and labels
                 f = fentry[0]
                 file = os.path.join(self.root, self.base_folder, f)
                 fo = open(file, 'rb')

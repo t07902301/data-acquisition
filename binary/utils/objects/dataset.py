@@ -2,7 +2,7 @@ import torchvision.transforms as transforms
 import torch
 import numpy as np
 from utils.env import generator
-import utils.objects.cifar as cifar
+import utils.dataset.cifar as cifar
 import utils.objects.Config as Config
 
 n_workers = 1
@@ -59,9 +59,11 @@ class DataSplits():
             self.expand(target_name, new_data)
 
 def load_dataset(ds_dict, remove_rate, remove_labels, old_labels=None):
+    
     train_remove_rate = remove_rate['train']
     test_remove_rate = remove_rate['test']
 
+    _, old_aug_train = split_dataset(ds_dict['aug_train'], remove_labels, train_remove_rate)
     _, old_train = split_dataset(ds_dict['train'], remove_labels, train_remove_rate)
     _, old_val = split_dataset(ds_dict['val_shift'], remove_labels, train_remove_rate)
     _, old_test = split_dataset(ds_dict['test_shift'], remove_labels, train_remove_rate)
@@ -72,14 +74,19 @@ def load_dataset(ds_dict, remove_rate, remove_labels, old_labels=None):
     else:
         val, test = ds_dict['val_shift'], ds_dict['test_shift']
 
+    # sub_mkt, _ = split_dataset(ds_dict['market'], remove_labels + old_labels, 0.1)
+
     return {
-        'train': old_train,
+        'train': old_aug_train,
         'train_non_cnn': old_train,
         'val': old_val,
         'test': old_test,
         'val_shift': val,
         'test_shift': test,
-        'market': ds_dict['market']
+        'market': ds_dict['market'],
+        'aug_market': ds_dict['aug_market'],
+        # 'sub_mkt': sub_mkt
+
     }
 
 def load_cover_dataset(ds_dict, remove_rate, cover_labels, old_labels=None):
@@ -116,21 +123,27 @@ def create_dataset( mean, std, config):
     select_fine_labels = data_config['select_fine_labels']
     max_subclass_num = config['hparams']['subclass']
 
-    train_ds, test_ds = get_raw_ds(data_config['ds_root'], mean, std)
+    train_ds, test_ds, aug_train_ds = get_raw_ds(data_config['ds_root'], mean, std)
 
     train_size = ratio["train_size"]
-    market_size = ratio["market_size"]
-    val_size = ratio['val_size']
+    test_size = ratio["test_size"]
+    val_from_test = ratio['val_from_test']
 
     if len(select_fine_labels)>0:
         train_ds = get_subset_by_labels(train_ds, select_fine_labels)
         test_ds = get_subset_by_labels(test_ds, select_fine_labels)
+        aug_train_ds = get_subset_by_labels(aug_train_ds, select_fine_labels)
 
     label_summary = [i for i in range(max_subclass_num)] if len(select_fine_labels)==0 else select_fine_labels
     
-    train_ds, market_ds = split_dataset(train_ds, label_summary, train_size/ (train_size + market_size) )
+    train_ds, market_ds, split_indices = split_dataset(train_ds, label_summary, train_size, return_split_indices=True)
 
-    val_ds, test_ds = split_dataset(test_ds, label_summary, val_size)
+    aug_market_ds = torch.utils.data.Subset(aug_train_ds, split_indices['split_2'])
+    aug_train_ds = torch.utils.data.Subset(aug_train_ds, split_indices['split_1'])
+
+    test_ds, _ = split_dataset(test_ds, label_summary, test_size)
+
+    val_ds, test_ds = split_dataset(test_ds, label_summary, val_from_test)
 
     ds = {}
     # modified_labels = list(set(select_fine_labels) - set(target_test_label))
@@ -139,9 +152,11 @@ def create_dataset( mean, std, config):
     ds['market'] =  market_ds
     ds['test_shift'] = test_ds
     ds['train'] =  train_ds
+    ds['aug_market'] = aug_market_ds
+    ds['aug_train'] = aug_train_ds
     return ds
 
-def split_dataset(dataset, target_labels, split_1_ratio, use_fine_label = True):
+def split_dataset(dataset, target_labels, split_1_ratio, use_fine_label = True, return_split_indices=False):
     '''
     Split Dataset by Selecting Data from Target Labels \n
     Return (target dataset, the rest)
@@ -150,7 +165,12 @@ def split_dataset(dataset, target_labels, split_1_ratio, use_fine_label = True):
     splits_1, splits_2 = get_split_indices(dataset_labels, target_labels, split_1_ratio)
     subset_1 = torch.utils.data.Subset(dataset, splits_1)
     subset_2 = torch.utils.data.Subset(dataset, splits_2)
-    return subset_1, subset_2
+
+    if return_split_indices:
+        split_indices = {'split_1': splits_1, 'split_2': splits_2}
+        return subset_1, subset_2, split_indices
+    else:
+        return subset_1, subset_2
 
 def balance_dataset(target_labels, modified_label, dataset):
     target_ds = get_subset_by_labels(dataset, target_labels)
@@ -185,15 +205,15 @@ def get_raw_ds(ds_root, mean, std):
         transforms.ToTensor(),
         transforms.Normalize(mean=mean, std=std),
         ])
-    # augment_transform = transforms.Compose([
-    #     transforms.RandomCrop(32, padding=4),
-    #     transforms.RandomHorizontalFlip(),
-    #     base_transform
-    # ])
+    augment_transform = transforms.Compose([
+        transforms.RandomCrop(32, padding=4),
+        transforms.RandomHorizontalFlip(),
+        base_transform
+    ])
     train_ds = cifar.CIFAR100(ds_root, train=True,transform=base_transform,coarse=True)
-    # aug_train_ds = cifar.CIFAR100(ds_root, train=True,transform=augment_transform,coarse=True)
+    aug_train_ds = cifar.CIFAR100(ds_root, train=True,transform=augment_transform,coarse=True)
     test_ds = cifar.CIFAR100(ds_root, train=False,transform=base_transform,coarse=True)
-    return train_ds,test_ds
+    return train_ds,test_ds, aug_train_ds
 
 def get_indices_by_labels(ds, subset_labels, use_fine_label=True):
     select_indice = []
@@ -288,15 +308,16 @@ def normalize(select_fine_labels, ds_root):
     r, g, b = [], [], []
     train_size = len(train_ds)
     for idx in range(train_size):
-        img = transforms.ToTensor()(train_ds[idx][0])
+        raw_img = train_ds[idx][0]
+        img = transforms.ToTensor()(raw_img)
         r.append(img[0])
         g.append(img[1])
         b.append(img[2])
-    result = [ r, g, b]
+    result = [r, g, b]
     mean = []
     std = []
     for color in result:
-        color = torch.stack(color)
+        color = torch.concat(color) # list to tensor
         mean.append(torch.mean(color).item())
         std.append(torch.std(color).item())
     return mean, std #superclass
