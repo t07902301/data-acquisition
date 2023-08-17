@@ -1,7 +1,7 @@
 from sklearn.svm import OneClassSVM
 import numpy as np
 import torch
-import utils.objects.data_transform as Transform
+import utils.objects.dataloader as dataloader_utils
 import utils.objects.dataset as Dataset
 # import utils.objects.Detector as Detector
 # from sklearn.linear_model import SGDOneClassSVM
@@ -25,14 +25,14 @@ def get_cover_samples(dataset, is_covered):
 
 def run(ds:Dataset.DataSplits, clip_processor, known_labels):
 
-    ref_latent, _ = Transform.get_latent(ds.loader['val_shift'], clip_processor, 'clip')
+    ref_latent, _ = dataloader_utils.get_latent(ds.loader['val_shift'], clip_processor, 'clip')
 
     clf = OneClassSVM(gamma='auto', kernel='rbf').fit(ref_latent)
     # clf = SGDOneClassSVM(random_state=0).fit(ref_latent)
     # clf = IsolationForest(random_state=0).fit(ref_latent)
     # clf = LocalOutlierFactor(novelty=True).fit(ref_latent)
 
-    test_latent, _ = Transform.get_latent(ds.loader['market'], clip_processor, 'clip')
+    test_latent, _ = dataloader_utils.get_latent(ds.loader['market'], clip_processor, 'clip')
 
     pred_novelty = clf.predict(test_latent)
 
