@@ -9,10 +9,15 @@ from sklearn.gaussian_process.kernels import RBF
 # from sklearn.neural_network import MLPRegressor
 from typing import List
 class regressor():
-    def __init__(self) -> None:
-        # self.model = LinearRegression()
-        self.model = Ridge()
-        # self.model = SVR(kernel='rbf')
+    def __init__(self, dev) -> None:
+        if dev == 'rs':
+            # self.model = LinearRegression()
+            self.model = Ridge()
+            # self.model = SVR(kernel='linear')
+            # self.model = SVR(kernel='rbf')
+
+        else: 
+            self.model = SVR(kernel='rbf')
 
         # kernel = RBF(length_scale_bounds = (0.1, 1.0))
         # self.model = GaussianProcessRegressor(kernel=kernel, alpha=0.1)
@@ -65,7 +70,7 @@ class regressor():
         inputs = np.array(inputs).reshape(-1, 1)
         return self.model.predict(inputs)
 
-def regression_split_train_test(pairs):
+def split_train_test(pairs):
     np.random.seed(0)
     pair_size = len(pairs)
     pair_indices = np.arange(pair_size)
@@ -78,37 +83,41 @@ def regression_split_train_test(pairs):
     
 def import_file(model_dir, dev):
    
-    file = os.path.join('log/{}/dev'.format(model_dir), 'val_{}.pkl'.format(dev))
+    file = os.path.join('log/{}/reg'.format(model_dir), '{}.pkl'.format(dev))
+    # file = os.path.join('log/{}/dev'.format(model_dir), 'val_{}.pkl'.format(dev)) #75
+    # file = os.path.join('log/{}/dev'.format(model_dir), 'val_{}_30.pkl'.format(dev))
+    # file = os.path.join('log/{}/dev'.format(model_dir), 'val_{}_18.pkl'.format(dev))
    
     with open(file, 'rb') as f:
         out = pkl.load(f)
 
     print('load from', file)
 
-    return out
+    return out, file
 
 import matplotlib.pyplot as plt
 
 def plot(inputs):
-    inputs.sort(key=lambda tup: tup[0])
+    inputs = sorted(inputs, key=lambda tup: tup[0])
+    # inputs.sort(key=lambda tup: tup[0])
     X = [each[0] for each in inputs]
     y = [each[1] for each in inputs]
     plt.plot(X, y)
     plt.show()
 
-def plot_regress(epochs, pairs, model_dir, dev_mode):
+def plot_regress(epochs, pairs, file:str):
 
     for epo in range(epochs):
 
         plot(pairs[epo])
     
-    file = os.path.join('log/{}/dev'.format(model_dir), '{}.png'.format(dev_mode))
+    file = file.replace('.pkl', '.png')
 
     plt.savefig(file)
 
     print('figure save to', file)
 
-def predict(epochs, pairs, models: List[regressor], test_list):
+def predict(epochs, models: List[regressor], test_list):
 
     pred_list = []
 
@@ -120,16 +129,17 @@ def predict(epochs, pairs, models: List[regressor], test_list):
         pred_list.append(pred)
     
     print(np.round(np.mean(pred_list, axis=0), decimals=3))
-    print(*pred_list)
+    for i in pred_list:
+        print(*i)
 
-def train(epochs, pairs) -> List[regressor]:
+def train(epochs, pairs, dev) -> List[regressor]:
 
     score_list, model_list = [], []
 
     for epo in range(epochs):
 
-        train, test = regression_split_train_test(pairs[epo])
-        model = regressor()
+        train, test = split_train_test(pairs[epo])
+        model = regressor(dev)
         scaler = model.train(train)
         score = model.test(test, scaler)
         score_list.append(score)
@@ -142,17 +152,18 @@ def train(epochs, pairs) -> List[regressor]:
 
 def main(epochs, model_dir, dev):
 
-    pairs = import_file(model_dir, dev)
+    pairs, file = import_file(model_dir, dev)
 
-    test_list = [225, 275, 325, 375, 425]
+    # plot_regress(5, pairs, file)
+
+    test_list = [125, 225, 275, 325, 375, 425, 525, 625]
     # test_list = [225, 325, 425, 525, 625]
 
-    # plot_regress(epochs, pairs, model_dir, dev)
+    models = train(epochs, pairs, dev)
 
-    models = train(epochs, pairs)
+    predict(epochs, models, test_list)
 
-    predict(epochs, pairs, models, test_list)
-
+    # print(pairs)
 
 import argparse
 if __name__ == '__main__':

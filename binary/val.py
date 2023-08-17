@@ -15,8 +15,8 @@ class Checker():
         return data_info
     
     def set_up_dstr(self, base_model, set_up_loader, pdf, clf):
-        correct_dstr = Distribution.get_correctness_dstr(base_model, clf, set_up_loader, pdf, correctness=True)
-        incorrect_dstr = Distribution.get_correctness_dstr(base_model, clf, set_up_loader, pdf, correctness=False)
+        correct_dstr = Distribution.disrtibution(base_model, clf, set_up_loader, pdf, correctness=True)
+        incorrect_dstr = Distribution.disrtibution(base_model, clf, set_up_loader, pdf, correctness=False)
         return {'correct': correct_dstr, 'incorrect': incorrect_dstr}
     
     def test_dstr_probab(self, base_model, set_up_loader, test_info, clf, stream: Config.ProbabStream):
@@ -55,11 +55,11 @@ class Random_Sample():
         pass
 
     def acquistion(self, n_samples, val_size):
-        np.random.seed(0)
         val_indices = np.arange(val_size)
 
         samples_indices = {}
         for size in n_samples:
+            np.random.seed(0)
             samples_indices[size] = np.random.choice(val_indices, size, replace=False)
         return samples_indices
 
@@ -80,7 +80,7 @@ class Random_Sample():
 
         for n_sample, indices in samples_indices.items():
 
-            val_sample = torch.utils.data.Subset(data_split.dataset['val_shift'], indices)
+            val_sample = torch.utils.data.Subset(data_split.dataset['sub_mkt'], indices)
 
             new_acc = self.get_model_performance(model_config, detect_instruction, config, val_sample, data_split.loader['test_shift'])
 
@@ -90,11 +90,14 @@ class Random_Sample():
 
     def run(self, n_samples, epochs, ds_list, config, device_config, base_type, model_dir, detect_instrution):
 
-        sample_indices = self.acquistion(n_samples, len(ds_list[0]['val_shift']))
+        sample_src_size = len(ds_list[0]['sub_mkt'])
 
         regression_pairs_dict = {}
 
         for epo in range(epochs):
+
+            sample_indices = self.acquistion(n_samples, sample_src_size)
+
             print('in epoch {}'.format(epo))
             model_config = Config.OldModel(config['hparams']['batch_size']['base'], config['hparams']['superclass'], model_dir, device_config, epo, base_type)        
             ds = ds_list[epo]
@@ -115,9 +118,9 @@ class Greedy():
     def __init__(self) -> None:
         pass
 
-    def acquisition(self, n_samples, val_loader, detector: Detector.Prototype, base_model):
+    def acquisition(self, n_samples, dataloader, detector: Detector.Prototype, base_model):
 
-        dv, _ = detector.predict(val_loader, base_model)
+        dv, _ = detector.predict(dataloader, base_model)
 
         samples_indices = {}
         for size in n_samples:
@@ -136,10 +139,15 @@ class Greedy():
 
         return new_acc
 
-    def get_model_performance(self, model_config:Config.OldModel, detect_instruction:Config.Detection, config, train_data, checker:Checker):
+    def get_model_performance(self, model_type, detect_instruction:Config.Detection, config, train_data, checker:Checker, val_loader):
         train_loader = torch.utils.data.DataLoader(train_data, 16)
-        new_model = Model.factory(model_config.base_type, config, detect_instruction.vit)
-        new_model.train(train_loader)
+        new_model = Model.factory(model_type, config, detect_instruction.vit)
+
+        if model_type == 'cnn':
+            new_model.train(train_loader, val_loader)
+        else:
+            new_model.train(train_loader)
+
         new_acc = checker.run(new_model)
         return new_acc
     
@@ -148,8 +156,8 @@ class Greedy():
         pairs = []
 
         for n_sample, indices in samples_indices.items():
-            val_sample = torch.utils.data.Subset(data_split.dataset['val_shift'], indices)
-            new_acc = self.get_model_performance(model_config, detect_instruction, config, val_sample, checker)
+            val_sample = torch.utils.data.Subset(data_split.dataset['sub_mkt'], indices)
+            new_acc = self.get_model_performance(model_config.base_type, detect_instruction, config, val_sample, checker, data_split.loader['val_shift'])
             # new_acc = self.get_model_performance_dev(model_config, detect_instruction, config, val_sample, data_split.loader['test_shift'])
             pairs.append((n_sample, new_acc - base_acc))
             # pairs.append((n_sample, new_acc))
@@ -177,7 +185,7 @@ class Greedy():
 
             clf = self.get_dstr_clf(detect_instrution, config, ds.loader['val_shift'], base_model)
 
-            sample_indices = self.acquisition(n_samples, ds.loader['val_shift'], clf, base_model)
+            sample_indices = self.acquisition(n_samples, ds.loader['sub_mkt'], clf, base_model)
 
             checker = Checker()
             checker.set_up(ds.dataset['test_shift'], ds.loader['test_shift'], clf, base_model, 16, ds.loader['val_shift'], stream)
@@ -190,7 +198,7 @@ class Greedy():
 
 def export(model_dir, dev, data):
    
-    file = os.path.join('log/{}/dev'.format(model_dir), 'val_{}.pkl'.format(dev))
+    file = os.path.join('log/{}/reg'.format(model_dir), '{}.pkl'.format(dev))
    
     with open(file, 'wb') as f:
         out = pkl.dump(data, f)
@@ -206,9 +214,17 @@ def main(epochs,  model_dir ='', device_id=0, base_type='', detector_name='', de
     clip_processor = Detector.load_clip(device_config, normalize_stat['mean'], normalize_stat['std'])
     detect_instrution = Config.Detection(detector_name, clip_processor)
 
-    np.random.seed(0)
-    sample_size = np.random.choice(np.arange(50, len(ds_list[0]['val_shift'])), 75, replace=False)
-    # sample_size = [i for i in range(30, len(ds_list[0]['val_shift']), 10)]
+    # np.random.seed(0)
+    # sample_size = np.random.choice(np.arange(50, len(ds_list[0]['val_shift'])), 30, replace=False)
+
+    # print(sorted(sample_size))
+
+    # sample_size = [i for i in range(30, len(ds_list[0]['val_shift'])+1, 5)]
+    sample_size = [i for i in range(100, len(ds_list[0]['val_shift'])+1, 25)]
+
+    print(sample_size)
+
+    # # sample_size = [225, 325, 425, 525, 625]
 
     if dev == 'rs':
         rs = Random_Sample()
@@ -217,11 +233,25 @@ def main(epochs,  model_dir ='', device_id=0, base_type='', detector_name='', de
         greedy = Greedy()
         regression_pairs_dict = greedy.run(sample_size, epochs, ds_list, config, device_config, base_type, model_dir, detect_instrution)
 
-    export(model_dir, dev, regression_pairs_dict, )
+    export(model_dir, dev, regression_pairs_dict)
+    # plot_regress(epochs, regression_pairs_dict, model_dir, dev)
+    # print(regression_pairs_dict)
 
     split_data = ds_list[0]
     for spit_name in split_data.keys():
         print(spit_name, len(split_data[spit_name]))
+
+def dev(epochs,  model_dir ='', device_id=0, base_type='', detector_name='', dev = ''):
+
+    print('Detector Name:', detector_name)
+    config, device_config, ds_list, normalize_stat = set_up(epochs, model_dir, device_id)
+    ds = ds_list[0]
+    ds = Dataset.DataSplits(ds, 64)
+    loader_labels = Detector.DataTransform.get_dataloader_labels(ds.loader['train_non_cnn'])
+    
+    dataset_labels = np.array([ds.dataset['train_non_cnn'][i][1] for i in range(len(ds.dataset['train_non_cnn']))])
+
+    print((loader_labels != dataset_labels).sum())
 
 import argparse
 if __name__ == '__main__':
