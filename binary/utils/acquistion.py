@@ -1,10 +1,4 @@
 import numpy as np
-import torch
-# def get_loader_labels(dataloader):
-#     gts = []
-#     for batch_info in dataloader:
-#         gts.append(batch_info[1])
-#     return torch.cat(gts).numpy()
 
 def extract_class_indices(cls_label, ds_labels):
     '''
@@ -16,7 +10,6 @@ def extract_class_indices(cls_label, ds_labels):
     return cls_indices
         
 def sample(indices, sample_size):
-    print(len(indices), sample_size)
     return np.random.choice(indices,sample_size,replace=False)
 
 def dummy_acquire(cls_gt, cls_pred, method, img_num):
