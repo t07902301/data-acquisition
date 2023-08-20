@@ -317,7 +317,7 @@ def normalize(select_fine_labels, ds_root):
     mean = []
     std = []
     for color in result:
-        color = torch.concat(color) # list to tensor
+        color = torch.concat(color) # color list: n_sample*[(H, W)]
         mean.append(torch.mean(color).item())
         std.append(torch.std(color).item())
     return mean, std #superclass
