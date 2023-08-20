@@ -1,5 +1,3 @@
-import sys
-sys.path.append('/home/yiwei/data-acquisition/binary/')
 # sys.path.append('..')
 from utils.strategy import *
 import utils.statistics.checker as Checker
@@ -51,7 +49,7 @@ def bound_run(epochs, parse_args, dataset_list, new_img_num_list, method_list, o
         bound_stat_list.append(bound_stat)
     return results, bound_stat_list
 
-def dev(epochs, dev_name, device, detector_name, model_dir, stream_name, base_type):
+def dev(epochs, dev_name, device, detector_name, model_dir, stream_name, base_type, option):
     print(stream_name)
     new_model_setter = 'retrain'
     pure = True
@@ -63,7 +61,7 @@ def dev(epochs, dev_name, device, detector_name, model_dir, stream_name, base_ty
     else:
         method_list, probab_bound = [dev_name], 0.5 
 
-    config, device_config, ds_list, normalize_stat = set_up(epochs, model_dir, device)
+    config, device_config, ds_list, normalize_stat = set_up(epochs, model_dir, device, option)
     clip_processor = Detector.load_clip(device_config, normalize_stat['mean'], normalize_stat['std'])
     stream_instruction = Config.ProbabStream(bound=probab_bound, pdf='kde', name=stream_name)
     detect_instruction = Config.Detection(detector_name, clip_processor)
@@ -95,9 +93,10 @@ if __name__ == '__main__':
     parser.add_argument('-dev','--dev',type=str, default='dv')
     parser.add_argument('-s','--stream',type=str, default='probab')
     parser.add_argument('-bt','--base_type',type=str,default='cnn')
+    parser.add_argument('-op','--option',type=str, default='object')
 
     args = parser.parse_args()
-    dev(args.epochs, model_dir=args.model_dir, device=args.device, detector_name=args.detector_name, dev_name=args.dev, stream_name=args.stream, base_type=args.base_type)
+    dev(args.epochs, model_dir=args.model_dir, device=args.device, detector_name=args.detector_name, dev_name=args.dev, stream_name=args.stream, base_type=args.base_type, option= args.option)
 
 # def main(epochs, new_model_setter='retrain', pure=False, model_dir ='', device=0, probab_bound = 0.5, base_type='', detector_name = ''):
 #     print('Detector:', detector_name)

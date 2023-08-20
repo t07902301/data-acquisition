@@ -1,5 +1,5 @@
-import binary.utils.objects.Config as Config
-import binary.utils.objects.dataset as Dataset
+import utils.objects.Config as Config
+import utils.objects.dataset as Dataset
 import utils.objects.Config as Config
 import utils.objects.model as Model
 import utils.objects.Detector as Detector
