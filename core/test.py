@@ -1,4 +1,3 @@
-# sys.path.append('..')
 from utils.strategy import *
 import utils.statistics.checker as Checker
 from utils.set_up import *

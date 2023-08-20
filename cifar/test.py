@@ -1,6 +1,3 @@
-import sys
-sys.path.append('/home/yiwei/data-acquisition/cifar/')
-# sys.path.append('..')
 from utils.strategy import *
 import utils.statistics.checker as Checker
 from utils.set_up import *
