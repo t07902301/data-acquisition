@@ -1,8 +1,0 @@
-s_i (meta.py)
-    s0: ball VS cup
-    s1: monitor vs phone
-    s2: all
-
-s_i_j: how to split dataset (data_setup.py)
-
-s_i_j_k: what to remove (pretrain.py)

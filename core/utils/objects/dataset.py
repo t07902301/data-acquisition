@@ -61,20 +61,20 @@ class DataSplits():
 
 def primal_operate(ds_dict, remove_rate, remove_label_config, option):
 
-    train_remove_rate = remove_rate['train']
-    test_remove_rate = remove_rate['test']
+    new_labels_remove_rate = remove_rate['new_labels']
+    old_labels_remove_rate = remove_rate['old_labels']
 
     subclass = subclass_config(remove_label_config, option)
     print(option, 'Removed Labels:', subclass['new'])
 
-    _, old_aug_train = split_dataset(ds_dict['aug_train'], train_remove_rate, {'name': option, 'labels': subclass['new']})
-    _, old_train = split_dataset(ds_dict['train'], train_remove_rate, {'name': option, 'labels': subclass['new']})
-    _, old_val = split_dataset(ds_dict['val'], train_remove_rate, {'name': option, 'labels': subclass['new']})
-    _, old_test = split_dataset(ds_dict['test'], train_remove_rate, {'name': option, 'labels': subclass['new']})
+    _, old_aug_train = split_dataset(ds_dict['aug_train'], new_labels_remove_rate, {'name': option, 'labels': subclass['new']})
+    _, old_train = split_dataset(ds_dict['train'], new_labels_remove_rate, {'name': option, 'labels': subclass['new']})
+    _, old_val = split_dataset(ds_dict['val'], new_labels_remove_rate, {'name': option, 'labels': subclass['new']})
+    _, old_test = split_dataset(ds_dict['test'], new_labels_remove_rate, {'name': option, 'labels': subclass['new']})
     
-    if test_remove_rate != None:
-        _, val = split_dataset(ds_dict['val'], test_remove_rate, {'name': option, 'labels': subclass['old']})
-        _, test = split_dataset(ds_dict['test'], test_remove_rate, {'name': option, 'labels': subclass['old']})
+    if old_labels_remove_rate != None:
+        _, val = split_dataset(ds_dict['val'], old_labels_remove_rate, {'name': option, 'labels': subclass['old']})
+        _, test = split_dataset(ds_dict['test'], old_labels_remove_rate, {'name': option, 'labels': subclass['old']})
     else:
         val, test = ds_dict['val'], ds_dict['test']
 
@@ -94,20 +94,20 @@ def primal_operate(ds_dict, remove_rate, remove_label_config, option):
 
 def dual_operate(primal_dict, remove_rate, remove_label_config, option):
 
-    train_remove_rate = remove_rate['train']
-    test_remove_rate = remove_rate['test']
+    new_labels_remove_rate = remove_rate['new_labels']
+    old_labels_remove_rate = remove_rate['old_labels']
     
     subclass = subclass_config(remove_label_config, option)
     print(option, 'Removed Labels:', subclass['new'])
 
-    _, old_aug_train = split_dataset(primal_dict['train'], train_remove_rate, {'name': option, 'labels': subclass['new']})
-    _, old_train = split_dataset(primal_dict['train_non_cnn'], train_remove_rate, {'name': option, 'labels': subclass['new']})
-    _, old_val = split_dataset(primal_dict['val'], train_remove_rate, {'name': option, 'labels': subclass['new']})
-    _, old_test = split_dataset(primal_dict['test'], train_remove_rate, {'name': option, 'labels': subclass['new']})
+    _, old_aug_train = split_dataset(primal_dict['train'], new_labels_remove_rate, {'name': option, 'labels': subclass['new']})
+    _, old_train = split_dataset(primal_dict['train_non_cnn'], new_labels_remove_rate, {'name': option, 'labels': subclass['new']})
+    _, old_val = split_dataset(primal_dict['val'], new_labels_remove_rate, {'name': option, 'labels': subclass['new']})
+    _, old_test = split_dataset(primal_dict['test'], new_labels_remove_rate, {'name': option, 'labels': subclass['new']})
     
-    if test_remove_rate != None:
-        _, val = split_dataset(primal_dict['val_shift'], test_remove_rate, {'name': option, 'labels': subclass['old']})
-        _, test = split_dataset(primal_dict['test_shift'], test_remove_rate, {'name': option, 'labels': subclass['old']})
+    if old_labels_remove_rate != None:
+        _, val = split_dataset(primal_dict['val_shift'], old_labels_remove_rate, {'name': option, 'labels': subclass['old']})
+        _, test = split_dataset(primal_dict['test_shift'], old_labels_remove_rate, {'name': option, 'labels': subclass['old']})
     else:
         val, test = primal_dict['val_shift'], primal_dict['test_shift']
         

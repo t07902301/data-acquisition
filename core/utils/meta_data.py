@@ -96,8 +96,8 @@ def get_meta_splits(data_config, meta_data):
     Get train, market, val, test set without any shift
     '''
     ratio = data_config['ratio']
-    train_size = ratio["train_size"]
-    test_size = ratio["test_size"]
+    train_size = ratio["train"]
+    test_size = ratio["test"]
     val_from_test = ratio['val_from_test']
 
     label_map = data_config['label_map']

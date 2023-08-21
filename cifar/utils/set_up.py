@@ -57,18 +57,16 @@ def load_dataset(epochs, model_dir, data_config):
 def load_cover_dataset(epochs, model_dir, data_config):
     data_root = os.path.join('data', model_dir)
     ds_list = []
-    remove_labels = data_config['remove_fine_labels']
     remove_rate = data_config['ratio']['remove_rate']
     cover_labels = data_config['cover_labels']
     print('Covered Labels:', cover_labels)
-    old_labels = list(set(data_config['select_fine_labels']) - set(remove_labels))
 
     for idx in range(epochs):
         data_path = os.path.join(data_root, '{}.pt'.format(idx))
         with open(data_path, 'rb') as f:
             ds_dict = pkl.load(f) 
         print(data_path, 'loaded')
-        final_dict = Dataset.load_cover_dataset(ds_dict, remove_rate, cover_labels, old_labels)    
+        final_dict = Dataset.load_cover_dataset(ds_dict, remove_rate, cover_labels)    
 
         ds_list.append(final_dict)
     return ds_list
@@ -101,7 +99,7 @@ def set_up(epochs, model_dir, device_id=0):
     print('Label Map:', label_map)
     print('select_fine_labels:', select_fine_labels)
 
-    ds_list = load_dataset(epochs, data_dir, config['data'])
-    # ds_list = load_cover_dataset(epochs, data_dir, config['data'])
+    # ds_list = load_dataset(epochs, data_dir, config['data'])
+    ds_list = load_cover_dataset(epochs, data_dir, config['data'])
 
     return config, device_config, ds_list, normalize_stat

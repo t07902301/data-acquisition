@@ -1,7 +1,7 @@
 from sklearn.svm import OneClassSVM
 from utils.set_up import *
 import numpy as np
-import utils.objects.data_transform as Transform
+import utils.objects.dataloader as dataloader_utils
 import utils.objects.Detector as Detector
 from sklearn.linear_model import SGDOneClassSVM
 import sklearn.metrics as sklearn_metrics
@@ -24,14 +24,14 @@ def get_cover_samples(dataset, is_covered):
 
 def run(ds:Dataset.DataSplits, clip_processor, known_labels):
 
-    ref_latent, _ = Transform.get_latent(ds.loader['val_shift'], clip_processor, 'clip')
+    ref_latent, _ = dataloader_utils.get_latent(ds.loader['val_shift'], clip_processor, 'clip')
 
     clf = OneClassSVM(gamma='auto', kernel='rbf').fit(ref_latent)
     # clf = SGDOneClassSVM(random_state=0).fit(ref_latent)
     # clf = IsolationForest(random_state=0).fit(ref_latent)
     # clf = LocalOutlierFactor(novelty=True).fit(ref_latent)
 
-    test_latent, _ = Transform.get_latent(ds.loader['market'], clip_processor, 'clip')
+    test_latent, _ = dataloader_utils.get_latent(ds.loader['market'], clip_processor, 'clip')
 
     pred_novelty = clf.predict(test_latent)
 
@@ -57,11 +57,11 @@ def svd(ds:Dataset.DataSplits, known_labels, batch_size):
 
     svd_indices = dev(train_loader, test_loader, xp_path='log/dev')
     
-    cover_ds = Dataset.get_indices_by_labels(ds.dataset['market'], known_labels)
+    known_indices = Dataset.get_indices_by_labels(ds.dataset['market'], known_labels)
 
-    cover_size = len(cover_ds)
+    known_size = len(known_indices)
 
-    pred_indices =  svd_indices[ : cover_size]
+    pred_indices =  svd_indices[:known_size]
 
     pred_ds = torch.utils.data.Subset(ds.dataset['market'], pred_indices)
 
@@ -80,9 +80,9 @@ def main(epochs,  model_dir =''):
 
     for epo in range(epochs):
         print('in epoch {}'.format(epo))
-        ds = ds_list[epo]
-        ds = Dataset.DataSplits(ds, 32)
-        # ood_acc = svd( ds, known_labels, batch_size['new'])
+        ds = Dataset.DataSplits(ds_list[epo], 32)
+
+        # ood_acc = svd( ds, known_labels, 32)
         ood_acc = run( ds, clip_processor, known_labels)
 
         odd_acc_list.append(ood_acc)

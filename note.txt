@@ -1,0 +1,11 @@
+s_i (meta.py)
+    s0: ball VS cup
+    s1: monitor vs phone
+    s2: all
+
+s_i_j: how to split dataset (data_setup.py)
+
+s_i_j_k: what to remove (pretrain.py)
+
+check out-of-distribution detection precision with ood.py. 
+If the precision is bigger than threshold,the proportion of target labels in filtered market, then market filtering should work.
