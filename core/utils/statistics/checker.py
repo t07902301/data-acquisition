@@ -133,12 +133,13 @@ class Probability(Partition):
         print('Set up: ')
         # self.mistake_stat(self.test_loader['new_model'], 'New Model Test')
         if plot:
-            pdf_name = self.get_pdf_name(operation.stream.pdf)
             fig_name = 'figure/test/probab.png'
             self.probab_dstr_plot(posteriors, fig_name)
-            fig_name = 'figure/test/dv.png'
-            self.mistake_stat(datasplits.loader['test_shift'], plot=True, plot_name=fig_name, pdf=operation.stream.pdf)
-            self.selected_dstr_plot(self.test_loader['new_model'], fig_name, operation.stream.pdf)
+            # fig_name = 'figure/test/dv.png'
+            # self.mistake_stat(datasplits.loader['val_shift'], plot=True, plot_name=fig_name, pdf=operation.stream.pdf)
+            fig_name = 'figure/test/market_dv.png'
+            self.naive_plot(datasplits.loader['market'], fig_name)
+            # self.selected_dstr_plot(self.test_loader['new_model'], fig_name, operation.stream.pdf)
 
     def set_up_dstr(self, set_up_loader, pdf_type):
         correct_dstr = Distribution.disrtibution(self.base_model, self.clf, set_up_loader, pdf_type, correctness=True)
@@ -176,19 +177,20 @@ class Probability(Partition):
         test_loader = torch.utils.data.DataLoader(self.test_info['dataset'], batch_size=self.new_model_config.batch_size)
         dataset_gts, dataset_preds, _ = self.base_model.eval(test_loader)
         correct_mask = (dataset_gts == dataset_preds)
-        Distribution.base_plot(probab[correct_mask], 'correct', 'green', pdf_method)        
+        Distribution.base_plot(probab[correct_mask], 'non-error', 'green', pdf_method)        
         incorrect_mask = ~correct_mask
-        Distribution.base_plot(probab[incorrect_mask], 'incorrect', 'red', pdf_method)  
+        Distribution.base_plot(probab[incorrect_mask], 'error', 'red', pdf_method)  
         Distribution.plt.xlabel('Probability')
         Distribution.plt.savefig(fig_name)
         Distribution.plt.close()
         print('Save fig to {}'.format(fig_name))
 
     def dv_dstr_plot(self, cor_dv, incor_dv, fig_name, pdf_method=None):
-        Distribution.base_plot(cor_dv, 'correct', 'orange', pdf_method)
-        Distribution.base_plot(incor_dv, 'incorrect', 'blue', pdf_method)
-        Distribution.plt.xlabel('Decision Value')
+        Distribution.base_plot(cor_dv, 'non-error', 'orange', pdf_method)
+        Distribution.base_plot(incor_dv, 'error', 'blue', pdf_method)
+        Distribution.plt.xlabel('Feature Score')
         Distribution.plt.ylabel('Density')
+        Distribution.plt.title('Old Model Performance Feature Score Distribution')
         Distribution.plt.savefig(fig_name)
         Distribution.plt.close()
         print('Save fig to {}'.format(fig_name))
@@ -200,6 +202,16 @@ class Probability(Partition):
             print('Hard images in {}: {}%'.format(loader_name, len(incor_dv) / (len(incor_dv) + len(cor_dv)) * 100))
         if plot:
             self.dv_dstr_plot(cor_dv, incor_dv, plot_name, pdf)
+
+    def naive_plot(self, dataloader, fig_name):
+        dv, _ = self.clf.predict(dataloader)
+        Distribution.base_plot(dv, 'all data', 'orange', pdf_method='kde')
+        Distribution.plt.xlabel('Feature Score')
+        Distribution.plt.ylabel('Density')
+        Distribution.plt.title('Old Model Performance Feature Score Distribution')
+        Distribution.plt.savefig(fig_name)
+        Distribution.plt.close()
+        print('Save fig to {}'.format(fig_name))
 
 class Ensemble(Prototype):
     def __init__(self, model_config: Config.NewModel, general_config) -> None:

@@ -133,12 +133,11 @@ class Probability(Partition):
         print('Set up: ')
         # self.mistake_stat(self.test_loader['new_model'], 'New Model Test')
         if plot:
-            pdf_name = self.get_pdf_name(operation.stream.pdf)
             fig_name = 'figure/test/probab.png'
             self.probab_dstr_plot(posteriors, fig_name)
-            fig_name = 'figure/test/dv.png'
+            fig_name = 'figure/test/dv_test_shift.png'
             self.mistake_stat(datasplits.loader['test_shift'], plot=True, plot_name=fig_name, pdf=operation.stream.pdf)
-            self.selected_dstr_plot(self.test_loader['new_model'], fig_name, operation.stream.pdf)
+            # self.selected_dstr_plot(self.test_loader['new_model'], fig_name, operation.stream.pdf)
 
     def set_up_dstr(self, set_up_loader, pdf_type):
         correct_dstr = Distribution.disrtibution(self.base_model, self.clf, set_up_loader, pdf_type, correctness=True)
@@ -176,19 +175,20 @@ class Probability(Partition):
         test_loader = torch.utils.data.DataLoader(self.test_info['dataset'], batch_size=self.new_model_config.batch_size)
         dataset_gts, dataset_preds, _ = self.base_model.eval(test_loader)
         correct_mask = (dataset_gts == dataset_preds)
-        Distribution.base_plot(probab[correct_mask], 'correct', 'green', pdf_method)        
+        Distribution.base_plot(probab[correct_mask], 'non-error', 'green', pdf_method)        
         incorrect_mask = ~correct_mask
-        Distribution.base_plot(probab[incorrect_mask], 'incorrect', 'red', pdf_method)  
+        Distribution.base_plot(probab[incorrect_mask], 'error', 'red', pdf_method)  
         Distribution.plt.xlabel('Probability')
         Distribution.plt.savefig(fig_name)
         Distribution.plt.close()
         print('Save fig to {}'.format(fig_name))
 
     def dv_dstr_plot(self, cor_dv, incor_dv, fig_name, pdf_method=None):
-        Distribution.base_plot(cor_dv, 'correct', 'orange', pdf_method)
-        Distribution.base_plot(incor_dv, 'incorrect', 'blue', pdf_method)
-        Distribution.plt.xlabel('Decision Value')
+        Distribution.base_plot(cor_dv, 'non-error', 'orange', pdf_method)
+        Distribution.base_plot(incor_dv, 'error', 'blue', pdf_method)
+        Distribution.plt.xlabel('Feature Score')
         Distribution.plt.ylabel('Density')
+        Distribution.plt.title('Old Model Performance Feature Score Distribution')
         Distribution.plt.savefig(fig_name)
         Distribution.plt.close()
         print('Save fig to {}'.format(fig_name))
@@ -356,7 +356,7 @@ def get_configs(epoch, parse_param, dataset):
     dataset_splits = Dataset.DataSplits(dataset, old_model_config.batch_size)
     return old_model_config, new_model_config, dataset_splits, general_config
 
-def instantiate(epoch, parse_args, dataset, operation: Config.Operation, plot=True):
+def instantiate(epoch, parse_args, dataset, operation: Config.Operation, plot):
     old_model_config, new_model_config, dataset_splits, general_config = get_configs(epoch, parse_args, dataset)
     checker = factory(operation.stream.name, new_model_config, general_config)
     checker.setup(old_model_config, dataset_splits, operation, plot)
