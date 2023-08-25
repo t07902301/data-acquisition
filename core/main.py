@@ -48,7 +48,7 @@ def bound_run(parse_param, epochs, ds_list, method_list, bound, n_new_data_list,
         dataset = ds_list[epo]
         epoch_run(parse_param, method_list, n_new_data_list, dataset, epo, operation)
 
-def dev(epochs, dev_name, device, detector_name, model_dir, base_type, option):
+def dev(epochs, dev_name, device, detector_name, model_dir, base_type, option, dataset_name):
 
     pure, new_model_setter = True, 'retrain'
 
@@ -59,7 +59,7 @@ def dev(epochs, dev_name, device, detector_name, model_dir, base_type, option):
     else:
         method_list, probab_bound = [dev_name], 0.5 
 
-    config, device_config, ds_list, normalize_stat = set_up(epochs, model_dir, device, option)
+    config, device_config, ds_list, normalize_stat = set_up(epochs, model_dir, device, option, dataset_name)
     
     clip_processor = Detector.load_clip(device_config, normalize_stat['mean'], normalize_stat['std'])
     stream_instruction = Config.ProbabStream(bound=probab_bound, pdf='kde', name='probab')
@@ -81,9 +81,10 @@ if __name__ == '__main__':
     parser.add_argument('-dev','--dev',type=str, default='dv')
     parser.add_argument('-bt','--base_type',type=str,default='cnn')
     parser.add_argument('-op','--option',type=str, default='object')
+    parser.add_argument('-ds','--dataset',type=str, default='core')
 
     args = parser.parse_args()
-    dev(args.epochs, model_dir=args.model_dir, device=args.device, detector_name=args.detector_name, dev_name=args.dev, base_type=args.base_type, option=args.option)
+    dev(args.epochs, model_dir=args.model_dir, device=args.device, detector_name=args.detector_name, dev_name=args.dev, base_type=args.base_type, option=args.option, dataset_name=args.dataset)
 
 # def main(epochs, new_model_setter='retrain', pure=False, model_dir ='', device=0, base_type='', detector_name = ''):
 #     print('Detector:', detector_name)

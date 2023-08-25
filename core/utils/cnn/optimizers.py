@@ -33,7 +33,6 @@ def get_optimizer_and_lr_scheduler(training_params, model):
                         [0, lr_peak_epoch * iters_per_epoch, epochs * iters_per_epoch],
                         [0, 1, 0])
         scheduler = lr_scheduler.LambdaLR(opt, LRPolicy(lr_schedule))
-#         scheduler = lr_scheduler.LambdaLR(opt, lr_schedule.__getitem__)
             
     elif scheduler_type == 'step':
         # scheduler = lr_scheduler.StepLR(opt, step_size=60, 

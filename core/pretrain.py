@@ -13,6 +13,9 @@ def run(ds:Dataset.DataSplits, model_config:Config.OldModel, train_flag:bool, de
     else:
         base_model = Model.factory(model_config.base_type, config, detect_instruction.vit)
         base_model.load(model_config.path, model_config.device)
+        # print(len(base_model.model.clf.get_params().keys()))
+
+    # return 0, 0, 0, 0
     
     # Evaluate
     acc = base_model.acc(ds.loader['test'])
@@ -31,13 +34,13 @@ def run(ds:Dataset.DataSplits, model_config:Config.OldModel, train_flag:bool, de
     if train_flag:
         base_model.save(model_config.path)
 
-    shift_score = DataStat.error_label_stat('test_shift', ds, base_model, config['data']['remove'], option)
+    shift_score = DataStat.error_label_stat('test_shift', ds, base_model, config['data']['labels']['remove'], option)
 
     return acc, acc_shift, detect_prec, shift_score
 
-def main(epochs,  model_dir, train_flag, device_id, base_type, detector_name, option):
+def main(epochs,  model_dir, train_flag, device_id, base_type, detector_name, option, dataset_name):
     print('Detector Name:', detector_name)
-    config, device_config, ds_list, normalize_stat = set_up(epochs, model_dir, device_id, option)
+    config, device_config, ds_list, normalize_stat = set_up(epochs, model_dir, device_id, option, dataset_name)
     acc_list, acc_shift_list, detect_prec_list, shift_list = [], [], [], []
     clip_processor = Detector.load_clip(device_config, normalize_stat['mean'], normalize_stat['std'])
     detect_instrution = Config.Detection(detector_name, clip_processor)
@@ -45,7 +48,7 @@ def main(epochs,  model_dir, train_flag, device_id, base_type, detector_name, op
         print('in epoch {}'.format(epo))
         old_model_config = Config.OldModel(config['hparams']['batch_size']['base'], config['hparams']['superclass'], model_dir, device_config, epo, base_type)
         ds = ds_list[epo]
-        ds = Dataset.DataSplits(ds, old_model_config.batch_size)
+        ds = Dataset.DataSplits(ds, old_model_config.batch_size, dataset_name)
         prec, acc_shift, detect_prec, shift_score = run(ds, old_model_config, train_flag, detect_instrution, config, option)
         acc_list.append(prec)
         acc_shift_list.append(acc_shift)
@@ -59,6 +62,7 @@ def main(epochs,  model_dir, train_flag, device_id, base_type, detector_name, op
     split_data = ds.dataset
     for spit_name in split_data.keys():
         print(spit_name, len(split_data[spit_name]))
+
 import argparse
 if __name__ == '__main__':
 
@@ -70,6 +74,7 @@ if __name__ == '__main__':
     parser.add_argument('-bt','--base_type',type=str,default='cnn')
     parser.add_argument('-dn','--detector_name',type=str,default='svm')
     parser.add_argument('-op','--option',type=str, default='object')
+    parser.add_argument('-ds','--dataset',type=str, default='core')
 
     args = parser.parse_args()
-    main(args.epochs,args.model_dir,args.train_flag, args.device, args.base_type, args.detector_name, args.option)
+    main(args.epochs,args.model_dir,args.train_flag, args.device, args.base_type, args.detector_name, args.option, args.dataset)

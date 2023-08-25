@@ -3,7 +3,7 @@ from abc import abstractmethod
 import numpy as np
 import torch
 from utils.statistics.distribution import disrtibution
-from utils.objects.dataset import n_workers
+from utils.dataset.wrappers import n_workers
 
 class Prototype():
     def __init__(self) -> None:

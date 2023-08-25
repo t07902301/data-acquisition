@@ -93,5 +93,9 @@ class SqueezeNet(nn.Module):
 
         return x
 
-def squeezenet(class_num=100):
-    return SqueezeNet(class_num=class_num)
+# def test():
+#     net = SqueezeNet()
+#     pytorch_total_params = sum(p.numel() for p in net.parameters() if p.requires_grad)
+#     print(pytorch_total_params)
+
+# test()

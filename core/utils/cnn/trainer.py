@@ -11,17 +11,20 @@ from copy import deepcopy
 from torch.utils.tensorboard import SummaryWriter
 from torch.cuda.amp import GradScaler, autocast
 from utils.cnn.optimizers import get_optimizer_and_lr_scheduler
-# from optimizers import *
-
 
 def unwrap_batch(batch, set_device=False, bce = False):
-    x, y, obj_y, session, index = batch
+    if len(batch) == 4: # cifar
+        x, y, fine_y, index = batch
+    else: # core
+        x, y, obj_y, session, index = batch
+
     if set_device:
         x = x.cuda()
         y = y.cuda()
     if bce:
         y = y.view(y.shape[0], 1)
-    return x, y, obj_y, session, index
+    return x, y, index
+
 class AverageMeter():
     def __init__(self):
         self.num = 0
@@ -111,7 +114,7 @@ class LightWeightTrainer():
         return opt, scaler, scheduler
 
     def training_step(self, model, batch):
-        x, y, obj_y, session, index = unwrap_batch(batch, self.set_device, self.bce)
+        x, y, index = unwrap_batch(batch, self.set_device, self.bce)
         logits = model(x)
         if self.bce:
             temp = self.bce_loss_unreduced(logits, y.float()) # weighted loss
@@ -133,7 +136,7 @@ class LightWeightTrainer():
         return loss, acc, len(x)
     
     def validation_step(self, model, batch):
-        x, y, obj_y, session, index = unwrap_batch(batch, self.set_device, self.bce)
+        x, y, index = unwrap_batch(batch, self.set_device, self.bce)
         logits = model(x)
         if self.bce:
             loss = self.bce_loss(logits, y.float())

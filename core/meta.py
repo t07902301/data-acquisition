@@ -1,20 +1,15 @@
-from utils.meta_data import *
-
+from utils.dataset.wrappers import MetaData
 from utils.set_up import load_config
-
+import os
+import pickle as pkl
 def run(model_dir):
-
     config = load_config(model_dir)
-
-    fo = open('core_data.pkl', 'rb')
-    core = pkl.load(fo)
-
+    meta_data = MetaData('core_data.pkl')
     label_map = config['data']['label_map']
     category = list(label_map.keys()) if label_map != None else [i for i in range(10)]
     sessions = [i for i in range(11)]
-    split_results = balanced_split(30, core, category, sessions)
-    return subset_dict(core, split_results['sampled'])
-
+    split_results = meta_data.balanced_split(30, category, sessions)
+    return meta_data.subset2dict(split_results['sampled'])
 
 def main(model_dir =''):
     meta = run(model_dir)

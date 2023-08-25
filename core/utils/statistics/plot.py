@@ -5,27 +5,26 @@ import matplotlib.pyplot as plt
 from abc import abstractmethod
 
 class Prototype():
-    def __init__(self, model_config: Config.NewModel) -> None:
-        self.model_config = model_config   
+    def __init__(self) -> None:
+        pass
     @abstractmethod
     def run(self):
         pass
     @abstractmethod
-    def get_fig_name(self):
+    def get_fig_name(self, model_dir):
         pass
 
 class Line(Prototype):
-    def __init__(self, model_config: Config.NewModel) -> None:
-        super().__init__(model_config)
+    def __init__(self) -> None:
+        super().__init__()
 
-    def get_fig_name(self, data_name):
-        fig_root = 'figure/{}'.format(self.model_config.model_dir)
+    def get_fig_name(self, model_dir):
+        fig_root = 'log/{}'.format(model_dir)
         if os.path.exists(fig_root) is False:
             os.makedirs(fig_root)
-        aug_name = '' if self.model_config.augment else 'na'
-        return os.path.join(fig_root, '{}-{}.png'.format(aug_name, data_name))
+        return os.path.join(fig_root, 'result.png')
     
-    def run(self, value_list, method_list, n_data_list, ylabel, data_name):
+    def run(self, value_list, method_list, n_data_list, ylabel, model_dir):
         if isinstance(value_list,list):
             value_list = np.array(value_list)        
         for m_idx,method in enumerate(method_list): 
@@ -36,16 +35,16 @@ class Line(Prototype):
         plt.xlabel('#new images')
         plt.ylabel(ylabel)
         plt.legend(fontsize='small')
-        fig_name = self.get_fig_name(data_name)
+        fig_name = self.get_fig_name(model_dir)
         plt.savefig(fig_name)
         plt.clf()    
         print('save fig to', fig_name)        
 
 class Histogram(Prototype):
-    def __init__(self, model_config: Config.NewModel) -> None:
-        super().__init__(model_config)
+    def __init__(self) -> None:
+        super().__init__()
 
-    def run(self, epochs, dv_list, n_data=None, method=None):
+    def run(self, epochs, dv_list, model_dir, n_data=None, method=None):
         n_cols = epochs
         split_name = list(dv_list[0].keys())
         n_rows = len(split_name) #n_splits
@@ -54,14 +53,14 @@ class Histogram(Prototype):
         for row in range(n_rows):
             for col in range(n_cols):
                 axs[col + n_cols * row].hist(dv_list[col][split_name[row]], bins = 6)
-        fig_name = self.get_fig_name(n_data, method)
+        fig_name = self.get_fig_name(n_data, method, model_dir)
         fig.suptitle(split_name)
         fig.savefig(fig_name)
         fig.clf()      
         print('save fig to', fig_name)  
 
-    def get_fig_name(self, n_data, method):
-        fig_root = 'figure/{}/distribution'.format(self.model_config.model_dir)
+    def get_fig_name(self, n_data, method, model_dir):
+        fig_root = 'figure/{}/distribution'.format(model_dir)
         if os.path.exists(fig_root) is False:
             os.makedirs(fig_root)
         if n_data == None and method == None:

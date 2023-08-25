@@ -2,7 +2,7 @@ from sklearn.svm import OneClassSVM
 import numpy as np
 import torch
 import utils.objects.dataloader as dataloader_utils
-import utils.objects.dataset as Dataset
+import utils.dataset.wrappers as Dataset
 # import utils.objects.Detector as Detector
 # from sklearn.linear_model import SGDOneClassSVM
 import sklearn.metrics as sklearn_metrics

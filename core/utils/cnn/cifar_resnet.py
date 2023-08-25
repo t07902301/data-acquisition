@@ -133,15 +133,9 @@ def ResNet101(**kwargs):
 def ResNet152(**kwargs):
     return ResNet(Bottleneck, [3,8,36,3], **kwargs)
 
-resnet50 = ResNet50
-resnet18 = ResNet18
-resnet34 = ResNet34
-resnet101 = ResNet101
-resnet152 = ResNet152
-resnet18wide = ResNet18Wide
+# def test():
+#     net = ResNet34()
+#     pytorch_total_params = sum(p.numel() for p in net.parameters() if p.requires_grad)
+#     print(pytorch_total_params)
 
-# resnet18thin = ResNet18Thin
-def test():
-    net = ResNet18()
-    y = net(torch.randn(1,3,32,32))
-    print(y.size())
+# test()

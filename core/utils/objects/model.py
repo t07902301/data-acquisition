@@ -1,5 +1,5 @@
 import sys
-import utils.objects.dataset as Dataset
+import utils.dataset.wrappers as Dataset
 sys.path.append('..')
 import utils.cnn.model_utils as model_utils
 import utils.cnn.trainer as trainer_utils

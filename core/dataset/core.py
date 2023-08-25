@@ -51,6 +51,36 @@ class Core(data.Dataset):
     def _check_integrity(self):
         return True
 
+class ModifiedDataset(data.Dataset):
+    def __init__(self, dataset, category_transform=None):
+        super().__init__()
+        self.dataset = dataset
+        # self.transform = transform
+        self.category_transform = category_transform
+    # def __iter__(self):
+        # worker_info = data.get_worker_info()
+        # data_size = len(self.dataset)
+        # iter_dataset = []
+        # for idx in range(data_size):
+        #     img, coarse_category, fine_category = self.dataset[idx]
+        #     if self.category_transform is not None:
+        #         coarse_category = self.category_transform[coarse_category]            
+        #     iter_dataset.append((img, coarse_category, fine_category))
+        # if worker_info is not None:  # in one worker process, split workload
+        #     per_worker = int(math.ceil(data_size/ float(worker_info.num_workers)))
+        #     worker_id = worker_info.id
+        #     iter_start = 0 + worker_id * per_worker
+        #     iter_end = min(iter_start + per_worker, self.end)
+        #     return iter(iter_dataset[iter_start:iter_end])
+        # else:
+        #     return iter(iter_dataset)
+    def __len__(self):
+        return len(self.dataset)
+    def __getitem__(self, index):
+        img, category, obj, session, real_idx = self.dataset[index]
+        category = self.category_transform[category]
+        return img, category, obj, session, real_idx
+
 class Novelty(data.Dataset):
     def __init__(self, dataset, cover_categorys):
         super().__init__()
@@ -65,16 +95,3 @@ class Novelty(data.Dataset):
         else:
             novelty = 1
         return img, novelty, index
-
-name2cat = {
-    "plug_adapter": 0,
-    "mobile_phone": 1,
-    "scissor": 2,
-    "light_bulb": 3,
-    "can": 4,
-    "glass": 5,
-    "ball": 6,
-    "marker": 7,
-    "cup": 8,
-    "remote_control": 9,
-}

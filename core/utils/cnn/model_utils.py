@@ -30,11 +30,12 @@ def load_model(path, build_fn):
 
 def get_cifar_resnet(arch, num_classes,use_pretrained=False):
     cls = {
-            'resnet50': cifar_resnet.resnet50,
-            'resnet18': cifar_resnet.resnet18,
-            'resnet34': cifar_resnet.resnet34,
-            'resnet101': cifar_resnet.resnet101,
-            'resnet18wide': cifar_resnet.resnet18wide,
+            'resnet50': cifar_resnet.ResNet50,
+            'resnet18': cifar_resnet.ResNet18,
+            'resnet34': cifar_resnet.ResNet34,
+            'resnet101': cifar_resnet.ResNet101,
+            'resnet18wide': cifar_resnet.ResNet18Wide,
+            'resnet18thin': cifar_resnet.ResNet18Thin,
     }
     model = cls[arch](num_classes=num_classes)
     model._last_layer_str = 'linear'
@@ -69,7 +70,6 @@ def get_pretrained_resnet(arch, num_classes):
 from utils.cnn.squeezenet import SqueezeNet
 
 def get_other(arch, num_classes, pretrain=False):
-    # import src.other_archs as other_archs
 
     if arch == 'alexnet':
         return torch.hub.load('pytorch/vision:v0.10.0','alexnet',pretrained=False)
@@ -85,5 +85,4 @@ BUILD_FUNCTIONS = {
     'pretrained_resnet': get_pretrained_resnet,
     'other': get_other,
 }
-    
-    
+

@@ -1,10 +1,53 @@
 import utils.objects.model as Model
 import utils.objects.Config as Config
 from utils.objects.log import Log
-import utils.objects.dataset as Dataset
+import utils.dataset.wrappers as Dataset
 import utils.objects.Detector as Detector
 import numpy as np
 import torch
+
+class Cifar():
+    def __init__(self) -> None:
+        pass
+
+    def label_stat(self, dataset, checked_labels):
+        ds_labels = Dataset.Cifar().get_labels(dataset, use_fine_label=True)
+        check_labels_cnt = 0
+        for label in checked_labels:
+            check_labels_cnt += (label==ds_labels).sum()
+        return check_labels_cnt
+    
+class Core():
+    def __init__(self) -> None:
+        pass
+
+    def option_label_stat(self, dataset, checked_labels, option):
+        check_labels_cnt = 0
+        check_labels_indices_mask = np.zeros(len(dataset), dtype=bool)
+
+        ds_labels = Dataset.Core().get_labels(dataset, option)
+        for label in checked_labels:
+            checked_mask = (label==ds_labels)
+            check_labels_cnt += (checked_mask).sum()
+            check_labels_indices_mask[checked_mask] = True
+
+        check_labels_indices = np.arange(len(dataset))[check_labels_indices_mask]
+        
+        return check_labels_cnt, check_labels_indices
+
+    def label_stat(self, dataset, remove_config, option):
+        check_labels_cnt = 0
+        check_labels_indices = []
+        if option == 'both':
+            for op in ['session', 'object']:
+                checked_labels = remove_config[op]
+                _, option_indices = self.option_label_stat(dataset, checked_labels, op)
+                check_labels_indices.append(option_indices)
+            return len(set(np.concatenate(check_labels_indices)))
+        else:
+            checked_labels = remove_config[option]
+            check_labels_cnt, _ = self.option_label_stat(dataset, checked_labels, option)
+            return check_labels_cnt
 
 def get_new_data_max_dv(clf:Detector.SVM , acquisition_config:Config.Acquisition, model_config:Config.NewModel, data_splits:Dataset.DataSplits):
     if 'seq' in acquisition_config.method: 
@@ -18,34 +61,6 @@ def get_new_data_max_dv(clf:Detector.SVM , acquisition_config:Config.Acquisition
     train_dv, _ = clf.predict(train_data_loader)
     return np.max(train_dv)
 
-def option_label_stat(dataset, checked_labels, option):
-    check_labels_cnt = 0
-    check_labels_indices_mask = np.zeros(len(dataset), dtype=bool)
-
-    ds_labels = Dataset.get_labels(dataset, option)
-    for label in checked_labels:
-        checked_mask = (label==ds_labels)
-        check_labels_cnt += (checked_mask).sum()
-        check_labels_indices_mask[checked_mask] = True
-
-    check_labels_indices = np.arange(len(dataset))[check_labels_indices_mask]
-    
-    return check_labels_cnt, check_labels_indices
-
-def label_stat(dataset, remove_config, option):
-    check_labels_cnt = 0
-    check_labels_indices = []
-    if option == 'both':
-        for op in ['session', 'object']:
-            checked_labels = remove_config[op]
-            _, option_indices = option_label_stat(dataset, checked_labels, op)
-            check_labels_indices.append(option_indices)
-        return len(set(np.concatenate(check_labels_indices)))
-    else:
-        checked_labels = remove_config[option]
-        check_labels_cnt, _ = option_label_stat(dataset, checked_labels, option)
-        return check_labels_cnt
-
 def error_label_stat(split_name, data_split:Dataset.DataSplits, model:Model.prototype, remove_config, option):
     '''
     Get target labels proportion on errors
@@ -53,10 +68,13 @@ def error_label_stat(split_name, data_split:Dataset.DataSplits, model:Model.prot
     gt,pred,_  = model.eval(data_split.loader[split_name])
     dataset = data_split.dataset[split_name]
     dataset_idx = np.arange(len(dataset))
-    incor_mask = (gt!=pred)
-    incor_idx = dataset_idx[incor_mask]
-    incor_dataset = torch.utils.data.Subset(dataset,incor_idx)
-    return label_stat(incor_dataset, remove_config, option) / len(incor_dataset) * 100
+    error_mask = (gt!=pred)
+    error_idx = dataset_idx[error_mask]
+    error_dataset = torch.utils.data.Subset(dataset,error_idx)
+    if data_split.dataset_name == 'core':
+        return Core().label_stat(error_dataset, remove_config, option) / len(error_dataset) * 100
+    else:
+        return Cifar().label_stat(error_dataset, remove_config) / len(error_dataset) * 100
 
 def pred_metric(dataloader, old_model:Model.prototype, new_model:Model.prototype):
     gt,pred,_  = old_model.eval(dataloader)
