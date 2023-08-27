@@ -90,14 +90,31 @@ class CNN(prototype):
         return gts, preds, probabs            
 
     def train(self, train_loader, val_loader, log_model=False, model_save_path='', data_weights=None):
-        '''return the last checkpoint'''
+        '''return the best checkpoint'''
+        best_val_loss = np.inf
+        best_model_chkpnt = None
+
         training_args=self.config['hparams']['training']
+        # add args
         training_args['optimizer'] = self.config['hparams']['optimizer']
         training_args['iters_per_epoch'] = len(train_loader)
+
         trainer = trainer_utils.LightWeightTrainer(training_args=self.config['hparams']['training'],
                                                         exp_name=model_save_path, enable_logging=log_model,
                                                         bce=self.bce, set_device=True, loss_upweight_vec=data_weights)
-        best_model_chkpnt = trainer.fit(self.model, train_loader, val_loader)
+        best_model_chkpnt, val_loss_check_pnt = trainer.fit(self.model, train_loader, val_loader)
+
+        # epochs, learning_rates = training_args['epochs'], training_args['lr']
+        # for epoch in epochs:
+        #     for lr in learning_rates:
+        #         training_args['epochs'] = epoch
+        #         training_args['lr'] = lr
+        #         trainer = trainer_utils.LightWeightTrainer(training_args=self.config['hparams']['training'],
+        #                                                         exp_name=model_save_path, enable_logging=log_model,
+        #                                                         bce=self.bce, set_device=True, loss_upweight_vec=data_weights)
+        #         model_check_pnt, val_loss_check_pnt = trainer.fit(self.model, train_loader, val_loader)
+        #         if val_loss_check_pnt < best_val_loss:
+        #             best_model_chkpnt = model_check_pnt
         self.model = best_model_chkpnt
 
     def tune(self,train_loader,val_loader, weights=None,log_model=False,model_save_path=''):

@@ -30,9 +30,9 @@ class AverageMeter():
         self.num = 0
         self.tot = 0
         
-    def update(self, val, sz):
-        self.num += val*sz
-        self.tot += sz
+    def update(self, val, output_size):
+        self.num += val*output_size
+        self.tot += output_size
     
     def calculate(self):
         return self.num/self.tot
@@ -152,10 +152,10 @@ class LightWeightTrainer():
         for batch in train_dataloader:
             opt.zero_grad(set_to_none=True)
             with autocast():
-                loss, acc, sz = self.training_step(model, batch)
+                loss, acc, output_size = self.training_step(model, batch)
             # t.set_postfix({'loss': loss.item(), 'acc': acc.item()})
-            loss_meter.update(loss.item(), sz)
-            acc_meter.update(acc.item(), sz)
+            loss_meter.update(loss.item(), output_size)
+            acc_meter.update(acc.item(), output_size)
 
             scaler.scale(loss).backward()
             scaler.step(opt)
@@ -170,25 +170,25 @@ class LightWeightTrainer():
         for batch in train_dataloader:
             opt.zero_grad(set_to_none=True)
             with autocast():
-                loss, acc, sz = self.training_step(model, batch)
+                loss, acc, output_size = self.training_step(model, batch)
             # t.set_postfix({'loss': loss.item(), 'acc': acc.item()})
-            loss_meter.update(loss.item(), sz)
-            acc_meter.update(acc.item(), sz)
+            loss_meter.update(loss.item(), output_size)
+            acc_meter.update(acc.item(), output_size)
 
             scaler.scale(loss).backward()
             scaler.step(opt)
             scaler.update()
-            scheduler.step()   # TODO Does scheduler update optmizer per batch or per epoch?
+            scheduler.step()   
                
         # with tqdm(train_dataloader) as t:
         #     t.set_description(f"Train Epoch: {epoch_num}")
         #     for batch in t:
         #         opt.zero_grad(set_to_none=True)
         #         with autocast():
-        #             loss, acc, sz = self.training_step(model, batch)
+        #             loss, acc, output_size = self.training_step(model, batch)
         #         t.set_postfix({'loss': loss.item(), 'acc': acc.item()})
-        #         loss_meter.update(loss.item(), sz)
-        #         acc_meter.update(acc.item(), sz)
+        #         loss_meter.update(loss.item(), output_size)
+        #         acc_meter.update(acc.item(), output_size)
 
         #         scaler.scale(loss).backward()
         #         scaler.step(opt)
@@ -204,17 +204,17 @@ class LightWeightTrainer():
         with torch.no_grad():
             for batch in val_dataloader:
                 with autocast():
-                    loss, acc, sz = self.validation_step(model, batch)
-                loss_meter.update(loss.item(), sz)
-                acc_meter.update(acc.item(), sz)            
+                    loss, acc, output_size = self.validation_step(model, batch)
+                loss_meter.update(loss.item(), output_size)
+                acc_meter.update(acc.item(), output_size)            
             # with tqdm(val_dataloader) as t:
             #     t.set_description(f"Val Epoch: {epoch_num}")
             #     for batch in t:
             #         with autocast():
-            #             loss, acc, sz = self.validation_step(model, batch)
+            #             loss, acc, output_size = self.validation_step(model, batch)
             #         t.set_postfix({'loss': loss.item(), 'acc': acc.item()})
-            #         loss_meter.update(loss.item(), sz)
-            #         acc_meter.update(acc.item(), sz)
+            #         loss_meter.update(loss.item(), output_size)
+            #         acc_meter.update(acc.item(), output_size)
         avg_loss, avg_acc = loss_meter.calculate(), acc_meter.calculate()
         return avg_loss, avg_acc
     
@@ -276,4 +276,4 @@ class LightWeightTrainer():
                     self.writer.flush()
                 self.writer.close()
         # print(f"In Epoch: {epoch}, LR: {curr_lr}, Train Loss: {train_loss:0.4f}, Train Acc: {train_acc:0.4f}, Val Loss: {val_loss:0.4f}, Val Acc: {val_acc:0.4f}")
-        return best_model_chkpnt
+        return best_model_chkpnt, best_val_loss

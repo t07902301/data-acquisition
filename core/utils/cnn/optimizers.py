@@ -38,6 +38,8 @@ def get_optimizer_and_lr_scheduler(training_params, model):
         # scheduler = lr_scheduler.StepLR(opt, step_size=60, 
         #                                 gamma=0.2)
         scheduler = lr_scheduler.MultiStepLR(opt, milestones=[60, 60, 40, 40], gamma=0.2)
+    elif scheduler_type == 'exp':
+        scheduler = lr_scheduler.ExponentialLR(opt, gamma=0.9)
     else:
         # raise NotImplementedError("Unimplemented LR Scheduler Type")
         scheduler = lr_scheduler.ReduceLROnPlateau(opt, 'min',patience=lr_scheduler_args['patience'])
