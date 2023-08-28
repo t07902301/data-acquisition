@@ -175,7 +175,7 @@ class Greedy(NonSeqStrategy):
         new_data_indices = self.run(acquistion_n_data, dataset_splits.loader['market'], detector)
         return new_data_indices, detector  
 
-    def get_Detector(self, detector_instruction: Config.Detection, base_model: Model.prototype, validation_dict, general_config):
+    def get_Detector(self, detector_instruction: Config.Detection, base_model: Model.Prototype, validation_dict, general_config):
         val_loader, val_dataset = validation_dict['loader'], validation_dict['dataset']
         detector = Detector.factory(detector_instruction.name, general_config, detector_instruction.vit)
         _ = detector.fit(base_model, val_loader, val_dataset, batch_size=None)
@@ -218,7 +218,7 @@ class Confidence(NonSeqStrategy):
         clf_info = None
         return new_data_indices, clf_info      
 
-    def get_confs_score(self,  base_model_config: Config.OldModel, base_model:Model.prototype,market_loader):
+    def get_confs_score(self,  base_model_config: Config.OldModel, base_model:Model.Prototype,market_loader):
 
         market_gts, _, market_score = base_model.eval(market_loader)
 
@@ -231,7 +231,7 @@ class Confidence(NonSeqStrategy):
             confs = acquistion.get_probab_gts(market_gts, market_score)
         return confs
 
-    def run(self, n_data, market_loader,  base_model:Model.prototype, base_model_config: Config.OldModel):
+    def run(self, n_data, market_loader,  base_model:Model.Prototype, base_model_config: Config.OldModel):
 
         confs = self.get_confs_score(base_model_config, base_model, market_loader)
 

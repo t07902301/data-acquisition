@@ -6,7 +6,7 @@ class Prototye():
     def __init__(self,class_number=1) -> None:
         self.class_numer = class_number
     @abstractmethod
-    def get(self, model: Model.prototype, dataloader):
+    def get(self, model: Model.Prototype, dataloader):
         '''
         Get a Model's decision
         '''

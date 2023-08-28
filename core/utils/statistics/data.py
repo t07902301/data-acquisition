@@ -61,7 +61,7 @@ def get_new_data_max_dv(clf:Detector.SVM , acquisition_config:Config.Acquisition
     train_dv, _ = clf.predict(train_data_loader)
     return np.max(train_dv)
 
-def error_label_stat(split_name, data_split:Dataset.DataSplits, model:Model.prototype, remove_config, option):
+def error_label_stat(split_name, data_split:Dataset.DataSplits, model:Model.Prototype, remove_config, option):
     '''
     Get target labels proportion on errors
     '''
@@ -76,7 +76,7 @@ def error_label_stat(split_name, data_split:Dataset.DataSplits, model:Model.prot
     else:
         return Cifar().label_stat(error_dataset, remove_config) / len(error_dataset) * 100
 
-def pred_metric(dataloader, old_model:Model.prototype, new_model:Model.prototype):
+def pred_metric(dataloader, old_model:Model.Prototype, new_model:Model.Prototype):
     gt,pred,_  = old_model.eval(dataloader)
     indices = np.arange(len(gt))
     old_correct_mask = (gt == pred)
@@ -107,7 +107,7 @@ def build_info(dataset_splits: Dataset.DataSplits, name, clf:Detector.Prototype,
     data_info['dataset'] = dataset_splits.dataset[name]
     return data_info
     
-def get_correctness_dv(model: Model.prototype, dataloader, clf:Detector.Prototype, correctness):
+def get_correctness_dv(model: Model.Prototype, dataloader, clf:Detector.Prototype, correctness):
     '''
     DV of data wrt the correctness of a given model
     '''

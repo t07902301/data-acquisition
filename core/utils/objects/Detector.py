@@ -33,10 +33,10 @@ class Prototype():
         self.transform = data_transform
         self.model = wrappers.Prototype(None, None)
     @abstractmethod
-    def fit(self, base_model:Model.prototype, data_loader, data=None, batch_size = None):
+    def fit(self, base_model:Model.Prototype, data_loader, data=None, batch_size = None):
         pass
     @abstractmethod
-    def predict(self, data_loader, base_model:Model.prototype=None, compute_metrics=False):
+    def predict(self, data_loader, base_model:Model.Prototype=None, compute_metrics=False):
         '''
         Decision Scores + Performance Metrics
         '''
@@ -59,7 +59,7 @@ class SVM(Prototype):
         # set_up_latent = get_latent(set_up_dataloader, clip_processor, self.transform)
         # self.model.set_preprocess(set_up_latent) 
     
-    def fit(self, base_model:Model.prototype, data_loader, data=None, batch_size=None):
+    def fit(self, base_model:Model.Prototype, data_loader, data=None, batch_size=None):
         latent, latent_gts = dataloader_utils.get_latent(data_loader, self.clip_processor, self.transform)
         correctness = get_correctness(data_loader, base_model, latent_gts)
         self.model.set_preprocess(latent) 
@@ -67,7 +67,7 @@ class SVM(Prototype):
         print('Best CV Score:', score)
         # return score
     
-    def predict(self, data_loader, base_model:Model.prototype=None, compute_metrics=False):
+    def predict(self, data_loader, base_model:Model.Prototype=None, compute_metrics=False):
         latent, latent_gts = dataloader_utils.get_latent(data_loader, self.clip_processor, self.transform)
         if compute_metrics:
             correctness = get_correctness(data_loader, base_model, latent_gts)
@@ -83,13 +83,13 @@ class LogRegressor(Prototype):
         self.clip_processor = clip_processor
         self.model = wrappers.LogRegressor(do_normalize=True, do_standardize=False)
 
-    def fit(self, base_model:Model.prototype, data_loader, data=None, batch_size = None):
+    def fit(self, base_model:Model.Prototype, data_loader, data=None, batch_size = None):
         latent, latent_gts = dataloader_utils.get_latent(data_loader, self.clip_processor, self.transform)
         correctness = get_correctness(data_loader, base_model, latent_gts)
         self.model.set_preprocess(latent) #TODO val set norm stat may be not accurate as those from train_clip
         self.model.fit(latent, correctness)
         
-    def predict(self, data_loader, base_model: Model.prototype=None, compute_metrics=False):
+    def predict(self, data_loader, base_model: Model.Prototype=None, compute_metrics=False):
         latent, latent_gts = dataloader_utils.get_latent(data_loader, self.clip_processor, self.transform)
         if compute_metrics:
             correctness = get_correctness(data_loader, base_model, latent_gts)
@@ -113,7 +113,7 @@ def load_clip(device, mean, std):
     clip_processor = wrappers.CLIPProcessor(ds_mean=mean, ds_std=std, device=device)
     return clip_processor
 
-def get_correctness(data_loader, model:Model.prototype, loader_gts):
+def get_correctness(data_loader, model:Model.Prototype, loader_gts):
     '''
     Base Model Prediction Correctness as True Labels for Detectors
     ''' 
@@ -137,7 +137,7 @@ def get_correctness(data_loader, model:Model.prototype, loader_gts):
 #         super().__init__(data_transform)
 #         self.model = Model.resnet(num_class=2, use_pretrained=False)
 
-#     def fit(self, base_model:Model.prototype, data_loader, data=None, batch_size = None):
+#     def fit(self, base_model:Model.Prototype, data_loader, data=None, batch_size = None):
 #         split_labels = Dataset.data_config['train_label']
 #         train_indices, val_indices = Dataset.get_split_indices(Dataset.get_ds_labels(data), split_labels, 0.8)
 #         _, _, data_correctness = get_correctness(data_loader, base_model, self.transform)
@@ -150,7 +150,7 @@ def get_correctness(data_loader, model:Model.prototype, loader_gts):
 #         val_loader = torch.utils.data.DataLoader(val_ds, batch_size = batch_size)
 #         self.model.train(train_loader, val_loader)
 
-#     def predict(self, data_loader, base_model:Model.prototype, batch_size=16, compute_metrics=False):
+#     def predict(self, data_loader, base_model:Model.Prototype, batch_size=16, compute_metrics=False):
 #         _, _, data_correctness = get_correctness(data_loader, base_model, self.transform)
 #         correctness_loader = torch.utils.data.DataLoader(data_correctness, batch_size = batch_size)
 #         gts, preds, confs = self.model.eval(correctness_loader)
@@ -165,10 +165,10 @@ def get_correctness(data_loader, model:Model.prototype, loader_gts):
 #         super().__init__(data_transform)
 #         self.clip_processor = clip_processor
 #         self.model = RandomForestClassifier(n_estimators=5)
-#     def fit(self, base_model: Model.prototype, data_loader, data=None, batch_size=None):
+#     def fit(self, base_model: Model.Prototype, data_loader, data=None, batch_size=None):
 #         latent, correctness, _ = get_correctness(data_loader, base_model, self.transform, self.clip_processor)
 #         self.model = self.model.fit(latent, correctness)
-#     def predict(self, data_loader, base_model: Model.prototype, compute_metrics=False):
+#     def predict(self, data_loader, base_model: Model.Prototype, compute_metrics=False):
 #         data = dataloader_utils.get_latent(data_loader, self.clip_processor, self.transform)
 #         preds = self.model.predict(data)
 #         dataset = Dataset.loader2dataset(data_loader)

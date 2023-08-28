@@ -11,7 +11,7 @@ from abc import abstractmethod
 from utils.env import model_env
 import utils.objects.dataloader as dataloader_utils
 
-class prototype():
+class Prototype():
     def __init__(self, config) -> None:
         self.model = None
         self.config = config
@@ -38,7 +38,7 @@ class prototype():
         gts, preds, _ = self.eval(dataloader)
         return (gts==preds).mean()*100
 
-class CNN(prototype):
+class CNN(Prototype):
     def __init__(self, config, use_pretrained=False) -> None:
         super().__init__(config)
         model_env()
@@ -141,7 +141,7 @@ class CNN(prototype):
         else:
             self.train(train_loader,val_loader) # retrain 
 
-class svm(prototype):
+class svm(Prototype):
     def __init__(self, config, clip_processor:wrappers.CLIPProcessor, split_and_search=True, transform='clip') -> None:
         super().__init__(config)
         self.transform = transform
@@ -172,7 +172,7 @@ class svm(prototype):
 
         self.train(train_loader)
 
-class LogReg(prototype):
+class LogReg(Prototype):
     def __init__(self, config, clip_processor:wrappers.CLIPProcessor, split_and_search=True, transform='clip') -> None:
         super().__init__(config)
         self.transform = transform
@@ -211,7 +211,7 @@ def factory(base_type, config, clip_processor=None):
         return CNN(config)
     
 import numpy as np
-class ensembler(prototype):
+class ensembler(Prototype):
     def __init__(self, num_class, use_pretrained=False) -> None:
         self.n_member = 3
         self.n_class = num_class

@@ -9,3 +9,4 @@ cifar/labels.py
 core/labels.py
 core/core_data.pkl
 novelty/
+dev/
