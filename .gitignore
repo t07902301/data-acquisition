@@ -6,7 +6,7 @@ log/
 data/
 figure/
 cifar/labels.py
-core/labels.py
-core/core_data.pkl
+labels.py
+core_data.pkl
 novelty/
 dev/
