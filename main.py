@@ -16,9 +16,9 @@ def method_run(methods_list, new_img_num_list, new_model_config:Config.NewModel,
         operation.acquisition = Config.AcquisitionFactory(method, operation.acquisition)
         data_run(new_img_num_list, operation, new_model_config, workspace)
 
-def epoch_run(parse_param, method_list, n_data_list, dataset:dict, epo, operation: Config.Operation):
+def epoch_run(parse_args, method_list, n_data_list, dataset:dict, epo, operation: Config.Operation):
 
-    model_dir, device_config, base_type, pure, new_model_setter, config = parse_param
+    model_dir, device_config, base_type, pure, new_model_setter, config, filter_market = parse_args
     batch_size = config['hparams']['batch_size']
     superclass_num = config['hparams']['superclass']
 
@@ -30,25 +30,28 @@ def epoch_run(parse_param, method_list, n_data_list, dataset:dict, epo, operatio
     
     workspace.set_up(new_model_config.new_batch_size, operation.detection.vit)
 
-    workspace.set_validation(operation.stream, old_model_config.batch_size, new_model_config.new_batch_size, detect_instruction=operation.detection)
+    workspace.set_detector(operation.detection)
 
-    # known_labels = config['data']['cover_labels']['target']
-    # print('known labels from target')
+    workspace.set_validation(operation.stream, old_model_config.batch_size, new_model_config.new_batch_size)
 
-    # workspace.set_market(operation.detection.vit, known_labels)
+    if filter_market:
+        known_labels = config['data']['labels']['cover']['target']
+        workspace.set_market(operation.detection.vit, known_labels)
 
     method_run(method_list, n_data_list, new_model_config, operation, workspace)
 
-def bound_run(parse_param, epochs, ds_list, method_list, bound, n_new_data_list, operation: Config.Operation):
+def bound_run(parse_args, epochs, ds_list, method_list, bound, n_new_data_list, operation: Config.Operation):
 
     operation.acquisition.bound = bound
 
     for epo in range(epochs):
         print('In epoch {}'.format(epo))
         dataset = ds_list[epo]
-        epoch_run(parse_param, method_list, n_new_data_list, dataset, epo, operation)
+        epoch_run(parse_args, method_list, n_new_data_list, dataset, epo, operation)
 
-def dev(epochs, dev_name, device, detector_name, model_dir, base_type, option, dataset_name):
+def dev(epochs, dev_name, device, detector_name, model_dir, base_type, option, dataset_name, filter_market=False):
+
+    print('Filter Market:', filter_market)
 
     pure, new_model_setter = True, 'retrain'
 
@@ -67,8 +70,8 @@ def dev(epochs, dev_name, device, detector_name, model_dir, base_type, option, d
     acquire_instruction = Config.Acquisition()
     operation = Config.Operation(acquire_instruction, stream_instruction, detect_instruction)
 
-    parse_param = (model_dir, device_config, base_type, pure, new_model_setter, config)
-    bound_run(parse_param, epochs, ds_list, method_list, None, config['data']['n_new_data'], operation)
+    parse_args = (model_dir, device_config, base_type, pure, new_model_setter, config, filter_market)
+    bound_run(parse_args, epochs, ds_list, method_list, None, config['data']['n_new_data'], operation)
 
 import argparse
 if __name__ == '__main__':
@@ -108,8 +111,8 @@ if __name__ == '__main__':
 
 #     bounds = [None]
 #     for bound in bounds:
-#         parse_param = (batch_size, superclass_num,model_dir, device_config, base_type, pure, new_model_setter, seq_rounds_config)
-#         bound_run(parse_param, epochs, ds_list, method_list, new_img_num_list, bound, operation)
+#         parse_args = (batch_size, superclass_num,model_dir, device_config, base_type, pure, new_model_setter, seq_rounds_config)
+#         bound_run(parse_args, epochs, ds_list, method_list, new_img_num_list, bound, operation)
 
 # import argparse
 # if __name__ == '__main__':

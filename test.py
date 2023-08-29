@@ -66,9 +66,9 @@ def dev(epochs, dev_name, device, detector_name, model_dir, stream_name, base_ty
     detect_instruction = Config.Detection(detector_name, clip_processor)
     acquire_instruction = Config.Acquisition()
     operation = Config.Operation(acquire_instruction, stream_instruction, detect_instruction)
-    parse_param = (model_dir, device_config, base_type, pure, new_model_setter, config)
+    parse_args = (model_dir, device_config, base_type, pure, new_model_setter, config)
 
-    result, bound_stat = bound_run(epochs, parse_param, ds_list, config['data']['n_new_data'], method_list, operation)
+    result, bound_stat = bound_run(epochs, parse_args, ds_list, config['data']['n_new_data'], method_list, operation)
     result = np.array(result)
     
     for idx, method in enumerate(method_list):
@@ -79,7 +79,7 @@ def dev(epochs, dev_name, device, detector_name, model_dir, stream_name, base_ty
     for idx, method in enumerate(method_list):
         method_result = result[:, idx, :]
         print(method)
-        print(method_result)
+        print(method_result.tolist())
 
 import argparse
 if __name__ == '__main__':
