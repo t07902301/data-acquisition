@@ -233,6 +233,7 @@ class Cifar(Dataset):
     def cover_load(self, ds_dict, remove_rate, cover_labels):
         new_labels_remove_rate = remove_rate['new_labels']
         old_labels_remove_rate = remove_rate['old_labels']
+        print('Cover Labels removed','src:', cover_labels['src'], 'target:', cover_labels['target'])
 
         old_train, _ = self.split(ds_dict['train'], cover_labels['src'], new_labels_remove_rate)
         old_val, _ = self.split(ds_dict['val_shift'], cover_labels['src'], new_labels_remove_rate)
