@@ -3,6 +3,8 @@ from scipy.stats import norm, gaussian_kde, kstest, skewnorm, skew
 import utils.statistics.data as DataStat
 import matplotlib.pyplot as plt
 import utils.objects.dataloader as dataloader_utils
+from utils.objects.Detector import Prototype as DetecorPrototye
+from utils.objects.model import Prototype as ModelPrototye
 
 def get_intervals(values):
     max_val = max(values)
@@ -20,7 +22,6 @@ def get_kde(values):
     kernel = gaussian_kde(values)
     return kernel
 
-
 def ecdf(raw_values, cut_value=None):
     raw_values = np.array(raw_values)
     n_raw_vals = len(raw_values)
@@ -33,16 +34,35 @@ def ecdf(raw_values, cut_value=None):
     else:
         return np.array([np.sum(raw_values <= cut_value) / n_raw_vals])
 
+class PDF():
+    def __init__(self, type, train_data) -> None:
+        self.type = type
+        self.function = get_pdf(train_data, type)
 
-class disrtibution():
+    def evaluate(self, value):
+        return self.function.pdf(value)
+    
+    def accumulate(self, max_val, min_val= None):
+        if self.type == 'norm':
+            return self.function.cdf(max_val)
+        elif self.type == 'kde':
+            return self.function.integrate_box_1d(min_val, max_val)
+
+class Disrtibution():
     '''
     Get decision value distribution of a dataloader against a given model
     '''
-    def __init__(self, model, detector, dataloader, pdf_type, correctness:bool) -> None:
+    def __init__(self, detector:DetecorPrototye, dataloader, pdf_type) -> None:
+        target_dv, _ = detector.predict(dataloader)
+        self.pdf = PDF(pdf_type, target_dv)
+        self.type = pdf_type
+
+class CorrectnessDisrtibution():
+    def __init__(self, model: ModelPrototye, detector:DetecorPrototye, dataloader, pdf_type, correctness: bool) -> None:
         target_dv =  DataStat.get_correctness_dv(model, dataloader, detector, correctness=correctness)
         dataloader_size = dataloader_utils.get_size(dataloader)
         self.prior = (len(target_dv)) / dataloader_size
-        self.dstr = get_pdf(target_dv, pdf_type)
+        self.pdf = PDF(pdf_type, target_dv)
         self.correctness = correctness
 
 def get_pdf(value, method):

@@ -3,7 +3,7 @@ import utils.objects.Config as Config
 import utils.objects.model as Model
 import utils.objects.Detector as Detector
 import utils.dataset.wrappers as Dataset
-import utils.statistics.distribution as Distribution
+import utils.statistics.distribution as distribution_utils
 from utils.objects.log import Log
 import utils.objects.Config as Config
 from abc import abstractmethod
@@ -13,6 +13,7 @@ import utils.statistics.partitioner as Partitioner
 import utils.statistics.data as DataStat
 import utils.statistics.decision as Decision
 import utils.objects.dataloader as dataloader_utils
+from typing import Dict
 
 class Prototype():
     '''
@@ -30,7 +31,7 @@ class Prototype():
         pass
 
     @abstractmethod
-    def _target_test(self, loader, new_model):
+    def _target_test(self, loader, new_model: Model.Prototype):
         '''
         Test new model on given loaders
         '''
@@ -78,7 +79,7 @@ class Partition(Prototype):
         test_loader = self.get_subset_loader(operation.acquisition.bound)
         return self._target_test(test_loader, new_model)
 
-    def _target_test(self, loader, new_model):
+    def _target_test(self, loader, new_model:Model.Prototype):
         '''
         loader: new_model + old_model
         '''
@@ -141,11 +142,11 @@ class Probability(Partition):
             # self.selected_dstr_plot(self.test_loader['new_model'], fig_name, operation.stream.pdf)
 
     def set_up_dstr(self, set_up_loader, pdf_type):
-        correct_dstr = Distribution.disrtibution(self.base_model, self.clf, set_up_loader, pdf_type, correctness=True)
-        incorrect_dstr = Distribution.disrtibution(self.base_model, self.clf, set_up_loader, pdf_type, correctness=False)
+        correct_dstr = distribution_utils.CorrectnessDisrtibution(self.base_model, self.clf, set_up_loader, pdf_type, correctness=True)
+        incorrect_dstr = distribution_utils.CorrectnessDisrtibution(self.base_model, self.clf, set_up_loader, pdf_type, correctness=False)
         return {'correct': correct_dstr, 'incorrect': incorrect_dstr}
 
-    def get_subset_loader(self, anchor_dstr, stream_instruction:Config.ProbabStream):
+    def get_subset_loader(self, anchor_dstr:Dict[str, distribution_utils.CorrectnessDisrtibution], stream_instruction:Config.ProbabStream):
         loader, posteriors = Partitioner.Probability().run(self.test_info, {'target': anchor_dstr['incorrect'], 'other': anchor_dstr['correct']}, stream_instruction)
         return loader, posteriors
     
@@ -166,7 +167,7 @@ class Probability(Partition):
             self.mistake_stat(self.test_loader['new_model'], 'New Test')
         return self._target_test(self.test_loader, new_model)
 
-    def _target_test(self, loader, new_model):
+    def _target_test(self, loader, new_model: Model.Prototype):
         return super()._target_test(loader, new_model)
     
     def get_pdf_name(self, pdf_method):
@@ -176,22 +177,22 @@ class Probability(Partition):
         test_loader = torch.utils.data.DataLoader(self.test_info['dataset'], batch_size=self.new_model_config.batch_size)
         dataset_gts, dataset_preds, _ = self.base_model.eval(test_loader)
         correct_mask = (dataset_gts == dataset_preds)
-        Distribution.base_plot(probab[correct_mask], 'non-error', 'green', pdf_method)        
+        distribution_utils.base_plot(probab[correct_mask], 'non-error', 'green', pdf_method)        
         incorrect_mask = ~correct_mask
-        Distribution.base_plot(probab[incorrect_mask], 'error', 'red', pdf_method)  
-        Distribution.plt.xlabel('Probability')
-        Distribution.plt.savefig(fig_name)
-        Distribution.plt.close()
+        distribution_utils.base_plot(probab[incorrect_mask], 'error', 'red', pdf_method)  
+        distribution_utils.plt.xlabel('Probability')
+        distribution_utils.plt.savefig(fig_name)
+        distribution_utils.plt.close()
         print('Save fig to {}'.format(fig_name))
 
     def dv_dstr_plot(self, cor_dv, incor_dv, fig_name, pdf_method=None):
-        Distribution.base_plot(cor_dv, 'non-error', 'orange', pdf_method)
-        Distribution.base_plot(incor_dv, 'error', 'blue', pdf_method)
-        Distribution.plt.xlabel('Feature Score')
-        Distribution.plt.ylabel('Density')
-        Distribution.plt.title('Old Model Performance Feature Score Distribution')
-        Distribution.plt.savefig(fig_name)
-        Distribution.plt.close()
+        distribution_utils.base_plot(cor_dv, 'non-error', 'orange', pdf_method)
+        distribution_utils.base_plot(incor_dv, 'error', 'blue', pdf_method)
+        distribution_utils.plt.xlabel('Feature Score')
+        distribution_utils.plt.ylabel('Density')
+        distribution_utils.plt.title('Old Model Performance Feature Score Distribution')
+        distribution_utils.plt.savefig(fig_name)
+        distribution_utils.plt.close()
         print('Save fig to {}'.format(fig_name))
    
     def mistake_stat(self, dataloader, loader_name=None, plot=False, plot_name=None, pdf=None):
@@ -204,12 +205,12 @@ class Probability(Partition):
 
     def naive_plot(self, dataloader, fig_name):
         dv, _ = self.clf.predict(dataloader)
-        Distribution.base_plot(dv, 'all data', 'orange', pdf_method='kde')
-        Distribution.plt.xlabel('Feature Score')
-        Distribution.plt.ylabel('Density')
-        Distribution.plt.title('Old Model Performance Feature Score Distribution')
-        Distribution.plt.savefig(fig_name)
-        Distribution.plt.close()
+        distribution_utils.base_plot(dv, 'all data', 'orange', pdf_method='kde')
+        distribution_utils.plt.xlabel('Feature Score')
+        distribution_utils.plt.ylabel('Density')
+        distribution_utils.plt.title('Old Model Performance Feature Score Distribution')
+        distribution_utils.plt.savefig(fig_name)
+        distribution_utils.plt.close()
         print('Save fig to {}'.format(fig_name))
 
 class Ensemble(Prototype):
@@ -245,18 +246,18 @@ class DstrEnsemble(Ensemble):
         self.anchor_dstr = self.set_up_dstr(datasplits.loader['val_shift'], self.pdf_type)
 
     def set_up_dstr(self, set_up_loader, pdf_type):
-        correct_dstr = Distribution.disrtibution(self.base_model, self.clf, set_up_loader, pdf_type, correctness=True)
-        incorrect_dstr = Distribution.disrtibution(self.base_model, self.clf, set_up_loader, pdf_type, correctness=False)
+        correct_dstr = distribution_utils.CorrectnessDisrtibution(self.base_model, self.clf, set_up_loader, pdf_type, correctness=True)
+        incorrect_dstr = distribution_utils.CorrectnessDisrtibution(self.base_model, self.clf, set_up_loader, pdf_type, correctness=False)
         return {'correct': correct_dstr, 'incorrect': incorrect_dstr}
 
-    def get_weight(self, dstr_dict, observations, size):
+    def get_weight(self, dstr_dict: Dict[str, distribution_utils.CorrectnessDisrtibution], observations, size):
         weights = []
         for value in observations:
-            posterior = self.probab_partitioner.get_posterior(value, dstr_dict, self.pdf_type)
+            posterior = self.probab_partitioner.get_posterior(value, dstr_dict)
             weights.append(posterior)
         return np.concatenate(weights).reshape((size,1))
 
-    def _target_test(self, dataloader, new_model):
+    def _target_test(self, dataloader, new_model: Model.Prototype):
         dv, _ = self.clf.predict(dataloader)  
         size = len(dv)
 
@@ -354,8 +355,8 @@ def factory(name, new_model_config, general_config):
         checker = Prototype(new_model_config, general_config)
     return checker
 
-def get_configs(epoch, parse_param, dataset):
-    model_dir, device_config, base_type, pure, new_model_setter, general_config = parse_param
+def get_configs(epoch, parse_args, dataset):
+    model_dir, device_config, base_type, pure, new_model_setter, general_config = parse_args
 
     batch_size = general_config['hparams']['batch_size']
     superclass_num = general_config['hparams']['superclass']
@@ -364,7 +365,7 @@ def get_configs(epoch, parse_param, dataset):
     # new_model_dir = model_dir[:2] if dev_name == 'sm' else model_dir
     new_model_dir = model_dir # For imbalanced test and market filtering
     new_model_config = Config.NewModel(batch_size['base'], superclass_num, new_model_dir, device_config, epoch, pure, new_model_setter, batch_size['new'], base_type=base_type)
-    dataset_splits = Dataset.DataSplits(dataset, old_model_config.batch_size)
+    dataset_splits = Dataset.DataSplits(dataset, new_model_config.new_batch_size)
     return old_model_config, new_model_config, dataset_splits, general_config
 
 def instantiate(epoch, parse_args, dataset, operation: Config.Operation, plot=True):
