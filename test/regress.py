@@ -8,12 +8,15 @@ from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF
 # from sklearn.neural_network import MLPRegressor
 from typing import List
+
 class regressor():
     def __init__(self, dev) -> None:
+        self.dev_mode = dev
+        self.scaler = None
         if dev == 'rs':
             # self.model = LinearRegression()
-            self.model = Ridge()
-            # self.model = SVR(kernel='linear')
+            # self.model = Ridge()
+            self.model = SVR(kernel='linear')
             # self.model = SVR(kernel='rbf')
 
         else: 
@@ -23,51 +26,40 @@ class regressor():
         # self.model = GaussianProcessRegressor(kernel=kernel, alpha=0.1)
         # self.model = MLPRegressor(random_state=1, hidden_layer_sizes=(16, 8), learning_rate='adaptive', max_iter=100)
 
-    def train(self, inputs):
-        X = [each[0] for each in inputs]
-        y = [each[1] for each in inputs]
-        X = np.array(X).reshape(-1, 1)
-        scaler =None
+    def scale_inputs(self, inputs):
+        if self.scaler == None:
+            self.scaler = MinMaxScaler()
+            self.scaler.fit(inputs)
+        inputs = self.scaler.transform(inputs)
+        return inputs
 
-        # scaler = MinMaxScaler()
-        # scaler.fit(X)
-        # X = scaler.transform(X)
-        # y = np.array(y).reshape(-1, 1)
-        # y = scaler.transform(y)
+    def process_inputs(self, inputs):
+
+        if self.dev_mode == 'dv':
+            X = [[each[0], each[2]] for each in inputs]
+            X = self.scale_inputs(X)
+
+        else:
+            X = [each[0] for each in inputs]
+            X = np.array(X).reshape(-1, 1)
+
+        y = [each[1] for each in inputs]
+
+        return X, y
+    
+    def train(self, inputs):
+
+        X, y = self.process_inputs(inputs)
 
         self.model.fit(X, y)
 
-        # y_pred, y_pred_std = self.model.predict(X, return_std=True)
+    def test(self, inputs):
 
-        # plt.plot(X, y, 'ko', label = 'Training Data')
-        # plt.plot(x1, y1, 'b-', label = "Predicted Function Mean")
-        # plt.title("Zero Shear Viscosity of Wormlike Micelles")
-        # plt.xlabel('X')
-        # plt.ylabel('y')
-
-        # # Plotting the uncertainty
-        # y1 = y1.flatten()
-        # plt.fill_between(x1, y1 - y1std, y1 + y1std, alpha=0.3, color='k', label="Uncertainty")
-
-        # plt.xlabel("log (Salt concentration)")
-        # plt.ylabel("log (zero shear viscosity)")
-        # plt.legend()
-
-        return scaler
-
-    def test(self, inputs, scaler: MinMaxScaler):
-        X = [each[0] for each in inputs]
-        y = [each[1] for each in inputs]
-        X = np.array(X).reshape(-1, 1)
-
-        # X = scaler.transform(X)
-        # y = np.array(y).reshape(-1, 1)
-        # y = scaler.transform(y)
+        X, y = self.process_inputs(inputs)
 
         return self.model.score(X, y)
     
     def predict(self, inputs):
-        inputs = np.array(inputs).reshape(-1, 1)
         return self.model.predict(inputs)
 
 def split_train_test(pairs):
@@ -84,9 +76,6 @@ def split_train_test(pairs):
 def import_file(model_dir, dev):
    
     file = os.path.join('log/{}/reg'.format(model_dir), '{}.pkl'.format(dev))
-    # file = os.path.join('log/{}/dev'.format(model_dir), 'val_{}.pkl'.format(dev)) #75
-    # file = os.path.join('log/{}/dev'.format(model_dir), 'val_{}_30.pkl'.format(dev))
-    # file = os.path.join('log/{}/dev'.format(model_dir), 'val_{}_18.pkl'.format(dev))
    
     with open(file, 'rb') as f:
         out = pkl.load(f)
@@ -117,31 +106,41 @@ def plot_regress(epochs, pairs, file:str):
 
     print('figure save to', file)
 
-def predict(epochs, models: List[regressor], test_list):
+def predict(epochs, models: List[regressor], n_samples, probabs=None):
+    
+    test_inputs = []
+
+    if probabs != None:
+        for epo in range(epochs):
+            test_inputs_epoch = []
+            for idx, n_sample in enumerate(n_samples): 
+                test_inputs_epoch.append([probabs[epo][idx], n_sample])
+            test_inputs.append(models[epo].scaler.transform(test_inputs_epoch))
+    else:
+        test_inputs = [n_samples for i in range(epochs)]
+        test_inputs = np.array(test_inputs).reshape(-1, 1)
 
     pred_list = []
 
     for epo in range(epochs):
-
         model = models[epo]
-
-        pred = model.predict(test_list)
+        pred = model.predict(test_inputs[epo])
         pred_list.append(pred)
     
     print(np.round(np.mean(pred_list, axis=0), decimals=3))
     for i in pred_list:
         print(*i)
 
-def train(epochs, pairs, dev) -> List[regressor]:
+def train_test(epochs, pairs, dev) -> List[regressor]:
 
     score_list, model_list = [], []
 
     for epo in range(epochs):
 
-        train, test = split_train_test(pairs[epo])
+        train_data, test_data = split_train_test(pairs[epo])
         model = regressor(dev)
-        scaler = model.train(train)
-        score = model.test(test, scaler)
+        model.train(train_data)
+        score = model.test(test_data)
         score_list.append(score)
         model_list.append(model)
 
@@ -154,14 +153,15 @@ def main(epochs, model_dir, dev):
 
     pairs, file = import_file(model_dir, dev)
 
-    # plot_regress(5, pairs, file)
+    plot_regress(epochs, pairs, file)
 
-    test_list = [125, 225, 275, 325, 375, 425, 525, 625]
-    # test_list = [225, 325, 425, 525, 625]
+    probab_list = [[0.127151728145905, 0.15725853873628695, 0.1890850242204149, 0.21795223942229652, 0.24617770115737173], [0.6924500115603807, 0.872724325949984, 0.9377391251474637, 0.9377280516334007, 0.9377280516334007], [0.8268993571274925, 0.9254674029451055, 0.9254674029451055, 0.9456753815953349, 0.9454728169369965], [0.7336369264799719, 0.7336369264799719, 0.8494535193131926, 0.8992251491901697, 0.8992251491901697], [0.7845818641998934, 0.7845818641998934, 0.7845818641998934, 0.7871409909645718, 0.9446297865104551]]
 
-    models = train(epochs, pairs, dev)
+    n_samples = [225, 325, 425, 525, 625]
 
-    predict(epochs, models, test_list)
+    models = train_test(epochs, pairs, dev)
+
+    predict(epochs, models, n_samples, probab_list)
 
     # print(pairs)
 
@@ -172,6 +172,5 @@ if __name__ == '__main__':
     parser.add_argument('-e','--epochs',type=int,default=1)
     parser.add_argument('-md','--model_dir',type=str,default='')
     parser.add_argument('-dev','--dev',type=str, default='dv')
-
     args = parser.parse_args()
     main(args.epochs, args.model_dir, args.dev)
