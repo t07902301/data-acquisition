@@ -19,7 +19,7 @@ def run(operation:Config.Operation, methods, new_img_num_list, checker:Checker.P
     for method in methods:
         print('In method', method)
         operation.acquisition.method = method
-        operation.acquisition = Config.AcquisitionFactory(method, operation.acquisition)
+        operation.acquisition = Config.AcquisitionFactory(operation.acquisition)
         result_method = method_run(new_img_num_list, operation, checker)
         result_list.append(result_method)
     return result_list
@@ -64,7 +64,7 @@ def dev(epochs, dev_name, device, detector_name, model_dir, stream_name, base_ty
     clip_processor = Detector.load_clip(device_config, normalize_stat['mean'], normalize_stat['std'])
     stream_instruction = Config.ProbabStream(bound=probab_bound, pdf='kde', name=stream_name)
     detect_instruction = Config.Detection(detector_name, clip_processor)
-    acquire_instruction = Config.Acquisition()
+    acquire_instruction = Config.Acquisition(seq_config=config['data']['seq']) if 'seq' in config['data'] else Config.Acquisition()
     operation = Config.Operation(acquire_instruction, stream_instruction, detect_instruction)
     parse_args = (model_dir, device_config, base_type, pure, new_model_setter, config)
 

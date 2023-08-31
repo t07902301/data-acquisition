@@ -2,7 +2,7 @@ from utils.strategy import *
 from utils.set_up import *
 import utils.statistics.data as DataStat
 
-def run(ds:Dataset.DataSplits, model_config:Config.OldModel, train_flag:bool, detect_instruction:Config.Detection, config, option):
+def run(ds:dataset_utils.DataSplits, model_config:Config.OldModel, train_flag:bool, detect_instruction:Config.Detection, config, option):
     if train_flag:
         if model_config.base_type == 'cnn':
             base_model = Model.CNN(config)
@@ -48,7 +48,7 @@ def main(epochs,  model_dir, train_flag, device_id, base_type, detector_name, op
         print('in epoch {}'.format(epo))
         old_model_config = Config.OldModel(config['hparams']['batch_size']['base'], config['hparams']['superclass'], model_dir, device_config, epo, base_type)
         ds = ds_list[epo]
-        ds = Dataset.DataSplits(ds, old_model_config.batch_size, dataset_name)
+        ds = dataset_utils.DataSplits(ds, old_model_config.batch_size, dataset_name)
         prec, acc_shift, detect_prec, shift_score = run(ds, old_model_config, train_flag, detect_instrution, config, option)
         acc_list.append(prec)
         acc_shift_list.append(acc_shift)

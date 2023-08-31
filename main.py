@@ -13,7 +13,7 @@ def data_run(new_img_num_list, operation: Config.Operation, new_model_config:Con
 def method_run(methods_list, new_img_num_list, new_model_config:Config.NewModel, operation: Config.Operation, workspace: WorkSpace):
     for method in methods_list:
         operation.acquisition.method = method
-        operation.acquisition = Config.AcquisitionFactory(method, operation.acquisition)
+        operation.acquisition = Config.AcquisitionFactory(operation.acquisition)
         data_run(new_img_num_list, operation, new_model_config, workspace)
 
 def epoch_run(parse_args, method_list, n_data_list, dataset:dict, epo, operation: Config.Operation):
@@ -67,7 +67,7 @@ def dev(epochs, dev_name, device, detector_name, model_dir, base_type, option, d
     clip_processor = Detector.load_clip(device_config, normalize_stat['mean'], normalize_stat['std'])
     stream_instruction = Config.ProbabStream(bound=probab_bound, pdf='kde', name='probab')
     detect_instruction = Config.Detection(detector_name, clip_processor)
-    acquire_instruction = Config.Acquisition()
+    acquire_instruction = Config.Acquisition(seq_config=config['data']['seq']) if 'seq' in config['data'] else Config.Acquisition()
     operation = Config.Operation(acquire_instruction, stream_instruction, detect_instruction)
 
     parse_args = (model_dir, device_config, base_type, pure, new_model_setter, config, filter_market)
