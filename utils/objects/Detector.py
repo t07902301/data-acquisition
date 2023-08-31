@@ -8,7 +8,7 @@ import utils.objects.dataloader as dataloader_utils
 
 def statistics(values, n_data_list = None):
     '''
-    pretrained model | seq_clf\n
+    pretrained model | seq_detector\n
     score/precision: (epoch, value)
     '''
     values = np.array(values)
@@ -19,14 +19,14 @@ def statistics(values, n_data_list = None):
             print('#new data:', n_data)       
             print('Distribution Classifier Average Precision: {}%'.format(np.round(np.mean(values[:,idx]), decimals=3).tolist()))
 
-def precision(clf, clip_processor, dataloader, base_model):
+def precision(detector, clip_processor, dataloader, base_model):
     data_clip = clip_processor.evaluate_clip_images(dataloader)
     gt, pred, conf = Model.evaluate(dataloader, base_model)
-    _, dv, _ = clf.predict(latents=data_clip, gts=gt, compute_metrics=False, preds=None)
+    _, dv, _ = detector.predict(latents=data_clip, gts=gt, compute_metrics=False, preds=None)
     dataset_len = len(gt)
-    clf_cls_incorrect = np.arange(dataset_len)[dv<=0]
+    detector_cls_incorrect = np.arange(dataset_len)[dv<=0]
     real_cls_incorrect = np.arange(dataset_len)[gt!=pred]
-    return np.intersect1d(clf_cls_incorrect, real_cls_incorrect).size / clf_cls_incorrect.size
+    return np.intersect1d(detector_cls_incorrect, real_cls_incorrect).size / detector_cls_incorrect.size
 
 class Prototype():
     def __init__(self, data_transform:str) -> None:
@@ -54,7 +54,7 @@ class SVM(Prototype):
     def __init__(self, config, clip_processor:wrappers.CLIPProcessor, split_and_search=True, data_transform = 'clip') -> None:
         super().__init__(data_transform)
         self.clip_processor = clip_processor
-        self.model = wrappers.SVM(args=config['clf_args'], cv=config['clf_args']['k-fold'], split_and_search = split_and_search, do_normalize=True, do_standardize=False)
+        self.model = wrappers.SVM(args=config['detector_args'], cv=config['detector_args']['k-fold'], split_and_search = split_and_search, do_normalize=True, do_standardize=False)
         # #TODO take the mean and std assumed norm dstr
         # set_up_latent = get_latent(set_up_dataloader, clip_processor, self.transform)
         # self.model.set_preprocess(set_up_latent) 
