@@ -20,16 +20,16 @@ class Log():
 
     def export(self, acquistion_config:Config.Acquisition, data=None, detector:Detector.Prototype=None):
         self.set_path(acquistion_config)
-        if self.name == 'clf':
+        if self.name == 'detector':
             detector.save(self.path)        
         else:
             torch.save(data, self.path)
             print('{} log save to {}'.format(self.name, self.path))       
 
-    def import_log(self, operation:Config.Operation):
+    def import_log(self, operation:Config.Operation, general_config):
         self.set_path(operation.acquisition)
-        if self.name == 'clf':
-            detector = Detector.factory(operation.detection.name, operation.detection.vit)
+        if self.name == 'detector':
+            detector = Detector.factory(operation.detection.name, general_config, operation.detection.vit)
             detector.load(self.path) 
             return detector      
         else:
