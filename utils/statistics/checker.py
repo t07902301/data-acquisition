@@ -37,15 +37,15 @@ class Prototype():
         '''
         pass
 
-    def setup(self, old_model_config:Config.OldModel, datasplits:Dataset.DataSplits, operation:Config.Operation, plot:bool):
+    def set_up(self, old_model_config:Config.OldModel, datasplits:Dataset.DataSplits, operation:Config.Operation, plot:bool):
         '''
-        Use the old model and data split to set up a Prototype (for each epoch) -> base_model, clf/detector, test data extracted info
+        Use the old model and data split to set up a Prototype (for each epoch) -> base_model, detector/detector, test data extracted info
         '''
         self.vit = operation.detection.vit
         self.base_model = self.load_model(old_model_config)
         self.base_acc = self.base_model.acc(datasplits.loader['test_shift'])
-        self.clf = Detector.factory(operation.detection.name, self.general_config, clip_processor = self.vit)
-        self.clf.fit(self.base_model, datasplits.loader['val_shift'])
+        self.detector = Detector.factory(operation.detection.name, self.general_config, clip_processor = self.vit)
+        self.detector.fit(self.base_model, datasplits.loader['val_shift'])
 
     def load_model(self, model_config: Config.Model):
         model = Model.factory(model_config.base_type, self.general_config, self.vit)
@@ -66,9 +66,9 @@ class Partition(Prototype):
     def __init__(self, model_config: Config.NewModel, general_config) -> None:
         super().__init__(model_config, general_config)
 
-    def setup(self, old_model_config:Config.OldModel, datasplits:Dataset.DataSplits, operation:Config.Operation, plot:bool):
-        super().setup(old_model_config, datasplits, operation, plot) 
-        self.test_info = DataStat.build_info(datasplits, 'test_shift', self.clf, self.new_model_config.batch_size, self.new_model_config.new_batch_size)
+    def set_up(self, old_model_config:Config.OldModel, datasplits:Dataset.DataSplits, operation:Config.Operation, plot:bool):
+        super().set_up(old_model_config, datasplits, operation, plot) 
+        self.test_info = DataStat.build_info(datasplits, 'test_shift', self.detector, self.new_model_config.batch_size, self.new_model_config.new_batch_size)
 
     def get_subset_loader(self, acquisition_bound):
         loader = Partitioner.Threshold().run(self.test_info, acquisition_bound)        
@@ -125,8 +125,8 @@ class Probability(Partition):
     def __init__(self, model_config: Config.NewModel, general_config) -> None:
         super().__init__(model_config, general_config)
     
-    def setup(self, old_model_config:Config.OldModel, datasplits:Dataset.DataSplits, operation:Config.Operation, plot:bool):
-        super().setup(old_model_config, datasplits, operation, plot) 
+    def set_up(self, old_model_config:Config.OldModel, datasplits:Dataset.DataSplits, operation:Config.Operation, plot:bool):
+        super().set_up(old_model_config, datasplits, operation, plot) 
         self.anchor_loader = datasplits.loader['val_shift'] # keep for Seq
         anchor_dstr = self.set_up_dstr(self.anchor_loader, operation.stream.pdf)
         self.test_loader, posteriors = self.get_subset_loader(anchor_dstr, operation.stream)
@@ -142,8 +142,8 @@ class Probability(Partition):
             # self.selected_dstr_plot(self.test_loader['new_model'], fig_name, operation.stream.pdf)
 
     def set_up_dstr(self, set_up_loader, pdf_type):
-        correct_dstr = distribution_utils.CorrectnessDisrtibution(self.base_model, self.clf, set_up_loader, pdf_type, correctness=True)
-        incorrect_dstr = distribution_utils.CorrectnessDisrtibution(self.base_model, self.clf, set_up_loader, pdf_type, correctness=False)
+        correct_dstr = distribution_utils.CorrectnessDisrtibution(self.base_model, self.detector, set_up_loader, pdf_type, correctness=True)
+        incorrect_dstr = distribution_utils.CorrectnessDisrtibution(self.base_model, self.detector, set_up_loader, pdf_type, correctness=False)
         return {'correct': correct_dstr, 'incorrect': incorrect_dstr}
 
     def get_subset_loader(self, anchor_dstr:Dict[str, distribution_utils.CorrectnessDisrtibution], stream_instruction:Config.ProbabStream):
@@ -159,8 +159,8 @@ class Probability(Partition):
         '''
         new_model = self.get_new_model(operation)
         if 'seq' in operation.acquisition.method:
-            clf_log = Log(self.new_model_config, 'clf')
-            self.clf = clf_log.import_log(operation)
+            detector_log = Log(self.new_model_config, 'detector')
+            self.detector = detector_log.import_log(operation, self.general_config)
             anchor_dstr = self.set_up_dstr(self.anchor_loader, operation.stream.pdf)
             self.test_loader, _ = self.get_subset_loader(anchor_dstr, operation.stream)
             print('Seq Running:')
@@ -196,15 +196,15 @@ class Probability(Partition):
         print('Save fig to {}'.format(fig_name))
    
     def mistake_stat(self, dataloader, loader_name=None, plot=False, plot_name=None, pdf=None):
-        cor_dv = DataStat.get_correctness_dv(self.base_model, dataloader, self.clf, correctness=True)
-        incor_dv = DataStat.get_correctness_dv(self.base_model, dataloader, self.clf, correctness=False)
+        cor_dv = DataStat.get_correctness_dv(self.base_model, dataloader, self.detector, correctness=True)
+        incor_dv = DataStat.get_correctness_dv(self.base_model, dataloader, self.detector, correctness=False)
         if loader_name is not None:
             print('Hard images in {}: {}%'.format(loader_name, len(incor_dv) / (len(incor_dv) + len(cor_dv)) * 100))
         if plot:
             self.dv_dstr_plot(cor_dv, incor_dv, plot_name, pdf)
 
     def naive_plot(self, dataloader, fig_name):
-        dv, _ = self.clf.predict(dataloader)
+        dv, _ = self.detector.predict(dataloader)
         distribution_utils.base_plot(dv, 'all data', 'orange', pdf_method='kde')
         distribution_utils.plt.xlabel('Feature Score')
         distribution_utils.plt.ylabel('Density')
@@ -217,14 +217,18 @@ class Ensemble(Prototype):
     def __init__(self, model_config: Config.NewModel, general_config) -> None:
         super().__init__(model_config, general_config)
     
-    def setup(self, old_model_config:Config.OldModel, datasplits:Dataset.DataSplits, operation:Config.Operation, plot:bool):
-        super().setup(old_model_config, datasplits, operation, plot)
-        self.pdf_type = operation.stream.pdf
-        self.probab_partitioner = Partitioner.Probability()
+    def set_up(self, old_model_config:Config.OldModel, datasplits:Dataset.DataSplits, operation:Config.Operation, plot:bool):
+        super().set_up(old_model_config, datasplits, operation, plot)
         self.test_loader = datasplits.loader['test_shift']
+        self.anchor_loader = datasplits.loader['val_shift'] # keep for Seq
     
     def run(self, operation:Config.Operation):
         new_model = self.get_new_model(operation)
+        if 'seq' in operation.acquisition.method:
+            print('Seq Running:')
+            detector_log = Log(self.new_model_config, 'detector')
+            self.detector = detector_log.import_log(operation, self.general_config)
+            self.anchor_dstr = self.set_up_dstr(self.anchor_loader, operation.stream.pdf)
         return self._target_test(self.test_loader, new_model)
 
     def ensemble_decision(self, new_probab, new_weights, old_probab, old_weights):
@@ -234,41 +238,20 @@ class Ensemble(Prototype):
         return new_probab * new_weights + old_probab * old_weights
     
     @abstractmethod
-    def get_weight(self):
+    def get_weight(self, value=None, size=None):
         pass
-    
-class DstrEnsemble(Ensemble):
-    def __init__(self, model_config: Config.NewModel, general_config) -> None:
-        super().__init__(model_config, general_config)
-    
-    def setup(self, old_model_config: Config.OldModel, datasplits: Dataset.DataSplits, operation: Config.Operation, plot: bool):
-        super().setup(old_model_config, datasplits, operation, plot)
-        self.anchor_dstr = self.set_up_dstr(datasplits.loader['val_shift'], self.pdf_type)
-
-    def set_up_dstr(self, set_up_loader, pdf_type):
-        correct_dstr = distribution_utils.CorrectnessDisrtibution(self.base_model, self.clf, set_up_loader, pdf_type, correctness=True)
-        incorrect_dstr = distribution_utils.CorrectnessDisrtibution(self.base_model, self.clf, set_up_loader, pdf_type, correctness=False)
-        return {'correct': correct_dstr, 'incorrect': incorrect_dstr}
-
-    def get_weight(self, dstr_dict: Dict[str, distribution_utils.CorrectnessDisrtibution], observations, size):
-        weights = []
-        for value in observations:
-            posterior = self.probab_partitioner.get_posterior(value, dstr_dict)
-            weights.append(posterior)
-        return np.concatenate(weights).reshape((size,1))
 
     def _target_test(self, dataloader, new_model: Model.Prototype):
-        dv, _ = self.clf.predict(dataloader)  
+
+        dv, _ = self.detector.predict(dataloader)  
         size = len(dv)
+        weights = self.get_weight(value=dv, size=size)
 
         decision_maker = Decision.factory(self.new_model_config.base_type, self.new_model_config.class_number)
         new_decision_probab = decision_maker.get(new_model, dataloader)
         old_decision_probab = decision_maker.get(self.base_model, dataloader)
 
-        new_weight = self.get_weight({'target': self.anchor_dstr['incorrect'], 'other': self.anchor_dstr['correct']}, dv, size)
-        old_weight = self.get_weight({'target': self.anchor_dstr['correct'], 'other': self.anchor_dstr['incorrect']}, dv, size)
-
-        probab = self.ensemble_decision(new_decision_probab, new_weight, old_decision_probab, old_weight)
+        probab = self.ensemble_decision(new_decision_probab, weights['new'], old_decision_probab, weights['old'])
         decision = decision_maker.apply(probab)
 
         gts = dataloader_utils.get_labels(dataloader)
@@ -277,34 +260,51 @@ class DstrEnsemble(Ensemble):
 
         DataStat.pred_metric(dataloader, self.base_model, new_model)
         
-        return final_acc - self.base_acc   
+        return final_acc - self.base_acc  
+    
+class DstrEnsemble(Ensemble):
+    def __init__(self, model_config: Config.NewModel, general_config) -> None:
+        super().__init__(model_config, general_config)
+    
+    def set_up(self, old_model_config: Config.OldModel, datasplits: Dataset.DataSplits, operation: Config.Operation, plot: bool):
+        super().set_up(old_model_config, datasplits, operation, plot)
+        self.probab_partitioner = Partitioner.Probability()
+        self.anchor_dstr = self.set_up_dstr(datasplits.loader['val_shift'], operation.stream.pdf)
+
+    def set_up_dstr(self, set_up_loader, pdf_type):
+        correct_dstr = distribution_utils.CorrectnessDisrtibution(self.base_model, self.detector, set_up_loader, pdf_type, correctness=True)
+        incorrect_dstr = distribution_utils.CorrectnessDisrtibution(self.base_model, self.detector, set_up_loader, pdf_type, correctness=False)
+        return {'correct': correct_dstr, 'incorrect': incorrect_dstr}
+
+    def probab2weight(self, dstr_dict: Dict[str, distribution_utils.CorrectnessDisrtibution], observations, size):
+        weights = []
+        for value in observations:
+            posterior = self.probab_partitioner.get_posterior(value, dstr_dict)
+            weights.append(posterior)
+        return np.concatenate(weights).reshape((size,1))
+    
+    def get_weight(self, value, size):
+        new_weight = self.probab2weight({'target': self.anchor_dstr['incorrect'], 'other': self.anchor_dstr['correct']}, value, size)
+        old_weight = self.probab2weight({'target': self.anchor_dstr['correct'], 'other': self.anchor_dstr['incorrect']}, value, size)
+        return {
+            'new': new_weight,
+            'old': old_weight
+        }
     
 class AverageEnsemble(Ensemble):
+    '''
+    New and old model have the same credibility
+    '''
     def __init__(self, model_config: Config.NewModel, general_config) -> None:
         super().__init__(model_config, general_config)
 
-    def get_weight(self, size):
-        return np.repeat([0.5], size).reshape((size,1))
-    
-    def _target_test(self, dataloader, new_model):
-        gts = dataloader_utils.get_labels(dataloader)
-        size = len(gts)
-        new_probab = self.get_decision(new_model, dataloader)
-        old_probab = self.get_decision(self.base_model, dataloader)
-        new_weight = self.get_weight(size)
-        old_weight = self.get_weight(size)
-
-        probab = self.ensemble_decision(new_probab, new_weight, old_probab, old_weight)
-
-        preds = np.argmax(probab, axis=-1)
-
-        DataStat.pred_metric(dataloader, self.base_model, new_model)
-
-        final_acc = (gts==preds).mean() * 100 
-
-        print('ACC compare:',final_acc, self.base_acc)
-        return final_acc - self.base_acc   
-     
+    def get_weight(self, value=None, size=None):
+        weight = np.repeat([0.5], size).reshape((size,1))
+        return {
+            'new': weight,
+            'old': weight
+        }
+   
 # class AdaBoostEnsemble(Ensemble):
 #     def __init__(self, model_config: Config.NewModel) -> None:
 #         super().__init__(model_config)
@@ -371,13 +371,13 @@ def get_configs(epoch, parse_args, dataset):
 def instantiate(epoch, parse_args, dataset, operation: Config.Operation, plot=True):
     old_model_config, new_model_config, dataset_splits, general_config = get_configs(epoch, parse_args, dataset)
     checker = factory(operation.stream.name, new_model_config, general_config)
-    checker.setup(old_model_config, dataset_splits, operation, plot)
+    checker.set_up(old_model_config, dataset_splits, operation, plot)
     return checker
 
 class total(Prototype):
     def __init__(self, model_config: Config.NewModel) -> None:
         super().__init__(model_config)
-    def setup(self, old_model_config, datasplits):
+    def set_up(self, old_model_config, datasplits):
         self.base_model = Model.load(old_model_config)
         self.test_loader = datasplits.loader['test_shift']
 
