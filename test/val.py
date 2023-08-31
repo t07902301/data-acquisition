@@ -79,7 +79,7 @@ class Random_Sample():
 
         return new_acc
     
-    def get_sample_performance(self, samples_indices, model_config, data_split: Dataset.DataSplits, detect_instruction, config, base_acc):
+    def get_sample_performance(self, samples_indices, model_config, data_split: dataset_utils.DataSplits, detect_instruction, config, base_acc):
 
         pairs = []
 
@@ -106,7 +106,7 @@ class Random_Sample():
             print('in epoch {}'.format(epo))
             model_config = Config.OldModel(config['hparams']['batch_size']['base'], config['hparams']['superclass'], model_dir, device_config, epo, base_type)        
             ds = ds_list[epo]
-            ds = Dataset.DataSplits(ds, model_config.batch_size)
+            ds = dataset_utils.DataSplits(ds, model_config.batch_size)
 
             base_model = Model.factory(model_config.base_type, config, detect_instrution.vit)
             base_model.load(model_config.path, model_config.device)
@@ -172,7 +172,7 @@ class Greedy():
             'min': min(dv)
         }
     
-    def get_sample_performance(self, samples_indices:dict, model_config:Config.OldModel, detect_instruction:Config.Detection, config, data_split: Dataset.DataSplits, checker:Checker, base_acc):
+    def get_sample_performance(self, samples_indices:dict, model_config:Config.OldModel, detect_instruction:Config.Detection, config, data_split: dataset_utils.DataSplits, checker:Checker, base_acc):
 
         distribution = distribution_utils.Disrtibution(checker.detector, data_split.loader['val_shift'], 'kde')
 
@@ -201,7 +201,7 @@ class Greedy():
             print('in epoch {}'.format(epo))
             model_config = Config.OldModel(config['hparams']['batch_size']['base'], config['hparams']['superclass'], model_dir, device_config, epo, base_type)        
             ds = ds_list[epo]
-            ds = Dataset.DataSplits(ds, batch_size)
+            ds = dataset_utils.DataSplits(ds, batch_size)
 
             base_model = Model.factory(model_config.base_type, config, detect_instrution.vit)
             base_model.load(model_config.path, model_config.device)
@@ -270,7 +270,7 @@ def dev(epochs,  model_dir ='', device_id=0, base_type='', detector_name='', dev
     print('Detector Name:', detector_name)
     config, device_config, ds_list, normalize_stat = set_up(epochs, model_dir, device_id)
     ds = ds_list[0]
-    ds = Dataset.DataSplits(ds, 64)
+    ds = dataset_utils.DataSplits(ds, 64)
     loader_labels = Detector.DataTransform.get_dataloader_labels(ds.loader['train_non_cnn'])
     
     dataset_labels = np.array([ds.dataset['train_non_cnn'][i][1] for i in range(len(ds.dataset['train_non_cnn']))])

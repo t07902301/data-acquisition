@@ -1,5 +1,5 @@
 from sklearn.linear_model import LinearRegression, Ridge
-from sklearn.preprocessing import MinMaxScaler
+from sklearn.preprocessing import MinMaxScaler, StandardScaler
 import numpy as np
 import pickle as pkl
 import os
@@ -28,7 +28,7 @@ class regressor():
 
     def scale_inputs(self, inputs):
         if self.scaler == None:
-            self.scaler = MinMaxScaler()
+            self.scaler = StandardScaler()
             self.scaler.fit(inputs)
         inputs = self.scaler.transform(inputs)
         return inputs
