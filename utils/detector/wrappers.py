@@ -6,6 +6,7 @@ from torch.cuda.amp import autocast
 import utils.detector.svm as svm_utils
 import utils.detector.logreg as logreg_utils
 import torch.nn as nn
+from utils.logging import *
 
 def inv_norm(ds_mean, ds_std):
     if ds_std is None:
@@ -23,13 +24,12 @@ class PreProcessing(nn.Module):
         self.do_standardize = do_standardize
         
     def update_stats(self, latents):
-        # latents = latents.detach().clone()
         if not torch.is_tensor(latents):
             latents = torch.tensor(latents)    
         self.mean = latents.mean(dim=0)
         self.std = (latents - self.mean).std(dim=0)
-        self.max = latents.max()
-        self.min = latents.min()
+        self.max = latents.max(dim=0)
+        self.min = latents.min(dim=0)
     
     def normalize(self, latents):
         if not torch.is_tensor(latents):
@@ -44,7 +44,7 @@ class PreProcessing(nn.Module):
     
     def forward(self, latents):
         if not torch.is_tensor(latents):
-            print('Not tensors in detector input processing')
+            logger.info('Not tensors in detector input processing')
             # latents = torch.tensor(latents) 
             latents = torch.concat(latents)  
         if self.do_standardize:
@@ -101,7 +101,7 @@ class Prototype:
         if train_latents is not None:
             self.pre_process.update_stats(train_latents)
         else:
-            print("No whitening")
+            logger.info("No whitening")
 
     @abstractmethod
     def fit(self, latents, gts):
@@ -267,22 +267,3 @@ class CLIPProcessor:
         clip_gts = torch.cat(clip_gts).numpy()
         return out, clip_gts
     
-    def evaluate_clip_captions(self, captions):
-        text = clip.tokenize(captions)
-        ds = torch.utils.data.TensorDataset(text)
-        dl = torch.utils.data.DataLoader(ds, batch_size=256, drop_last=False, shuffle=False)
-        clip_activations = []
-        with torch.no_grad():
-            for batch in dl:
-                caption = batch[0].cuda()
-                text_features = self.clip_model.encode_text(caption)
-                clip_activations.append(text_features.cpu())
-        return torch.cat(clip_activations).float()
-   
-    def get_caption_scores(self, captions, reference_caption, svm_fitter, target_c):
-        caption_latent = self.evaluate_clip_captions(captions)
-        reference_latent = self.evaluate_clip_captions([reference_caption])[0]
-        latent = caption_latent - reference_latent
-        gts = (torch.ones(len(latent))*target_c).long()
-        _, decisions = svm_fitter.predict(gts=gts, latents=latent, compute_metrics=False)
-        return decisions, caption_latent

@@ -1,23 +1,22 @@
-import sys
-sys.path.append('..')
 import numpy as np
 import utils.detector.wrappers as wrappers
 import utils.objects.model as Model
 from abc import abstractmethod
 import utils.objects.dataloader as dataloader_utils
+from utils.logging import *
 
 def statistics(values, n_data_list = None):
     '''
     pretrained model | seq_detector\n
-    score/precision: (epoch, value)
+    score/accuracy: (epoch, value)
     '''
     values = np.array(values)
     if n_data_list is None:
-        print('Distribution Classifier Average Precision: {}%'.format(np.round(np.mean(values), decimals=3).tolist()))
+        logger.info('Detector Average Accuracy: {}%'.format(np.round(np.mean(values), decimals=3).tolist()))
     else: 
         for idx, n_data in enumerate(n_data_list):
-            print('#new data:', n_data)       
-            print('Distribution Classifier Average Precision: {}%'.format(np.round(np.mean(values[:,idx]), decimals=3).tolist()))
+            logger.info('#new data:{}'.format(n_data))     
+            logger.info('Detector Average Accuracy: {}%'.format(np.round(np.mean(values[:,idx]), decimals=3).tolist()))
 
 def precision(detector, clip_processor, dataloader, base_model):
     data_clip = clip_processor.evaluate_clip_images(dataloader)
@@ -44,17 +43,17 @@ class Prototype():
 
     def save(self, path):
         self.model.export(path)
-        print('{} log save to {}'.format('Detector', path))
+        logger.info('{} log save to {}'.format('Detector', path))
 
     def load(self, path):
         self.model.import_model(path)
-        print('{} log load from {}'.format('Detector', path))
+        logger.info('{} log load from {}'.format('Detector', path))
         
 class SVM(Prototype):
     def __init__(self, config, clip_processor:wrappers.CLIPProcessor, split_and_search=True, data_transform = 'clip') -> None:
         super().__init__(data_transform)
         self.clip_processor = clip_processor
-        self.model = wrappers.SVM(args=config['detector_args'], cv=config['detector_args']['k-fold'], split_and_search = split_and_search, do_normalize=True, do_standardize=False)
+        self.model = wrappers.SVM(args=config['detector_args'], cv=config['detector_args']['k-fold'], split_and_search = split_and_search, do_normalize=False, do_standardize=True)
         # #TODO take the mean and std assumed norm dstr
         # set_up_latent = get_latent(set_up_dataloader, clip_processor, self.transform)
         # self.model.set_preprocess(set_up_latent) 
@@ -64,7 +63,7 @@ class SVM(Prototype):
         correctness = get_correctness(data_loader, base_model, latent_gts)
         self.model.set_preprocess(latent) 
         score = self.model.fit(latent, correctness)
-        print('Best CV Score:', score)
+        logger.info('Best CV Score: {}'.format(score))
     
     def predict(self, data_loader, base_model:Model.Prototype=None, compute_metrics=False):
         latent, latent_gts = dataloader_utils.get_latent(data_loader, self.clip_processor, self.transform)
@@ -119,7 +118,7 @@ def get_correctness(data_loader, model:Model.Prototype, loader_gts):
     gts, preds, _ = model.eval(data_loader)
     assert (gts != loader_gts).sum() == 0, 'Train Loader Shuffles!: {}'.format((gts != loader_gts).sum())
     correctness_mask = (gts == preds)
-    print('Model Acc:', correctness_mask.mean())
+    logger.info('Model Acc: {}'.format(correctness_mask.mean()))
     data_loader_size = dataloader_utils.get_size(data_loader)
     correctness = np.zeros(data_loader_size, dtype = int)
     correctness[correctness_mask] = 1
@@ -142,7 +141,7 @@ def get_correctness(data_loader, model:Model.Prototype, loader_gts):
 #         _, _, data_correctness = get_correctness(data_loader, base_model, self.transform)
 #         train_ds = torch.utils.data.Subset(data_correctness, train_indices)
 #         val_ds = torch.utils.data.Subset(data_correctness, val_indices)   
-#         print('Dstr CLF - training : validation =', len(train_ds), len(val_ds))
+#         logger.info('Dstr CLF - training : validation =', len(train_ds), len(val_ds))
 #         generator = torch.Generator()
 #         generator.manual_seed(0)    
 #         train_loader = torch.utils.data.DataLoader(train_ds, batch_size = batch_size, shuffle=True, drop_last=True)
