@@ -32,13 +32,19 @@ class Checker():
         '''
         loader: new_model + old_model
         '''
-        gt,pred,_  = new_model.eval(structural_loader['new_model'])
-        new_correct = (gt==pred)
-
         if len(structural_loader['old_model']) == 0:
+            gt,pred,_  = new_model.eval(structural_loader['new_model'])
+            new_correct = (gt==pred)
+            logger.info('Nothing for Old Model')
             total_correct = new_correct
-
+        elif len(structural_loader['new_model']) == 0:
+            logger.info('Nothing for New Model')
+            gt,pred,_  = self.base_model.eval(structural_loader['old_model'])
+            old_correct = (gt==pred)
+            total_correct = old_correct
         else:
+            gt,pred,_  = new_model.eval(structural_loader['new_model'])
+            new_correct = (gt==pred)
             gt,pred,_  = self.base_model.eval(structural_loader['old_model'])
             old_correct = (gt==pred)
             total_correct = np.concatenate((old_correct,new_correct))
@@ -103,7 +109,7 @@ class Random_Sample():
 
             sample_indices = self.acquistion(n_samples, sample_src_size)
 
-            print('in epoch {}'.format(epo))
+            logger.info('in epoch {}'.format(epo))
             model_config = Config.OldModel(config['hparams']['batch_size']['base'], config['hparams']['superclass'], model_dir, device_config, epo, base_type)        
             ds = ds_list[epo]
             ds = dataset_utils.DataSplits(ds, model_config.batch_size)
@@ -126,12 +132,12 @@ class Greedy():
     def acquisition(self, n_samples, dataloader, detector: Detector.Prototype, base_model: Model.Prototype, dataset):
 
         dv, _ = detector.predict(dataloader, base_model)
-        # print('{}, {}'.format(max(dv), min(dv)))
+        # logger.info('{}, {}'.format(max(dv), min(dv)))
 
         samples_indices = {}
         for size in n_samples:
             samples_indices[size] = acquistion.get_top_values_indices(dv, size)
-            # print('{}: {}, {}'.format(size, max(dv[samples_indices[size]]), min(dv[samples_indices[size]])))
+            # logger.info('{}: {}, {}'.format(size, max(dv[samples_indices[size]]), min(dv[samples_indices[size]])))
             # sample = torch.utils.data.Subset(dataset, samples_indices[size])
 
         return samples_indices
@@ -165,8 +171,8 @@ class Greedy():
     def get_dv_range(self, sample_data, checker:Checker):
         sample_loader = torch.utils.data.DataLoader(sample_data, batch_size)
         dv, _ = checker.detector.predict(sample_loader, checker.base_model)
-        # print('in get range:', checker.base_model.acc(sample_loader))
-        # print(len(dv), max(dv), min(dv))
+        # logger.info('in get range:', checker.base_model.acc(sample_loader))
+        # logger.info(len(dv), max(dv), min(dv))
         return {
             'max': max(dv),
             'min': min(dv)
@@ -198,7 +204,7 @@ class Greedy():
         stream = Config.ProbabStream(bound=0.5, pdf='kde', name='probab')
 
         for epo in range(epochs):
-            print('in epoch {}'.format(epo))
+            logger.info('in epoch {}'.format(epo))
             model_config = Config.OldModel(config['hparams']['batch_size']['base'], config['hparams']['superclass'], model_dir, device_config, epo, base_type)        
             ds = ds_list[epo]
             ds = dataset_utils.DataSplits(ds, batch_size)
@@ -222,18 +228,22 @@ class Greedy():
 
 def export(model_dir, dev, data):
    
-    file = os.path.join('log/{}/reg'.format(model_dir), '{}_dev.pkl'.format(dev))
+    file = os.path.join('log/{}/reg'.format(model_dir), '{}.pkl'.format(dev))
    
     with open(file, 'wb') as f:
         out = pkl.dump(data, f)
 
-    print('save to', file)
+    logger.info('save to {}'.format(file))
 
     return out
 
 def main(epochs,  model_dir ='', device_id=0, base_type='', detector_name='', dev = '', option = '', dataset_name = ''):
 
-    print('Detector Name:', detector_name)
+    fh = logging.FileHandler('log/{}/val_{}.log'.format(model_dir, dev), mode='w')
+    fh.setLevel(logging.INFO)
+    logger.addHandler(fh)
+
+    logger.info('Detector Name: {}'.format(detector_name))
     config, device_config, ds_list, normalize_stat = set_up(epochs, model_dir, device_id, option, dataset_name)
     clip_processor = Detector.load_clip(device_config, normalize_stat['mean'], normalize_stat['std'])
     detect_instrution = Config.Detection(detector_name, clip_processor)
@@ -241,14 +251,12 @@ def main(epochs,  model_dir ='', device_id=0, base_type='', detector_name='', de
     # np.random.seed(0)
     # sample_size = np.random.choice(np.arange(50, len(ds_list[0]['val_shift'])), 30, replace=False)
 
-    # print(sorted(sample_size))
+    # logger.info(sorted(sample_size))
 
-    sample_size = [i for i in range(30, len(ds_list[0]['val_shift'])+1, 5)]
-    # sample_size = [i for i in range(100, len(ds_list[0]['val_shift'])+1, 25)]
+    sample_size = [i for i in range(15, len(ds_list[0]['val_shift'])+1, 5)]
+    # sample_size = [i for i in range(50, len(ds_list[0]['val_shift'])+1, 10)]
 
-    print(sample_size)
-
-    # # sample_size = [225, 325, 425, 525, 625]
+    logger.info('samples: {}'.format(sample_size))
 
     if dev == 'rs':
         rs = Random_Sample()
@@ -259,27 +267,14 @@ def main(epochs,  model_dir ='', device_id=0, base_type='', detector_name='', de
 
     export(model_dir, dev, regression_pairs_dict)
     # plot_regress(epochs, regression_pairs_dict, model_dir, dev)
-    # print(regression_pairs_dict)
+    # logger.info(regression_pairs_dict)
 
     split_data = ds_list[0]
     for spit_name in split_data.keys():
-        print(spit_name, len(split_data[spit_name]))
-
-def dev(epochs,  model_dir ='', device_id=0, base_type='', detector_name='', dev = ''):
-
-    print('Detector Name:', detector_name)
-    config, device_config, ds_list, normalize_stat = set_up(epochs, model_dir, device_id)
-    ds = ds_list[0]
-    ds = dataset_utils.DataSplits(ds, 64)
-    loader_labels = Detector.DataTransform.get_dataloader_labels(ds.loader['train_non_cnn'])
-    
-    dataset_labels = np.array([ds.dataset['train_non_cnn'][i][1] for i in range(len(ds.dataset['train_non_cnn']))])
-
-    print((loader_labels != dataset_labels).sum())
+        logger.info('{}:{}'.format(spit_name, len(split_data[spit_name])))
 
 import argparse
 if __name__ == '__main__':
-
     parser = argparse.ArgumentParser(description='Process some integers.')
     parser.add_argument('-e','--epochs',type=int,default=1)
     parser.add_argument('-md','--model_dir',type=str,default='')
