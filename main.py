@@ -1,5 +1,6 @@
 from utils.strategy import *
 from utils.set_up import *
+from utils.logging import *
 
 def run(operation: Config.Operation, new_model_config:Config.NewModel, workspace: WorkSpace):
     strategy = StrategyFactory(operation.acquisition.method)
@@ -26,7 +27,7 @@ def epoch_run(parse_args, method_list, n_data_list, dataset:dict, epo, operation
     new_model_config = Config.NewModel(batch_size['base'], superclass_num, model_dir, device_config, epo, pure, new_model_setter, batch_size['new'], base_type)
     workspace = WorkSpace(old_model_config, dataset, config)
 
-    print('Set up WorkSpace')
+    logger.info('Set up WorkSpace')
     
     workspace.set_up(new_model_config.new_batch_size, operation.detection.vit)
 
@@ -45,13 +46,15 @@ def bound_run(parse_args, epochs, ds_list, method_list, bound, n_new_data_list, 
     operation.acquisition.bound = bound
 
     for epo in range(epochs):
-        print('In epoch {}'.format(epo))
+        logger.info('In epoch {}'.format(epo))
         dataset = ds_list[epo]
         epoch_run(parse_args, method_list, n_new_data_list, dataset, epo, operation)
 
-def dev(epochs, dev_name, device, detector_name, model_dir, base_type, option, dataset_name, filter_market=False):
+def dev(epochs, dev_name, device, detector_name, model_dir, base_type, option, dataset_name, filter_market=True):
 
-    print('Filter Market:', filter_market)
+    fh = logging.FileHandler('log/{}/{}.log'.format(model_dir, dev_name),mode='w')
+    fh.setLevel(logging.DEBUG)
+    logger.addHandler(fh)
 
     pure, new_model_setter = True, 'retrain'
 
@@ -61,6 +64,8 @@ def dev(epochs, dev_name, device, detector_name, model_dir, base_type, option, d
         method_list, new_model_setter, pure, probab_bound = ['dv'], 'refine', False, 0
     else:
         method_list, probab_bound = [dev_name], 0.5 
+
+    logger.info('Filter Market: {}'.format(filter_market))
 
     config, device_config, ds_list, normalize_stat = set_up(epochs, model_dir, device, option, dataset_name)
     

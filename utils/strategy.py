@@ -14,6 +14,7 @@ import utils.statistics.distribution as distribution_utils
 from utils.env import data_split_env
 import utils.ood as OOD
 import utils.objects.dataloader as dataloader_utils
+from utils.logging import logger
 
 #TODO add info class with base model and dataset, make strategy class more purified. 
 
@@ -56,7 +57,7 @@ class WorkSpace():
         self.set_up(new_batch_size, clip_processor)
         if self.market_dataset != None:
             self.data_split.replace('market', self.market_dataset) # For OOD
-            print('Market size:', len(self.data_split.dataset['market']))
+            logger.info('Market size:{}'.format(len(self.data_split.dataset['market'])))
 
     def set_market(self, clip_processor, known_labels):
 
@@ -116,7 +117,7 @@ class Strategy():
         # for img in range(len(new_data)):
         #     idx = new_data[img][3]
         #     set_indices.append(idx)
-        # print('New data real indices:', set_indices)
+        # logger.info('New data real indices:', set_indices)
 
     def test_detector(self):
         pass
@@ -145,6 +146,7 @@ class NonSeqStrategy(Strategy):
         pass
 
     def operate(self, operation: Config.Operation, new_model_config:Config.NewModel, workspace:WorkSpace):
+        
         workspace.reset(new_model_config.new_batch_size, operation.detection.vit)
 
         new_data_info = self.get_new_data_info(operation, workspace)
@@ -261,7 +263,7 @@ class SeqCLF(Strategy):
             new_data_total_set = new_data_round_info['data'] if round_i==0 else torch.utils.data.ConcatDataset([new_data_total_set, new_data_round_info['data']])
 
         new_model_config.set_path(operation)
-        print(new_model_config.path)
+        logger.info(new_model_config.path)
 
         workspace.reset(new_model_config.new_batch_size, operation.detection.vit) # recover validation set
         workspace.set_validation(operation.stream, new_model_config.batch_size, new_model_config.new_batch_size)

@@ -17,7 +17,7 @@ def n_data_run(operation:Config.Operation, checker: Checker.Prototype):
 def run(operation:Config.Operation, methods, new_img_num_list, checker:Checker.Prototype):
     result_list = []
     for method in methods:
-        print('In method', method)
+        logger.info('In method: {}'.format(method))
         operation.acquisition.method = method
         operation.acquisition = Config.AcquisitionFactory(operation.acquisition)
         result_method = method_run(new_img_num_list, operation, checker)
@@ -41,7 +41,7 @@ def bound_run(epochs, parse_args, dataset_list, new_img_num_list, method_list, o
     results = []
     bound_stat_list = []
     for epo in range(epochs):
-        print('in epoch {}'.format(epo))
+        logger.info('in epoch {}'.format(epo))
         checker = Checker.instantiate(epo, parse_args, dataset_list[epo], operation, plot=False) #probab / ensemble
         result_epoch, bound_stat = epoch_run(new_img_num_list, method_list, operation, checker)
         results.append(result_epoch)
@@ -49,7 +49,10 @@ def bound_run(epochs, parse_args, dataset_list, new_img_num_list, method_list, o
     return results, bound_stat_list
 
 def dev(epochs, dev_name, device, detector_name, model_dir, stream_name, base_type, option, dataset_name):
-    print(stream_name)
+    fh = logging.FileHandler('log/{}/test_{}.log'.format(model_dir, dev_name),mode='w')
+    fh.setLevel(logging.INFO)
+    logger.addHandler(fh)
+
     new_model_setter = 'retrain'
     pure = True
 
@@ -59,8 +62,11 @@ def dev(epochs, dev_name, device, detector_name, model_dir, stream_name, base_ty
         method_list, new_model_setter, pure, probab_bound, stream_name = ['dv'], 'refine', False, 0, 'probab'
     else:
         method_list, probab_bound = [dev_name], 0.5 
+    
+    logger.info('Stream Name: {}, Probab Bound:{}'.format(stream_name, probab_bound))
 
     config, device_config, ds_list, normalize_stat = set_up(epochs, model_dir, device, option, dataset_name)
+
     clip_processor = Detector.load_clip(device_config, normalize_stat['mean'], normalize_stat['std'])
     stream_instruction = Config.ProbabStream(bound=probab_bound, pdf='kde', name=stream_name)
     detect_instruction = Config.Detection(detector_name, clip_processor)
@@ -73,13 +79,13 @@ def dev(epochs, dev_name, device, detector_name, model_dir, stream_name, base_ty
     
     for idx, method in enumerate(method_list):
         method_result = result[:, idx, :]
-        print(method)
-        print(*np.round(np.mean(method_result, axis=0), decimals=3).tolist(), sep=',')
+        logger.info(method)
+        logger.info('avg:{}'.format(np.round(np.mean(method_result, axis=0), decimals=3).tolist()))
     
     for idx, method in enumerate(method_list):
         method_result = result[:, idx, :]
-        print(method)
-        print(method_result.tolist())
+        logger.info(method)
+        logger.info('all: {}'.format(method_result.tolist()))
 
 import argparse
 if __name__ == '__main__':
@@ -99,13 +105,13 @@ if __name__ == '__main__':
     dev(args.epochs, model_dir=args.model_dir, device=args.device, detector_name=args.detector_name, dev_name=args.dev, stream_name=args.stream, base_type=args.base_type, option= args.option, dataset_name=args.dataset)
 
 # def main(epochs, new_model_setter='retrain', pure=False, model_dir ='', device=0, probab_bound = 0.5, base_type='', detector_name = ''):
-#     print('Detector:', detector_name)
+#     logger.info('Detector:', detector_name)
 #     if pure == False:
 #         probab_bound = 0
 #         stream_instruction = Config.ProbabStream(bound=probab_bound, pdf='kde', name='probab')
 #     else:
 #         stream_instruction = Config.ProbabStream(bound=probab_bound, pdf='kde', name='probab')
-#     print('Probab bound:', probab_bound)
+#     logger.info('Probab bound:', probab_bound)
 #     device_config = 'cuda:{}'.format(device)
 #     torch.cuda.set_device(device_config)
 #     batch_size, label_map, new_img_num_list, superclass_num, ratio, seq_rounds_config, ds_list, device_config = set_up(epochs, device)
@@ -127,11 +133,11 @@ if __name__ == '__main__':
 #         acquire_instruction.bound = bound
 #         result, bound_stat = bound_run(epochs, parse_args, ds_list, new_img_num_list, method_list, operation)
 #         result = np.array(result)
-#         print(result.shape)
+#         logger.info(result.shape)
 #         for idx, method in enumerate(method_list):
 #             method_result = result[:, idx, :]
-#             print(method)
-#             print(*np.round(np.mean(method_result, axis=0), decimals=3).tolist(), sep=',')
+#             logger.info(method)
+#             logger.info(*np.round(np.mean(method_result, axis=0), decimals=3).tolist(), sep=',')
 
 # import argparse
 # if __name__ == '__main__':

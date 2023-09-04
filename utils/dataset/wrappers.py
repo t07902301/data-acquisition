@@ -8,6 +8,8 @@ import utils.dataset.core as core
 import pickle as pkl
 import numpy as np
 import time
+from utils import n_workers
+from utils.logging import *
 
 def complimentary_mask(mask_length, active_spot):
     '''
@@ -26,8 +28,6 @@ def get_vis_transform(mean, std):
                                                     std = [ 1., 1., 1. ]),])
     TOIMAGE = transforms.Compose([INV_NORM, transforms.ToPILImage()])
     return INV_NORM, TOIMAGE
-
-n_workers = 1
 
 class DataSplits():
     dataset: dict
@@ -203,7 +203,7 @@ class Cifar(Dataset):
         new_labels_remove_rate = remove_rate['new_labels']
         old_labels_remove_rate = remove_rate['old_labels']
         old_labels = list(set(label_config['select_fine_labels']) - set(new_labels))
-        print('Fine Labels removed', new_labels)
+        logger.info('Fine Labels removed: {}'.format(new_labels))
 
         _, old_aug_train = self.split(ds_dict['aug_train'], new_labels, new_labels_remove_rate)
         _, old_train = self.split(ds_dict['train'], new_labels, new_labels_remove_rate)
@@ -216,7 +216,7 @@ class Cifar(Dataset):
         else:
             val, test = ds_dict['val_shift'], ds_dict['test_shift']
 
-        # sub_mkt, _ = self.split(ds_dict['market'], new_labels + old_labels, 0.1)
+        # sub_mkt, _ = self.split(ds_dict['market'], new_labels + old_labels, 0.05) # for acquisition result estimator
 
         return {
             'train': old_aug_train,
@@ -224,16 +224,16 @@ class Cifar(Dataset):
             'val': old_val,
             'test': old_test,
             'val_shift': val,
+            # 'val_shift': sub_mkt,
             'test_shift': test,
             'market': ds_dict['market'],
             'aug_market': ds_dict['aug_market'],
-            # 'sub_mkt': sub_mkt
         }
    
     def cover_load(self, ds_dict, remove_rate, cover_labels):
         new_labels_remove_rate = remove_rate['new_labels']
         old_labels_remove_rate = remove_rate['old_labels']
-        print('Cover Labels removed','src:', cover_labels['src'], 'target:', cover_labels['target'])
+        logger.info('Cover Labels remove, src:{}, target: {}'.format(cover_labels['src'], cover_labels['target']))
 
         old_train, _ = self.split(ds_dict['train'], cover_labels['src'], new_labels_remove_rate)
         old_val, _ = self.split(ds_dict['val_shift'], cover_labels['src'], new_labels_remove_rate)
@@ -454,7 +454,7 @@ class Core(Dataset):
         old_labels_remove_rate = remove_rate['old_labels']
 
         subclass = self.subclass_config(remove_label_config, option)
-        print(option, 'Removed Labels:', subclass['new'])
+        logger.info('option: {}, Removed Labels:{}'.format(option, subclass['new']))
 
         _, old_aug_train = self.split(ds_dict['aug_train'], new_labels_remove_rate, {'name': option, 'labels': subclass['new']})
         _, old_train = self.split(ds_dict['train'], new_labels_remove_rate, {'name': option, 'labels': subclass['new']})
@@ -487,7 +487,7 @@ class Core(Dataset):
         old_labels_remove_rate = remove_rate['old_labels']
         
         subclass = self.subclass_config(remove_label_config, option)
-        print(option, 'Removed Labels:', subclass['new'])
+        logger.info('option: {}, Removed Labels: {}'.format(option, subclass['new']))
 
         _, old_aug_train = self.split(primal_dict['train'], new_labels_remove_rate, {'name': option, 'labels': subclass['new']})
         _, old_train = self.split(primal_dict['train_non_cnn'], new_labels_remove_rate, {'name': option, 'labels': subclass['new']})

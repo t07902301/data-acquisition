@@ -2,6 +2,8 @@ import utils.objects.Config as Config
 import utils.objects.Detector as Detector
 import os
 import torch
+from utils.logging import *
+
 class Log():
     root: str
     path: str
@@ -24,7 +26,7 @@ class Log():
             detector.save(self.path)        
         else:
             torch.save(data, self.path)
-            print('{} log save to {}'.format(self.name, self.path))       
+            logger.info('{} log save to {}'.format(self.name, self.path))       
 
     def import_log(self, operation:Config.Operation, general_config):
         self.set_path(operation.acquisition)
@@ -33,6 +35,6 @@ class Log():
             detector.load(self.path) 
             return detector      
         else:
-            print('{} log load from {}'.format(self.name, self.path))       
+            logger.info('{} log load from {}'.format(self.name, self.path))       
             return torch.load(self.path)
         

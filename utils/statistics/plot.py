@@ -3,6 +3,7 @@ import numpy as np
 import os
 import matplotlib.pyplot as plt
 from abc import abstractmethod
+from utils.logging import *
 
 class Prototype():
     def __init__(self) -> None:
@@ -38,7 +39,7 @@ class Line(Prototype):
         fig_name = self.get_fig_name(model_dir)
         plt.savefig(fig_name)
         plt.clf()    
-        print('save fig to', fig_name)        
+        logger.info('save fig to {}'.format(fig_name))        
 
 class Histogram(Prototype):
     def __init__(self) -> None:
@@ -57,7 +58,7 @@ class Histogram(Prototype):
         fig.suptitle(split_name)
         fig.savefig(fig_name)
         fig.clf()      
-        print('save fig to', fig_name)  
+        logger.info('save fig to {}'.format(fig_name))        
 
     def get_fig_name(self, n_data, method, model_dir):
         fig_root = 'figure/{}/distribution'.format(model_dir)
@@ -74,7 +75,7 @@ class Histogram(Prototype):
     #     axs = axs.flatten()
     #     for threshold_idx,threshold in enumerate(threshold_list):
     #         threshold_result = acc_list[:,:,:,threshold_idx]#(e,m,img_num,threshold) e:epochs,m:methods
-    #         print('In threshold:',threshold)
+    #         logger.info('In threshold:',threshold)
     #         for m_idx,method in enumerate(self.plot_methods): 
     #             method_result = threshold_result[:,m_idx,:] #(e,m,img_num) e:epochs,m:methods
     #             method_avg = np.round(np.mean(method_result,axis=0),decimals=3) #(e,img_num)

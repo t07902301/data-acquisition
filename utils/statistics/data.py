@@ -5,6 +5,7 @@ import utils.dataset.wrappers as Dataset
 import utils.objects.Detector as Detector
 import numpy as np
 import torch
+from utils.logging import *
 
 class Cifar():
     def __init__(self) -> None:
@@ -94,8 +95,8 @@ def pred_metric(dataloader, old_model:Model.Prototype, new_model:Model.Prototype
     fn = len(np.intersect1d(new_incorrect_indices, old_correct_indices))
     tp = len(np.intersect1d(new_correct_indices, old_incorrect_indices))
     fp = len(np.intersect1d(new_correct_indices, old_correct_indices))
-    print(tn, tp)
-    print(fn, fp)
+    logger.info('{}, {}'.format(tn, tp))
+    logger.info('{}, {}'.format(fn, fp))
 
 def build_info(dataset_splits: Dataset.DataSplits, name, clf:Detector.Prototype, old_batch_size, new_batch_size):
     data_info = {}

@@ -5,6 +5,8 @@ import torch
 from utils.statistics.distribution import CorrectnessDisrtibution
 from utils.dataset.wrappers import n_workers
 from typing import Dict
+from utils.logging import *
+
 class Prototype():
     def __init__(self) -> None:
         pass
@@ -55,16 +57,15 @@ class Probability(Prototype):
             'new_model':selected_test_loader,
             'old_model': remained_test_loader
         }   
-        # print('selected test images: {}%'.format(np.round(len(test_selected)/len(data_info['dv']), decimals=3)*100))
-        # print('new cls percent:', new_label_stat(test_selected))
-        # print('the max dv:', np.max(data_info['dv'][dataset_indices[selected_mask]]))
+        # logger.info('selected test images: {}%'.format(np.round(len(test_selected)/len(data_info['dv']), decimals=3)*100))
+        # logger.info('new cls percent:', new_label_stat(test_selected))
+        # logger.info('the max dv:', np.max(data_info['dv'][dataset_indices[selected_mask]]))
         return test_loader, posterior_list
     
 class Threshold(Prototype):
     def __init__(self) -> None:
         pass
     def run(self, data_info, threshold):
-        print(threshold)
         selected_mask = data_info['dv'] <= threshold
         dataset_indices = np.arange(len(data_info['dataset']))
         test_selected = torch.utils.data.Subset(data_info['dataset'],dataset_indices[selected_mask])
@@ -75,7 +76,7 @@ class Threshold(Prototype):
             'new_model':test_selected_loader,
             'old_model': remained_test_loader
         }   
-        print('selected test images:', len(test_selected))
+        logger.info('selected test images:{}'.format(len(test_selected)))
         return test_loader
     
 class Mistakes(Prototype):
