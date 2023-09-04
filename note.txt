@@ -1,9 +1,9 @@
-s_i (meta.py)
+s_i (meta.py, what classes involved in Core-50)
     s0: ball VS cup
     s1: monitor vs phone
     s2: all
 
-s_i_j: how to split dataset (data_setup.py)
+s_i_j: how to split dataset (data_setup.py, what classes involved in Cifar-100)
 
 s_i_j_k: what to remove (pretrain.py)
 
