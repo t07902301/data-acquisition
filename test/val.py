@@ -132,13 +132,10 @@ class Greedy():
     def acquisition(self, n_samples, dataloader, detector: Detector.Prototype, base_model: Model.Prototype, dataset):
 
         dv, _ = detector.predict(dataloader, base_model)
-        # logger.info('{}, {}'.format(max(dv), min(dv)))
 
         samples_indices = {}
         for size in n_samples:
             samples_indices[size] = acquistion.get_top_values_indices(dv, size)
-            # logger.info('{}: {}, {}'.format(size, max(dv[samples_indices[size]]), min(dv[samples_indices[size]])))
-            # sample = torch.utils.data.Subset(dataset, samples_indices[size])
 
         return samples_indices
 
@@ -254,7 +251,6 @@ def main(epochs,  model_dir ='', device_id=0, base_type='', detector_name='', de
     # logger.info(sorted(sample_size))
 
     sample_size = [i for i in range(15, len(ds_list[0]['val_shift'])+1, 5)]
-    # sample_size = [i for i in range(50, len(ds_list[0]['val_shift'])+1, 10)]
 
     logger.info('samples: {}'.format(sample_size))
 
