@@ -216,7 +216,7 @@ class Cifar(Dataset):
         else:
             val, test = ds_dict['val_shift'], ds_dict['test_shift']
 
-        # sub_mkt, _ = self.split(ds_dict['market'], new_labels + old_labels, 0.05) # for acquisition result estimator
+        # sub_mkt, _ = self.split(ds_dict['market'], new_labels + old_labels, 0.05) # for acquisition estimator
 
         return {
             'train': old_aug_train,
