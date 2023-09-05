@@ -52,14 +52,10 @@ class TrainData():
             results.append(result_epoch)
         return results
 
-    def epoch_run(self, operation:Config.Operation, methods, new_img_num_list, checker:Checker.Prototype, data_split:dataset_utils.DataSplits, pdf_method):
-        result_list = []
-        for method in methods:
-            logger.info('In method: {}'.format(method))
-            operation.acquisition.method = method
-            result_method = self.method_run(new_img_num_list, operation, checker, data_split, pdf_method)
-            result_list.append(result_method)
-        return result_list
+    def epoch_run(self, operation:Config.Operation, method, new_img_num_list, checker:Checker.Prototype, data_split:dataset_utils.DataSplits, pdf_method):
+        logger.info('In method: {}'.format(method))
+        operation.acquisition.method = method
+        return self.method_run(new_img_num_list, operation, checker, data_split, pdf_method)
 
     def method_run(self, n_img_list, operation:Config.Operation, checker: Checker.Prototype, data_split:dataset_utils.DataSplits, pdf_method):
         acc_change_list = []
@@ -139,7 +135,7 @@ class TrainData():
 
 def main(epochs, new_model_setter='retrain', model_dir ='', device=0, probab_bound = 0.5, base_type='', detector_name = '', opion = '', dataset_name = '', stat_data='train', dev_name= 'dv'):
     pure = True
-    fh = logging.FileHandler('dev/{}/stat_{}_{}.log'.format(model_dir, dev_name, stat_data),mode='w')
+    fh = logging.FileHandler('log/{}/stat_{}_{}.log'.format(model_dir, dev_name, stat_data),mode='w')
     fh.setLevel(logging.INFO)
     logger.addHandler(fh)
     logger.info('Detector: {}; Probab bound: {}'.format(detector_name, probab_bound))
@@ -147,7 +143,7 @@ def main(epochs, new_model_setter='retrain', model_dir ='', device=0, probab_bou
     device_config = 'cuda:{}'.format(device)
     torch.cuda.set_device(device_config)
     config, device_config, ds_list, normalize_stat = set_up(epochs, model_dir, device, opion, dataset_name)
-    method_list = [dev_name]
+    method = dev_name
 
     clip_processor = Detector.load_clip(device_config, normalize_stat['mean'], normalize_stat['std'])
     stream_instruction = Config.ProbabStream(bound=probab_bound, pdf='kde', name='probab')
@@ -159,13 +155,11 @@ def main(epochs, new_model_setter='retrain', model_dir ='', device=0, probab_bou
     
     if stat_data == 'train':
         stat_checker = TrainData()
-        results = stat_checker.run(epochs, parse_args, config['data']['n_new_data'], method_list, operation, ds_list, stream_instruction.pdf)
-        result = np.array(results)
-        for idx, method in enumerate(method_list):
-            method_result = result[:, idx, :]
-            logger.info(method)
-            logger.info('Train Data stat: {}'.format(np.round(np.mean(method_result, axis=0), decimals=3).tolist()))
-            logger.info('all: {}'.format(method_result.tolist()))
+        results = stat_checker.run(epochs, parse_args, config['data']['n_new_data'], method, operation, ds_list, stream_instruction.pdf)
+        results = np.array(results)
+        logger.info(method)
+        logger.info('Train Data stat: {}'.format(np.round(np.mean(results, axis=0), decimals=3).tolist()))
+        logger.info('all: {}'.format(results.tolist()))
     else:
         stat_checker = TestData()
         results = stat_checker.run(epochs, parse_args, ds_list, operation)
@@ -185,7 +179,7 @@ if __name__ == '__main__':
     parser.add_argument('-ds','--dataset',type=str, default='core')
     parser.add_argument('-op','--option',type=str, default='object')
     parser.add_argument('-dev','--dev',type=str, default='dv')
-    parser.add_argument('-sd','--stat',type=str, default='train')
+    parser.add_argument('-stat','--stat',type=str, default='train')
 
     args = parser.parse_args()
     main(args.epochs, model_dir=args.model_dir, device=args.device, probab_bound=args.probab_bound, base_type=args.base_type, detector_name=args.detector_name, opion=args.option, dataset_name=args.dataset, dev_name=args.dev, stat_data=args.stat)
