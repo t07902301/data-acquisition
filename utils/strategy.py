@@ -30,14 +30,22 @@ class WorkSpace():
         self.validation_loader = None
         self.detector = None
         self.base_model = None
+        self.data_split = None
     
     def set_up(self, new_batch_size, clip_processor):
         '''
         set up base model + datasplits
         '''
+        self.set_model(clip_processor)
+        self.set_data(new_batch_size)
+
+    def set_model(self, clip_processor):
         del self.base_model
         self.base_model = Model.factory(self.base_model_config.base_type, self.general_config, clip_processor=clip_processor)
         self.base_model.load(self.base_model_config.path, self.base_model_config.device)
+
+    def set_data(self, new_batch_size):
+        del self.data_split
         copied_dataset = deepcopy(self.init_dataset)
         self.data_split = dataset_utils.DataSplits(copied_dataset, new_batch_size)
 
@@ -57,12 +65,12 @@ class WorkSpace():
         self.set_up(new_batch_size, clip_processor)
         if self.market_dataset != None:
             self.data_split.replace('market', self.market_dataset) # For OOD
-            logger.info('Market size:{}'.format(len(self.data_split.dataset['market'])))
+            logger.info('After filtering, Market size:{}'.format(len(self.data_split.dataset['market'])))
 
     def set_market(self, clip_processor, known_labels):
+        del self.market_dataset
 
         cover_market_dataset = OOD.run(self.data_split, clip_processor, known_labels)
-
         self.market_dataset = cover_market_dataset
 
     def set_detector(self, detector_instruction: Config.Detection):
@@ -221,7 +229,7 @@ class Confidence(NonSeqStrategy):
             else:
                 confs = acquistion.get_distance_diff(market_gts, market_score)
         else:
-            confs = acquistion.get_probab_gts(market_gts, market_score)
+            confs = acquistion.get_probab(market_gts, market_score)
         return confs
 
     def run(self, n_data, market_loader,  base_model:Model.Prototype, base_model_config: Config.OldModel):
@@ -265,7 +273,7 @@ class SeqCLF(Strategy):
         new_model_config.set_path(operation)
         logger.info(new_model_config.path)
 
-        workspace.reset(new_model_config.new_batch_size, operation.detection.vit) # recover validation set
+        workspace.set_data(new_model_config.new_batch_size) # recover validation
         workspace.set_validation(operation.stream, new_model_config.batch_size, new_model_config.new_batch_size)
 
         self.update_dataset(new_model_config, workspace, operation.acquisition, new_data_total_set)
