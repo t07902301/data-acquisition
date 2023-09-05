@@ -139,7 +139,10 @@ class Probability(Partition):
             self.naive_plot(datasplits.loader['val_shift'], fig_name)
             fig_name = 'figure/test/market_dv.png'
             self.naive_plot(datasplits.loader['market'], fig_name)
-            # self.selected_dstr_plot(self.test_loader['new_model'], fig_name, operation.stream.pdf)
+            fig_name = 'figure/test/test_dv.png'
+            incor_dv = DataStat.get_correctness_dv(self.base_model, datasplits.loader['test_shift'], self.detector, correctness=False)
+            cor_dv = DataStat.get_correctness_dv(self.base_model, datasplits.loader['test_shift'], self.detector, correctness=True)
+            self.correctness_dstr_plot(cor_dv, incor_dv, fig_name, operation.stream.pdf)
 
     def set_up_dstr(self, set_up_loader, pdf_type):
         correct_dstr = distribution_utils.CorrectnessDisrtibution(self.base_model, self.detector, set_up_loader, pdf_type, correctness=True)
@@ -149,9 +152,6 @@ class Probability(Partition):
     def get_subset_loader(self, anchor_dstr:Dict[str, distribution_utils.CorrectnessDisrtibution], stream_instruction:Config.ProbabStream):
         loader, posteriors = Partitioner.Probability().run(self.test_info, {'target': anchor_dstr['incorrect'], 'other': anchor_dstr['correct']}, stream_instruction)
         return loader, posteriors
-    
-    def selected_dstr_plot(self, selected_loader, fig_name, pdf=None):
-        self.error_stat(selected_loader, plot=True, plot_name=fig_name, pdf=pdf, loader_name='Selected Test')
 
     def run(self, operation:Config.Operation):
         '''
@@ -185,7 +185,7 @@ class Probability(Partition):
         distribution_utils.plt.close()
         logger.info('Save fig to {}'.format(fig_name))
 
-    def dv_dstr_plot(self, cor_dv, incor_dv, fig_name, pdf_method=None):
+    def correctness_dstr_plot(self, cor_dv, incor_dv, fig_name, pdf_method=None):
         distribution_utils.base_plot(cor_dv, 'non-error', 'orange', pdf_method)
         distribution_utils.base_plot(incor_dv, 'error', 'blue', pdf_method)
         distribution_utils.plt.xlabel('Feature Score')
@@ -195,13 +195,10 @@ class Probability(Partition):
         distribution_utils.plt.close()
         logger.info('Save fig to {}'.format(fig_name))
    
-    def error_stat(self, dataloader, loader_name=None, plot=False, plot_name=None, pdf=None):
-        cor_dv = DataStat.get_correctness_dv(self.base_model, dataloader, self.detector, correctness=True)
+    def error_stat(self, dataloader, loader_name):
         incor_dv = DataStat.get_correctness_dv(self.base_model, dataloader, self.detector, correctness=False)
-        if loader_name is not None:
-            logger.info('Hard images in {}: {}%'.format(loader_name, len(incor_dv) / (len(incor_dv) + len(cor_dv)) * 100))
-        if plot:
-            self.dv_dstr_plot(cor_dv, incor_dv, plot_name, pdf)
+        loader_size = dataloader_utils.get_size(dataloader)
+        logger.info('Hard images in {}: {}%'.format(loader_name, len(incor_dv) / loader_size * 100))
 
     def naive_plot(self, dataloader, fig_name):
         dv, _ = self.detector.predict(dataloader)
@@ -374,27 +371,3 @@ def instantiate(epoch, parse_args, dataset, operation: Config.Operation, plot=Tr
     checker = factory(operation.stream.name, new_model_config, general_config)
     checker.set_up(old_model_config, dataset_splits, operation, plot)
     return checker
-
-class total(Prototype):
-    def __init__(self, model_config: Config.NewModel) -> None:
-        super().__init__(model_config)
-
-    def set_up(self, old_model_config, datasplits):
-        self.base_model = Model.load(old_model_config)
-        self.test_loader = datasplits.loader['test_shift']
-
-    def run(self, acquisition_config, recall=False):
-        base_gt, base_pred, _ = Model.evaluate(self.test_loader,self.base_model)
-        self.new_model_config.set_path(acquisition_config)
-        new_model = Model.load(self.new_model_config)
-        new_gt, new_pred, _ = Model.evaluate(self.test_loader,new_model)
-        if recall:
-            base_cls_mask = (base_gt==0)
-            base_recall = ((base_gt==base_pred)[base_cls_mask]).mean()*100
-            cls_mask = (new_gt==0)
-            new_recall = ((new_gt==new_pred)[cls_mask]).mean()*100
-            return new_recall - base_recall
-        else:
-            base_acc = (base_gt==base_pred).mean()*100
-            acc = (new_gt==new_pred).mean()*100
-            return acc - base_acc
