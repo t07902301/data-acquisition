@@ -148,7 +148,7 @@ class NewModel(Model):
         return root
     
     def check_rs(self, acquisition_method, stream_bound):
-        if acquisition_method == 'sm' and stream_bound == 0:
+        if acquisition_method == 'rs' and stream_bound == 0:
             return True
         else:
             return False
