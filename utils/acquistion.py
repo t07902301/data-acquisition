@@ -55,7 +55,7 @@ def get_probab_diff(gts, probab):
     probab_diff[cls_1_mask] = (probab[cls_1_mask] - 0.5)
     return probab_diff
 
-def get_probab_gts(gts, probab):
+def get_probab(gts, probab):
     return probab[np.arange(len(gts)), gts]
 
 def get_distance_diff(gts, distance):
