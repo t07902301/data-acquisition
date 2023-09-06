@@ -50,8 +50,10 @@ def fit_svm(C, class_weight, x, gt, cv_splits=2, kernel='linear'):
     x : input of svm; gt: groud truth of svm; cv: #cross validation splits
     '''
     cv = StratifiedKFold(shuffle=True, random_state=0, n_splits=cv_splits) # randomness in shuffling for cross validation
-    # clf = LinearSVC(C=C, class_weight=class_weight, random_state=0)
-    clf = SVC(C=C, kernel=kernel, class_weight=class_weight, gamma='auto', random_state=0) # randomness in shuffling for svm training
+    if kernel == 'linearSVC':
+        clf = LinearSVC(C=C, class_weight=class_weight, random_state=0, dual='auto')
+    else:
+        clf = SVC(C=C, kernel=kernel, class_weight=class_weight, gamma='auto', random_state=0) # randomness in shuffling for svm training
     scorer = sklearn_metrics.make_scorer(sklearn_metrics.balanced_accuracy_score)
     cv_scores = cross_val_score(clf, x, gt, cv=cv, scoring=scorer)
     average_cv_scores = np.mean(cv_scores)*100
