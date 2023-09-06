@@ -38,7 +38,7 @@ class Prototype():
         '''
         pass
 
-    def set_up(self, old_model_config:Config.OldModel, datasplits:Dataset.DataSplits, operation:Config.Operation, plot:bool):
+    def set_up(self, old_model_config:Config.OldModel, datasplits:Dataset.DataSplits, operation:Config.Operation, plot:bool, error_stat:bool):
         '''
         Use the old model and data split to set up a Prototype (for each epoch) -> base_model, detector/detector, test data extracted info
         '''
@@ -67,8 +67,8 @@ class Partition(Prototype):
     def __init__(self, model_config: Config.NewModel, general_config) -> None:
         super().__init__(model_config, general_config)
 
-    def set_up(self, old_model_config:Config.OldModel, datasplits:Dataset.DataSplits, operation:Config.Operation, plot:bool):
-        super().set_up(old_model_config, datasplits, operation, plot) 
+    def set_up(self, old_model_config:Config.OldModel, datasplits:Dataset.DataSplits, operation:Config.Operation, plot: bool, error_stat: bool):
+        super().set_up(old_model_config, datasplits, operation, plot, error_stat)
         self.test_info = DataStat.build_info(datasplits, 'test_shift', self.detector, self.new_model_config.batch_size, self.new_model_config.new_batch_size)
 
     def get_subset_loader(self, acquisition_bound):
@@ -126,8 +126,8 @@ class Probability(Partition):
     def __init__(self, model_config: Config.NewModel, general_config) -> None:
         super().__init__(model_config, general_config)
     
-    def set_up(self, old_model_config:Config.OldModel, datasplits:Dataset.DataSplits, operation:Config.Operation, plot:bool):
-        super().set_up(old_model_config, datasplits, operation, plot) 
+    def set_up(self, old_model_config:Config.OldModel, datasplits:Dataset.DataSplits, operation:Config.Operation, plot: bool, error_stat: bool):
+        super().set_up(old_model_config, datasplits, operation, plot, error_stat)
         self.anchor_loader = datasplits.loader['val_shift'] # keep for Seq
         anchor_dstr = self.set_up_dstr(self.anchor_loader, operation.stream.pdf)
         self.test_loader, posteriors = self.get_subset_loader(anchor_dstr, operation.stream)
@@ -143,6 +143,8 @@ class Probability(Partition):
             incor_dv = DataStat.get_correctness_dv(self.base_model, datasplits.loader['test_shift'], self.detector, correctness=False)
             cor_dv = DataStat.get_correctness_dv(self.base_model, datasplits.loader['test_shift'], self.detector, correctness=True)
             self.correctness_dstr_plot(cor_dv, incor_dv, fig_name, operation.stream.pdf)
+        if error_stat:
+            self.error_stat(self.test_loader['new_model'], 'New Test')
 
     def set_up_dstr(self, set_up_loader, pdf_type):
         correct_dstr = distribution_utils.CorrectnessDisrtibution(self.base_model, self.detector, set_up_loader, pdf_type, correctness=True)
@@ -164,7 +166,6 @@ class Probability(Partition):
             anchor_dstr = self.set_up_dstr(self.anchor_loader, operation.stream.pdf)
             self.test_loader, _ = self.get_subset_loader(anchor_dstr, operation.stream)
             logger.info('Seq Running:')
-            self.error_stat(self.test_loader['new_model'], 'New Test')
         return self._target_test(self.test_loader, new_model)
 
     def _target_test(self, loader, new_model: Model.Prototype):
@@ -215,8 +216,8 @@ class Ensemble(Prototype):
     def __init__(self, model_config: Config.NewModel, general_config) -> None:
         super().__init__(model_config, general_config)
     
-    def set_up(self, old_model_config:Config.OldModel, datasplits:Dataset.DataSplits, operation:Config.Operation, plot:bool):
-        super().set_up(old_model_config, datasplits, operation, plot)
+    def set_up(self, old_model_config:Config.OldModel, datasplits:Dataset.DataSplits, operation:Config.Operation, plot: bool, error_stat: bool):
+        super().set_up(old_model_config, datasplits, operation, plot, error_stat)
         self.test_loader = datasplits.loader['test_shift']
         self.anchor_loader = datasplits.loader['val_shift'] # keep for Seq
     
@@ -264,8 +265,8 @@ class DstrEnsemble(Ensemble):
     def __init__(self, model_config: Config.NewModel, general_config) -> None:
         super().__init__(model_config, general_config)
     
-    def set_up(self, old_model_config: Config.OldModel, datasplits: Dataset.DataSplits, operation: Config.Operation, plot: bool):
-        super().set_up(old_model_config, datasplits, operation, plot)
+    def set_up(self, old_model_config:Config.OldModel, datasplits:Dataset.DataSplits, operation:Config.Operation, plot: bool, error_stat: bool):
+        super().set_up(old_model_config, datasplits, operation, plot, error_stat)
         self.probab_partitioner = Partitioner.Probability()
         self.anchor_dstr = self.set_up_dstr(datasplits.loader['val_shift'], operation.stream.pdf)
 
@@ -366,8 +367,8 @@ def get_configs(epoch, parse_args, dataset):
     dataset_splits = Dataset.DataSplits(dataset, new_model_config.new_batch_size)
     return old_model_config, new_model_config, dataset_splits, general_config
 
-def instantiate(epoch, parse_args, dataset, operation: Config.Operation, plot=True):
+def instantiate(epoch, parse_args, dataset, operation: Config.Operation, plot=False, error_stat=False):
     old_model_config, new_model_config, dataset_splits, general_config = get_configs(epoch, parse_args, dataset)
     checker = factory(operation.stream.name, new_model_config, general_config)
-    checker.set_up(old_model_config, dataset_splits, operation, plot)
+    checker.set_up(old_model_config, dataset_splits, operation, plot, error_stat)
     return checker

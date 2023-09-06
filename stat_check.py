@@ -29,7 +29,7 @@ class TestData():
         results = []
         for epo in range(epochs):
             logger.info('in epoch {}'.format(epo))
-            checker = Checker.instantiate(epo, parse_args, ds_list[epo], operation, plot=False)
+            checker = Checker.instantiate(epo, parse_args, ds_list[epo], operation, plot=False, error_stat=True)
             if len(checker.test_loader['new_model']) == 0:
                 results.append(0)
             else:
@@ -46,7 +46,7 @@ class TrainData():
         results = []
         for epo in range(epochs):
             logger.info('in epoch {}'.format(epo))
-            checker = Checker.instantiate(epo, parse_args, dataset_list[epo], operation, plot=False)
+            checker = Checker.instantiate(epo, parse_args, dataset_list[epo], operation, plot=False, error_stat=True)
             data_split = dataset_utils.DataSplits(dataset_list[epo], checker.general_config['hparams']['batch_size']['new'])
             result_epoch = self.epoch_run(operation, method_list, new_img_num_list, checker, data_split, pdf_method)
             results.append(result_epoch)
