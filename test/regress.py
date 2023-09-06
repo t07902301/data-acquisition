@@ -6,11 +6,27 @@ import os
 from sklearn.svm import SVR
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF
-# from sklearn.neural_network import MLPRegressor
+from scipy.optimize import curve_fit
 from typing import List
 import sys
 sys.path.append('/home/yiwei/data-acquisition/')
 from utils.logging import *
+from sklearn.metrics import r2_score
+
+def power_law(x, a, b):
+    return (b*x**(-a))
+
+class PL():
+    def __init__(self) -> None:
+        pass
+    def fit(self, X, y):
+        popt, _ = curve_fit(power_law, X, y)
+        self.model = {'a': -popt[0], 'b':popt[1]}
+    def score(self, X, y):
+        pred = power_law(X, self.model['a'], self.model['b'])
+        return r2_score(y, pred)
+    def predict(self, X):
+        return power_law(X, self.model['a'], self.model['b'])
 
 class regressor():
     def __init__(self, dev) -> None:
@@ -18,8 +34,9 @@ class regressor():
         self.scaler = None
         if dev == 'rs':
             # self.model = LinearRegression()
-            # self.model = Ridge()
-            self.model = SVR(kernel='linear')
+            self.model = Ridge()
+            # self.model = SVR(kernel='linear')
+            # self.model = PL()
             # self.model = SVR(kernel='rbf')
 
         else: 
