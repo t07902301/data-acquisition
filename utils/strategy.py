@@ -271,7 +271,6 @@ class SeqCLF(Strategy):
             new_data_total_set = new_data_round_info['data'] if round_i==0 else torch.utils.data.ConcatDataset([new_data_total_set, new_data_round_info['data']])
 
         new_model_config.set_path(operation)
-        logger.info(new_model_config.path)
 
         workspace.set_data(new_model_config.new_batch_size) # recover validation
         workspace.set_validation(operation.stream, new_model_config.batch_size, new_model_config.new_batch_size)
@@ -291,6 +290,7 @@ class SeqCLF(Strategy):
         '''
         round_operation = self.round_set_up(operation, round_id)    
         data_split = workspace.data_split
+        logger.info('In round {}, {} data is acquired'.format(round_id, round_operation.acquisition.n_ndata))
 
         new_data_round_info = self.sub_strategy.get_new_data_info(round_operation, workspace)
 
