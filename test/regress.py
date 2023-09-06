@@ -34,9 +34,9 @@ class regressor():
         self.scaler = None
         if dev == 'rs':
             # self.model = LinearRegression()
-            self.model = Ridge()
+            # self.model = Ridge()
             # self.model = SVR(kernel='linear')
-            # self.model = PL()
+            self.model = PL()
             # self.model = SVR(kernel='rbf')
 
         else: 
@@ -60,6 +60,7 @@ class regressor():
             X = self.scale_inputs(X)
 
         else:
+            # X = [np.log(each[0]) for each in inputs]
             X = [each[0] for each in inputs]
             X = np.array(X).reshape(-1, 1)
 
