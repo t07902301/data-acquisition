@@ -19,13 +19,13 @@ def run(ds:dataset_utils.DataSplits, model_config:Config.OldModel, train_flag:bo
     # Evaluate
     acc = base_model.acc(ds.loader['test'])
     acc_shift = base_model.acc(ds.loader['test_shift'])
+    logger.info('Test Shift Acc: {}'.format (acc_shift))
 
     clf = Detector.factory(detect_instruction.name, config, clip_processor = detect_instruction.vit, split_and_search=True, data_transform='clip')
     clf.fit(base_model, ds.loader['val_shift'], ds.dataset['val_shift'], model_config.batch_size)
     
     _, detect_prec = clf.predict(ds.loader['val_shift'], compute_metrics=True, base_model=base_model)
     logger.info('In fitting CLF: {}'.format(detect_prec))
-    logger.info('Val Shift Acc: {}'.format (acc_shift))
 
     _, detect_prec = clf.predict(ds.loader['test_shift'], compute_metrics=True, base_model=base_model)
     logger.info('In testing CLF: {}'.format (detect_prec))
