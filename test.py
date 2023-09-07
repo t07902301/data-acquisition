@@ -39,7 +39,7 @@ def bound_run(epochs, parse_args, dataset_list, new_img_num_list, method_list, o
     bound_stat_list = []
     for epo in range(epochs):
         logger.info('in epoch {}'.format(epo))
-        checker = Checker.instantiate(epo, parse_args, dataset_list[epo], operation, plot=False) #probab / ensemble
+        checker = Checker.instantiate(epo, parse_args, dataset_list[epo], operation) #probab / ensemble
         result_epoch, bound_stat = epoch_run(new_img_num_list, method_list, operation, checker)
         results.append(result_epoch)
         bound_stat_list.append(bound_stat)
