@@ -26,6 +26,7 @@ class TestData():
             error = get_errors(checker.base_model, checker.test_loader['new_model'])
             result = len(error) / test_data_size  * 100
             logger.info('Hard images in New Model Test: {}%'.format(result))
+            logger.info('New model test set size:{}'.format(test_data_size))
         return result
     
     def epoch_run(self, operation:Config.Operation, new_img_num_list, checker:Checker.Probability):
@@ -33,13 +34,12 @@ class TestData():
         for n_img in new_img_num_list:
             operation.acquisition.n_ndata = n_img
             checker.new_model_config.set_path(operation)
-            if 'seq' in operation.acquisition.method:
-                logger.info('Seq Running:')
-                detector_log = Log(checker.new_model_config, 'detector')
-                checker.detector = detector_log.import_log(operation, checker.general_config)
-                anchor_dstr = checker.set_up_dstr(checker.anchor_loader, operation.stream.pdf)
-                self.test_loader, _ = checker.get_subset_loader(anchor_dstr, operation.stream)
-                _ = self.error_stat(checker)
+            logger.info('Seq Running:')
+            detector_log = Log(checker.new_model_config, 'detector')
+            checker.detector = detector_log.import_log(operation, checker.general_config)
+            anchor_dstr = checker.set_up_dstr(checker.anchor_loader, operation.stream.pdf)
+            checker.test_loader, _ = checker.get_subset_loader(anchor_dstr, operation.stream)
+            _ = self.error_stat(checker)
         
     def run(self, epochs, parse_args, new_img_num_list, method, operation:Config.Operation, dataset_list: List[dict], plot=False):
         results = []
