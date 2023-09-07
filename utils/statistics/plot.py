@@ -64,7 +64,7 @@ class Histogram(Prototype):
         fig_root = 'figure/{}/distribution'.format(model_dir)
         if os.path.exists(fig_root) is False:
             os.makedirs(fig_root)
-        if n_data == None and method == None:
+        if n_data is None and method is None:
             fig_name = os.path.join(fig_root, 'total.png')
         else:
             fig_name = os.path.join(fig_root, '{}-{}.png'.format(method, n_data))
