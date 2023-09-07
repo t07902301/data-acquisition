@@ -301,7 +301,7 @@ class Cifar(Dataset):
         Split Dataset by Selecting Data from Labels with target_ratio\n
         Return (target dataset, other dataset)
         '''
-        if target_ratio == None:
+        if target_ratio is None:
             return dataset, None
         
         dataset_labels = self.get_labels(dataset, use_fine_label)

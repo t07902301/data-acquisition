@@ -25,7 +25,7 @@ def get_kde(values):
 def ecdf(raw_values, cut_value=None):
     raw_values = np.array(raw_values)
     n_raw_vals = len(raw_values)
-    if cut_value == None:
+    if cut_value is None:
         intervals = get_intervals(raw_values)
         result = []
         for edge in intervals:

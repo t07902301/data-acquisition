@@ -222,7 +222,7 @@ class ensembler(Prototype):
     def get_weights(self, member_id, dataloader):
         predecessor = self.members[member_id-1]
         gts, preds, _ = predecessor.eval(dataloader)
-        if self.weights == None:
+        if self.weights is None:
             self.weights = np.zeros(len(gts), dtype=bool)
         err_mask = (gts!=preds)
         total_err = err_mask.sum()
