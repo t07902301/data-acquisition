@@ -13,47 +13,103 @@ def get_errors(model: Model.Prototype, dataloader):
     error_mask = (dataset_gts != dataset_preds)
     return dataset_preds[error_mask]
 
-def dv_dstr_plot(cor_dv, incor_dv, n_data, pdf_method=None, range=None):
-    pdf_name = '' if pdf_method == None else '_{}'.format(pdf_method)
-    Distribution.base_plot(cor_dv, 'correct', 'orange', pdf_method, range)
-    Distribution.base_plot(incor_dv, 'incorrect', 'blue', pdf_method, range)
-    Distribution.plt.savefig('figure/train/dv{}_{}.png'.format(pdf_name, n_data))
-    Distribution.plt.close()
-    logger.info('Save fig to figure/train/dv{}_{}.png'.format(pdf_name, n_data))
-
 class TestData():
     def __init__(self) -> None:
         pass
-
-    def run(self, epochs, parse_args, ds_list, operation):
+   
+    def error_stat(self, checker:Checker.Probability):
+        if len(checker.test_loader['new_model']) == 0:
+            result = 0
+            logger.info('No data in New Model Test')
+        else:
+            test_data_size = dataloader_utils.get_size(checker.test_loader['new_model'])
+            error = get_errors(checker.base_model, checker.test_loader['new_model'])
+            result = len(error) / test_data_size  * 100
+            logger.info('Hard images in New Model Test: {}%'.format(result))
+        return result
+    
+    def epoch_run(self, operation:Config.Operation, new_img_num_list, checker:Checker.Probability):
+        operation.acquisition.method = 'seq'
+        for n_img in new_img_num_list:
+            operation.acquisition.n_ndata = n_img
+            checker.new_model_config.set_path(operation)
+            if 'seq' in operation.acquisition.method:
+                logger.info('Seq Running:')
+                detector_log = Log(checker.new_model_config, 'detector')
+                checker.detector = detector_log.import_log(operation, checker.general_config)
+                anchor_dstr = checker.set_up_dstr(checker.anchor_loader, operation.stream.pdf)
+                self.test_loader, _ = checker.get_subset_loader(anchor_dstr, operation.stream)
+                _ = self.error_stat(checker)
+        
+    def run(self, epochs, parse_args, new_img_num_list, method, operation:Config.Operation, dataset_list: List[dict], plot=False):
         results = []
         for epo in range(epochs):
             logger.info('in epoch {}'.format(epo))
-            checker = Checker.instantiate(epo, parse_args, ds_list[epo], operation, plot=False, error_stat=True)
-            if len(checker.test_loader['new_model']) == 0:
-                results.append(0)
-            else:
-                test_data_size = dataloader_utils.get_size(checker.test_loader['new_model'])
-                error = get_errors(checker.base_model, checker.test_loader['new_model'])
-                results.append(len(error) / test_data_size  * 100)
+            checker = Checker.instantiate(epo, parse_args, dataset_list[epo], operation)
+            results.append(self.error_stat(checker))
+            if method == 'seq':
+                self.epoch_run(operation, new_img_num_list, checker)   # update checker's detector by logs
+
+        if plot:
+            self.plot(checker, dataset_list[epo], operation.stream.pdf)
+
         return results
+    
+    def plot(self, checker: Checker.Probability, dataset, pdf):
+        datasplits = dataset_utils.DataSplits(dataset, checker.new_model_config.new_batch_size)
+        fig_name = 'figure/test/val_dv.png'
+        self.naive_plot(datasplits.loader['val_shift'], fig_name, checker.detector)
+        fig_name = 'figure/test/market_dv.png'
+        self.naive_plot(datasplits.loader['market'], fig_name, checker.detector)
+        fig_name = 'figure/test/test_dv.png'
+        incor_dv = DataStat.get_correctness_dv(checker.base_model, datasplits.loader['test_shift'], checker.detector, correctness=False)
+        cor_dv = DataStat.get_correctness_dv(checker.base_model, datasplits.loader['test_shift'], checker.detector, correctness=True)
+        self.correctness_dstr_plot(cor_dv, incor_dv, fig_name, pdf)
+
+    def correctness_dstr_plot(self, cor_dv, incor_dv, fig_name, pdf_method=None):
+        distribution_utils.base_plot(cor_dv, 'non-error', 'orange', pdf_method)
+        distribution_utils.base_plot(incor_dv, 'error', 'blue', pdf_method)
+        distribution_utils.plt.xlabel('Feature Score')
+        distribution_utils.plt.ylabel('Density')
+        distribution_utils.plt.title('Old Model Performance Feature Score Distribution')
+        distribution_utils.plt.savefig(fig_name)
+        distribution_utils.plt.close()
+        logger.info('Save fig to {}'.format(fig_name))
+
+    def naive_plot(self, dataloader, fig_name, detector: Detector.Prototype):
+        dv, _ = detector.predict(dataloader)
+        logger.info('max: {}, min:{}'.format(max(dv), min(dv)))
+        distribution_utils.base_plot(dv, 'all data', 'orange', pdf_method='kde')
+        distribution_utils.plt.xlabel('Feature Score')
+        distribution_utils.plt.ylabel('Density')
+        distribution_utils.plt.title('Old Model Performance Feature Score Distribution')
+        distribution_utils.plt.savefig(fig_name)
+        distribution_utils.plt.close()
+        logger.info('Save fig to {}'.format(fig_name))
 
 class TrainData():
     def __init__(self) -> None:
         pass
 
-    def run(self, epochs, parse_args, new_img_num_list, method_list, operation:Config.Operation, dataset_list: List[dict], pdf_method):
+    def dv_dstr_plot(self, cor_dv, incor_dv, n_data, pdf_method=None, range=None):
+        pdf_name = '' if pdf_method == None else '_{}'.format(pdf_method)
+        Distribution.base_plot(cor_dv, 'correct', 'orange', pdf_method, range)
+        Distribution.base_plot(incor_dv, 'incorrect', 'blue', pdf_method, range)
+        Distribution.plt.savefig('figure/train/dv{}_{}.png'.format(pdf_name, n_data))
+        Distribution.plt.close()
+        logger.info('Save fig to figure/train/dv{}_{}.png'.format(pdf_name, n_data))
+
+    def run(self, epochs, parse_args, new_img_num_list, method, operation:Config.Operation, dataset_list: List[dict], pdf_method):
         results = []
         for epo in range(epochs):
             logger.info('in epoch {}'.format(epo))
-            checker = Checker.instantiate(epo, parse_args, dataset_list[epo], operation, plot=False, error_stat=True)
+            checker = Checker.instantiate(epo, parse_args, dataset_list[epo], operation, plot=False)
             data_split = dataset_utils.DataSplits(dataset_list[epo], checker.general_config['hparams']['batch_size']['new'])
-            result_epoch = self.epoch_run(operation, method_list, new_img_num_list, checker, data_split, pdf_method)
+            result_epoch = self.epoch_run(operation, method, new_img_num_list, checker, data_split, pdf_method)
             results.append(result_epoch)
         return results
 
     def epoch_run(self, operation:Config.Operation, method, new_img_num_list, checker:Checker.Prototype, data_split:dataset_utils.DataSplits, pdf_method):
-        logger.info('In method: {}'.format(method))
         operation.acquisition.method = method
         return self.method_run(new_img_num_list, operation, checker, data_split, pdf_method)
 
@@ -107,7 +163,7 @@ class TrainData():
         # cor_dv, incor_dv = Distribution.get_dv_dstr(checker.base_model, new_data_loader, checker.detector)
         # logger.info('Old model mistakes in acquired data: {}%'.format())
         # plot_range = (-2.5, 0) # test_dv
-        # dv_dstr_plot(cor_dv, incor_dv, acquisition_config.n_ndata, pdf_method, plot_range)
+        # self.dv_dstr_plot(cor_dv, incor_dv, acquisition_config.n_ndata, pdf_method, plot_range)
 
         # market_dv, _ = checker.detector.predict(data_split.loader['market'], checker.base_model)
         # test_dv, _ = checker.detector.predict(data_split.loader['test_shift'], checker.base_model)
@@ -132,7 +188,7 @@ class TrainData():
             distribution = distribution_utils.Disrtibution(checker.detector, data_split.loader['val_shift'], operation.stream.pdf)
             check_result = self.check_indices(operation, data_split, checker, pdf_method, distribution)
         return check_result
-
+   
 def main(epochs, new_model_setter='retrain', model_dir ='', device=0, probab_bound = 0.5, base_type='', detector_name = '', opion = '', dataset_name = '', stat_data='train', dev_name= 'dv'):
     pure = True
     fh = logging.FileHandler('log/{}/stat_{}_{}.log'.format(model_dir, dev_name, stat_data),mode='w')
@@ -162,7 +218,7 @@ def main(epochs, new_model_setter='retrain', model_dir ='', device=0, probab_bou
         logger.info('all: {}'.format(results.tolist()))
     else:
         stat_checker = TestData()
-        results = stat_checker.run(epochs, parse_args, ds_list, operation)
+        results = stat_checker.run(epochs, parse_args, config['data']['n_new_data'], method, operation, ds_list, plot=False)
         logger.info('Test Data error stat:{}'.format(np.round(np.mean(results), decimals=3)))
         logger.info('all: {}'.format(results))
 
