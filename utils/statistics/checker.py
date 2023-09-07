@@ -105,8 +105,8 @@ class Partition(Prototype):
             old_correct = (gt==pred)
             total_correct = np.concatenate((old_correct,new_correct))
         
-        # DataStat.pred_metric(loader['new_model'], self.base_model, new_model)
-        # logger.info('ACC compare:', total_correct.mean()*100, self.base_acc)
+        # DataStat.evaluation_metric(loader['new_model'], self.base_model, new_model=new_model)
+
         return total_correct.mean()*100 - self.base_acc 
     
     def iter_test(self):
@@ -160,9 +160,6 @@ class Probability(Partition):
 
     def _target_test(self, loader, new_model: Model.Prototype):
         return super()._target_test(loader, new_model)
-    
-    def get_pdf_name(self, pdf_method):
-        return '' if pdf_method == None else '_{}'.format(pdf_method)
     
     def probab_dstr_plot(self, probab, fig_name, pdf_method=None):
         test_loader = torch.utils.data.DataLoader(self.test_info['dataset'], batch_size=self.new_model_config.batch_size)
@@ -221,7 +218,7 @@ class Ensemble(Prototype):
         final_acc = (gts==decision).mean() * 100 
         logger.info('ACC compare: {}, {}'.format(final_acc, self.base_acc))
 
-        DataStat.pred_metric(dataloader, self.base_model, new_model)
+        DataStat.pred_metric(dataloader, self.base_model, new_model, ensemble_decision=decision)
         
         return final_acc - self.base_acc  
     
