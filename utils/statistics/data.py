@@ -100,8 +100,8 @@ def evaluation_metric(dataloader, old_model:Model.Prototype, ensemble_decision=N
     undesired_error = len(np.intersect1d(new_incorrect_indices, old_correct_indices))
     desired_non_error = len(np.intersect1d(new_correct_indices, old_incorrect_indices))
     base_non_error = len(np.intersect1d(new_correct_indices, old_correct_indices))
-    logger.info('{}, {}'.format(undesired_error, base_non_error))
     logger.info('{}, {}'.format(base_error, desired_non_error))
+    logger.info('{}, {}'.format(undesired_error, base_non_error))
     
     logger.info('ACC compare: {}, {}'.format(new_correct_mask.mean()*100, old_correct_mask.mean()*100))
 
