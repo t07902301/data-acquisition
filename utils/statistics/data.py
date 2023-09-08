@@ -87,7 +87,8 @@ def evaluation_metric(dataloader, old_model:Model.Prototype, ensemble_decision=N
 
     if ensemble_decision is not None:
         new_pred = ensemble_decision
-    if new_model is not None:
+
+    if new_model is not None: #two-way
         _, new_pred,_  = new_model.eval(dataloader)
 
     new_correct_mask = (gt == new_pred)
@@ -99,11 +100,10 @@ def evaluation_metric(dataloader, old_model:Model.Prototype, ensemble_decision=N
     undesired_error = len(np.intersect1d(new_incorrect_indices, old_correct_indices))
     desired_non_error = len(np.intersect1d(new_correct_indices, old_incorrect_indices))
     base_non_error = len(np.intersect1d(new_correct_indices, old_correct_indices))
-    logger.info('{}, {}'.format(base_error, base_non_error))
-    logger.info('{}, {}'.format(undesired_error, desired_non_error))
+    logger.info('{}, {}'.format(undesired_error, base_non_error))
+    logger.info('{}, {}'.format(base_error, desired_non_error))
     
-    if new_model is not None:
-        logger.info('ACC compare: {}, {}'.format(new_correct_mask.mean()*100, old_correct_mask.mean()*100))
+    logger.info('ACC compare: {}, {}'.format(new_correct_mask.mean()*100, old_correct_mask.mean()*100))
 
 def build_info(dataset_splits: Dataset.DataSplits, name, clf:Detector.Prototype, old_batch_size, new_batch_size):
     data_info = {}

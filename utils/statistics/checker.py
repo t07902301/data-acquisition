@@ -105,7 +105,7 @@ class Partition(Prototype):
             old_correct = (gt==pred)
             total_correct = np.concatenate((old_correct,new_correct))
         
-        # DataStat.evaluation_metric(loader['new_model'], self.base_model, new_model=new_model)
+        DataStat.evaluation_metric(loader['new_model'], self.base_model, new_model=new_model)
 
         return total_correct.mean()*100 - self.base_acc 
     
@@ -216,9 +216,8 @@ class Ensemble(Prototype):
 
         gts = dataloader_utils.get_labels(dataloader)
         final_acc = (gts==decision).mean() * 100 
-        logger.info('ACC compare: {}, {}'.format(final_acc, self.base_acc))
 
-        DataStat.pred_metric(dataloader, self.base_model, new_model, ensemble_decision=decision)
+        DataStat.evaluation_metric(dataloader, self.base_model, ensemble_decision=decision)
         
         return final_acc - self.base_acc  
     
