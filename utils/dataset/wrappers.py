@@ -7,7 +7,6 @@ import utils.dataset.cifar as cifar
 import utils.dataset.core as core
 import pickle as pkl
 import numpy as np
-import time
 from utils import n_workers
 from utils.logging import *
 
@@ -17,8 +16,8 @@ def complimentary_mask(mask_length, active_spot):
     '''
     active_mask = np.zeros(mask_length, dtype=bool)
     active_mask[active_spot] = True
-    advert_mask = ~active_mask 
-    return advert_mask
+    reversed_mask = ~active_mask 
+    return reversed_mask
 
 def get_vis_transform(mean, std):
     # For visualization
@@ -154,21 +153,24 @@ class Dataset():
 
         if torch.is_tensor(dataset_labels):
             dataset_labels = dataset_labels.numpy()
+
         ds_length = len(dataset_labels)
+        dataset_indices = np.arange(ds_length)
 
         if len(target_labels) == 0 or split_1_ratio == 0:
-            return None, np.arange(ds_length)
+            return None, dataset_indices
         
         p1_indices = []
 
+
         for c in target_labels:
-            cls_indices = np.arange(ds_length)[dataset_labels == c]
+            cls_indices = dataset_indices[dataset_labels == c]
             split_indices = self.sample_indices(cls_indices,split_1_ratio)
             p1_indices.append(split_indices)
 
         p1_indices = np.concatenate(p1_indices)
         mask_p2 = complimentary_mask(mask_length=ds_length,active_spot=p1_indices)
-        p2_indices = np.arange(ds_length)[mask_p2]
+        p2_indices = dataset_indices[mask_p2]
         return p1_indices,p2_indices
 
 class Cifar(Dataset):
@@ -202,7 +204,8 @@ class Cifar(Dataset):
         new_labels = label_config['remove']
         new_labels_remove_rate = remove_rate['new_labels']
         old_labels_remove_rate = remove_rate['old_labels']
-        old_labels = list(set(label_config['select_fine_labels']) - set(new_labels))
+        total_labels = label_config['select_fine_labels'] if len(label_config['select_fine_labels']) != 0 else [i for i in range(100)]
+        old_labels = list(set(total_labels) - set(new_labels)) 
         logger.info('Fine Labels removed: {}'.format(new_labels))
 
         _, old_aug_train = self.split(ds_dict['aug_train'], new_labels, new_labels_remove_rate)
@@ -223,8 +226,9 @@ class Cifar(Dataset):
             'train_non_cnn': old_train,
             'val': old_val,
             'test': old_test,
-            'val_shift': val,
+            # 'val_reg': val,
             # 'val_shift': sub_mkt,
+            'val_shift': val,
             'test_shift': test,
             'market': ds_dict['market'],
             'aug_market': ds_dict['aug_market'],
