@@ -195,7 +195,7 @@ class Greedy(NonSeqStrategy):
 class Sample(NonSeqStrategy):
     def __init__(self) -> None:
         super().__init__()
-        data_split_env()
+        data_split_env() # random seed set up
 
     def get_new_data_indices(self, operation:Config.Operation, workspacce:WorkSpace):
         dataset_splits = workspacce.data_split
