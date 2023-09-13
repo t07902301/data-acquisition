@@ -5,19 +5,6 @@ from abc import abstractmethod
 import utils.objects.dataloader as dataloader_utils
 from utils.logging import *
 
-def statistics(values, n_data_list = None):
-    '''
-    pretrained model | seq_detector\n
-    score/accuracy: (epoch, value)
-    '''
-    values = np.array(values)
-    if n_data_list is None:
-        logger.info('Detector Average Accuracy: {}%'.format(np.round(np.mean(values), decimals=3).tolist()))
-    else: 
-        for idx, n_data in enumerate(n_data_list):
-            logger.info('#new data:{}'.format(n_data))     
-            logger.info('Detector Average Accuracy: {}%'.format(np.round(np.mean(values[:,idx]), decimals=3).tolist()))
-
 def precision(detector, clip_processor, dataloader, base_model):
     data_clip = clip_processor.evaluate_clip_images(dataloader)
     gt, pred, conf = Model.evaluate(dataloader, base_model)
