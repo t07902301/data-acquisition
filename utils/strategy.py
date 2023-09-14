@@ -26,7 +26,6 @@ class WorkSpace():
         self.base_model_config = model_config
         self.init_dataset = dataset
         self.general_config = config
-        self.market_dataset = None
         self.validation_loader = None
         self.detector = None
         self.base_model = None
@@ -48,10 +47,10 @@ class WorkSpace():
         del self.data_split
         copied_dataset = deepcopy(self.init_dataset)
         self.data_split = dataset_utils.DataSplits(copied_dataset, new_batch_size)
-
+            
     def set_validation(self, stream_instruction:Config.ProbabStream, old_batch_size, new_batch_size):
         '''
-        align val_shift with test splits\n
+        align validation_loader with test splits\n
         Error detector from workspace (fixed or from the last round in seq)
         '''
         correct_dstr = distribution_utils.CorrectnessDisrtibution(self.base_model, self.detector, self.data_split.loader['val_shift'], stream_instruction.pdf, correctness=True)
@@ -60,18 +59,20 @@ class WorkSpace():
         val_shift_info = DataStat.build_info(self.data_split, 'val_shift', self.detector, old_batch_size, new_batch_size)
         val_shift_split, _ = Partitioner.Probability().run(val_shift_info, {'target': incorrect_dstr, 'other': correct_dstr}, stream_instruction)
         self.validation_loader = val_shift_split['new_model']
+        logger.info('set validation_loader') # Align with test set inference
 
     def reset(self, new_batch_size, clip_processor):
+        '''
+        Reset Model and Data if Model is modifed after each operation
+        '''
         self.set_up(new_batch_size, clip_processor)
-        if self.market_dataset != None:
-            self.data_split.replace('market', self.market_dataset) # For OOD
-            logger.info('After filtering, Market size:{}'.format(len(self.data_split.dataset['market'])))
 
     def set_market(self, clip_processor, known_labels):
-        del self.market_dataset
-
-        cover_market_dataset = OOD.run(self.data_split, clip_processor, known_labels)
-        self.market_dataset = cover_market_dataset
+        cover_market_dataset = OOD.run(self.data_split, clip_processor, known_labels, check_ds='market')
+        self.init_dataset['market'] = cover_market_dataset
+        cover_aug_market_dataset = OOD.run(self.data_split, clip_processor, known_labels, check_ds='aug_market')
+        self.init_dataset['aug_market'] = cover_aug_market_dataset
+        logger.info('After filtering, Market size:{}'.format(len(self.init_dataset['market'])))
 
     def set_detector(self, detector_instruction: Config.Detection):
         val_loader, val_dataset = self.data_split.loader['val_shift'], self.data_split.dataset['val_shift']
@@ -173,6 +174,11 @@ class NonSeqStrategy(Strategy):
         if model_config.check_rs(acquire_instruction.method, stream.bound) is False:
             log = Log(model_config, 'indices')
             log.export(acquire_instruction, data=data)
+    
+    # def import_indices(self, model_config:Config.NewModel, operation: Config.Operation, config):
+    #     log = Log(model_config, 'indices')
+    #     indices = log.import_log(operation, config)
+    #     return indices
 
 class Greedy(NonSeqStrategy):
     def __init__(self) -> None:
@@ -223,11 +229,8 @@ class Confidence(NonSeqStrategy):
 
         market_gts, _, market_score = base_model.eval(market_loader)
 
-        if base_model_config.class_number == 1:
-            if base_model_config.base_type == 'cnn':
-                confs = acquistion.get_probab_diff(market_gts, market_score)
-            else:
-                confs = acquistion.get_distance_diff(market_gts, market_score)
+        if base_model_config.base_type == 'svm':
+            confs = acquistion.get_distance_diff(market_gts, market_score)
         else:
             confs = acquistion.get_probab(market_gts, market_score)
         return confs
@@ -256,6 +259,9 @@ class Confidence(NonSeqStrategy):
 #         return new_data_cls_indices, detector_info       
 
 class SeqCLF(Strategy):
+    '''
+    Detector and Validation Shift are updated after each operation. 
+    '''
     def __init__(self) -> None:
         super().__init__()
 
@@ -272,7 +278,7 @@ class SeqCLF(Strategy):
 
         new_model_config.set_path(operation)
 
-        workspace.set_data(new_model_config.new_batch_size) # recover validation
+        workspace.set_data(new_model_config.new_batch_size) # recover validation & (aug)market
         workspace.set_validation(operation.stream, new_model_config.batch_size, new_model_config.new_batch_size)
 
         self.update_dataset(new_model_config, workspace, operation.acquisition, new_data_total_set)
@@ -286,7 +292,7 @@ class SeqCLF(Strategy):
 
     def round_operate(self, round_id, operation: Config.Operation, workspace:WorkSpace):
         '''
-        Get new data and update error detector in the workspace
+        Get new data, update (aug)market and val_shift, new detector from updated val_shift
         '''
         round_operation = self.round_set_up(operation, round_id)    
         data_split = workspace.data_split
