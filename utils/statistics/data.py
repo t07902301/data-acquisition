@@ -88,7 +88,7 @@ def evaluation_metric(dataloader, old_model:Model.Prototype, ensemble_decision=N
     if ensemble_decision is not None:
         new_pred = ensemble_decision
 
-    if new_model is not None: #two-way
+    elif new_model is not None: #two-way
         _, new_pred,_  = new_model.eval(dataloader)
 
     new_correct_mask = (gt == new_pred)
