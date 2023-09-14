@@ -24,18 +24,7 @@ class Confidence(Prototye):
 
     def get(self, model: Model.CNN, dataloader):
         _, _, probab  = model.eval(dataloader)
-        if self.class_numer == 1:
-            probab = self.transform_BDE_probab(probab)
         return probab
-    
-    def transform_BDE_probab(self, class_1_probab):
-        '''
-            Make 1D sigmoid output be 2D
-        '''
-        size = len(class_1_probab)
-        class_0_probab = (1-class_1_probab).reshape((size,1))
-        class_1_probab = class_1_probab.reshape((size,1))
-        return np.concatenate((class_0_probab, class_1_probab), axis=1)
     
     def apply(self, ensembled_decision):
         # ensembled_decision: array (n_size, n_class) - multi-class
