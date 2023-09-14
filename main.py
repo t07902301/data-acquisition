@@ -16,7 +16,6 @@ def method_run(method, new_img_num_list, new_model_config:Config.NewModel, opera
     if method != 'rs':
         workspace.set_detector(operation.detection)
         workspace.set_validation(operation.stream, new_model_config.batch_size, new_model_config.new_batch_size)
-        logger.info('set validation_loader') # Align with inference on the test set
         _, detect_acc= workspace.detector.predict(workspace.data_split.loader['test_shift'], workspace.base_model, True)
 
     else:
@@ -49,7 +48,6 @@ def epoch_run(parse_args, method, n_data_list, dataset:dict, epo, operation: Con
         workspace.set_market(operation.detection.vit, known_labels)
    
     detect_acc = method_run(method, n_data_list, new_model_config, operation, workspace)
-    
     return detect_acc
 
 def bound_run(parse_args, epochs, ds_list, method_list, bound, n_new_data_list, operation: Config.Operation):
