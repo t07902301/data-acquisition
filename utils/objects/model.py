@@ -71,7 +71,10 @@ class CNN(Prototype):
                     preds = torch.cat(preds).numpy()
                     preds = preds.reshape(len(preds))
                     probabs = torch.cat(probabs).numpy()
-                    probabs = probabs.reshape(len(probabs))
+                    probabs_cls_0 = 1-probabs
+                    probabs = probabs.reshape((len(probabs), 1))
+                    probabs_cls_0 = probabs_cls_0.reshape((len(probabs_cls_0), 1))
+                    probabs = np.concatenate((probabs_cls_0, probabs), axis=1)
                 else:
                     for batch_info in dataloader:
                         x, y = batch_info[0], batch_info[1]
