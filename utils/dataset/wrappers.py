@@ -219,7 +219,7 @@ class Cifar(Dataset):
         else:
             val, test = ds_dict['val_shift'], ds_dict['test_shift']
 
-        # sub_mkt, _ = self.split(ds_dict['market'], new_labels + old_labels, 0.05) # for acquisition estimator
+        # sub_mkt, _ = self.split(ds_dict['market'], new_labels + old_labels, 0.08) # for acquisition estimator
 
         return {
             'train': old_aug_train,
@@ -260,6 +260,7 @@ class Cifar(Dataset):
             'test_shift': test,
             'train_non_cnn': old_train,
             'market': ds_dict['market'],
+            'aug_market': ds_dict['aug_market'],
         }
 
     def create(self, config, raw_ds:dict):
@@ -680,7 +681,7 @@ class MetaData():
                 cat_session_indices = cat_indices[cat_session_labels==session]
                 cat_session_obj_labels = self.object_labels[cat_session_indices]
 
-                subset_indices = self.get_subset(cat_session_obj_labels, objects, cat_session_indices, ratio) # obj labels given a session
+                subset_indices = self.get_subset(cat_session_obj_labels, objects, cat_session_indices, ratio) # obj labels given a session, frames sampled
                 sampled_session_indices.append(subset_indices)
             
             sampled_session_indices = np.concatenate(sampled_session_indices, axis = 0)
