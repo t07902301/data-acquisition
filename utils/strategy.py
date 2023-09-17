@@ -51,7 +51,7 @@ class WorkSpace():
     def set_validation(self, stream_instruction:Config.ProbabStream, old_batch_size, new_batch_size):
         '''
         align validation_loader with test splits\n
-        Error detector from workspace (fixed or from the last round in seq)
+        after Error detector construction or updates (seq)
         '''
         correct_dstr = distribution_utils.CorrectnessDisrtibution(self.base_model, self.detector, self.data_split.loader['val_shift'], stream_instruction.pdf, correctness=True)
         incorrect_dstr = distribution_utils.CorrectnessDisrtibution(self.base_model, self.detector, self.data_split.loader['val_shift'], stream_instruction.pdf, correctness=False)
