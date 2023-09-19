@@ -8,7 +8,7 @@ def run(model_dir):
     label_map = config['data']['label_map']
     category = list(label_map.keys()) if label_map != None else [i for i in range(10)]
     sessions = [i for i in range(11)]
-    split_results = meta_data.balanced_split(30, category, sessions)
+    split_results = meta_data.balanced_split(30, category, sessions) # sample ratio of frames can be float too  
     return meta_data.subset2dict(split_results['sampled'])
 
 def main(model_dir =''):
