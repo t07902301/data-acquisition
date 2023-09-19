@@ -244,7 +244,8 @@ class DstrEnsemble(Ensemble):
     
     def get_weight(self, value, size):
         new_weight = self.probab2weight({'target': self.anchor_dstr['incorrect'], 'other': self.anchor_dstr['correct']}, value, size)
-        old_weight = self.probab2weight({'target': self.anchor_dstr['correct'], 'other': self.anchor_dstr['incorrect']}, value, size)
+        # old_weight = self.probab2weight({'target': self.anchor_dstr['correct'], 'other': self.anchor_dstr['incorrect']}, value, size)
+        old_weight = 1 - new_weight
         return {
             'new': new_weight,
             'old': old_weight
