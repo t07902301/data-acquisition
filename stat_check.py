@@ -41,7 +41,7 @@ class TestData():
             checker.test_loader, _ = checker.get_subset_loader(anchor_dstr, operation.stream)
             _ = self.error_stat(checker)
         
-    def run(self, epochs, parse_args, new_img_num_list, method, operation:Config.Operation, dataset_list: List[dict], plot=False):
+    def run(self, epochs, parse_args, new_img_num_list, method, operation:Config.Operation, dataset_list: List[dict], plot):
         results = []
         for epo in range(epochs):
             logger.info('in epoch {}'.format(epo))
@@ -49,7 +49,6 @@ class TestData():
             results.append(self.error_stat(checker))
             if method == 'seq':
                 self.epoch_run(operation, new_img_num_list, checker)   # update checker's detector by logs
-
         if plot:
             self.plot(checker, dataset_list[epo], operation.stream.pdf)
 
@@ -61,6 +60,13 @@ class TestData():
         self.naive_plot(datasplits.loader['val_shift'], fig_name, checker.detector)
         fig_name = 'figure/test/market_dv.png'
         self.naive_plot(datasplits.loader['market'], fig_name, checker.detector)
+        fig_name = 'figure/test/anchor_dv.png'
+        incor_dv = DataStat.get_correctness_dv(checker.base_model, datasplits.loader['val_shift'], checker.detector, correctness=False)
+        cor_dv = DataStat.get_correctness_dv(checker.base_model, datasplits.loader['val_shift'], checker.detector, correctness=True)
+        logger.info('Incorrection DSTR - max: {}, min:{}'.format(max(incor_dv), min(incor_dv)))
+        logger.info('Correction DSTR - max: {}, min:{}'.format(max(cor_dv), min(cor_dv)))
+
+        self.correctness_dstr_plot(cor_dv, incor_dv, fig_name, pdf)
         fig_name = 'figure/test/test_dv.png'
         incor_dv = DataStat.get_correctness_dv(checker.base_model, datasplits.loader['test_shift'], checker.detector, correctness=False)
         cor_dv = DataStat.get_correctness_dv(checker.base_model, datasplits.loader['test_shift'], checker.detector, correctness=True)
@@ -218,7 +224,7 @@ def main(epochs, new_model_setter='retrain', model_dir ='', device=0, probab_bou
         logger.info('all: {}'.format(results.tolist()))
     else:
         stat_checker = TestData()
-        results = stat_checker.run(epochs, parse_args, config['data']['n_new_data'], method, operation, ds_list, plot=False)
+        results = stat_checker.run(epochs, parse_args, config['data']['n_new_data'], method, operation, ds_list, plot=True)
         logger.info('Test Data error stat:{}'.format(np.round(np.mean(results), decimals=3)))
         logger.info('all: {}'.format(results))
 
