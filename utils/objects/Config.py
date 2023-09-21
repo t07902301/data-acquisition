@@ -50,7 +50,7 @@ class SequentialAc(Acquisition):
         super().__init__(method, n_ndata, bound, seq_config)
 
     def set_up(self):
-        self.round_acquire_method = 'dv'
+        self.round_acquire_method = self.seq_config['method']
         if self.seq_config['n_new_data'] != None:
             self.n_ndata_round = self.seq_config['n_new_data']
             self.n_rounds = self.n_ndata // self.n_ndata_round

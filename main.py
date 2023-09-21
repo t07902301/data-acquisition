@@ -15,9 +15,10 @@ def method_run(method, new_img_num_list, new_model_config:Config.NewModel, opera
 
     if method != 'rs':
         workspace.set_detector(operation.detection)
-        workspace.set_validation(operation.stream, new_model_config.batch_size, new_model_config.new_batch_size)
         _, detect_acc= workspace.detector.predict(workspace.data_split.loader['test_shift'], workspace.base_model, True)
-
+        set_anchor_dstr = True if 'pd' in method else False
+        workspace.set_validation(operation.stream, new_model_config.batch_size, new_model_config.new_batch_size, set_anchor_dstr)
+    
     else:
         workspace.validation_loader = workspace.data_split.loader['val_shift']
         logger.info('Keep val_shift for validation_loader') # Align with inference on the test set

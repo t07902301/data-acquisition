@@ -15,6 +15,7 @@ from utils.env import data_split_env
 import utils.ood as OOD
 import utils.objects.dataloader as dataloader_utils
 from utils.logging import logger
+from typing import Dict
 
 #TODO add info class with base model and dataset, make strategy class more purified. 
 
@@ -42,13 +43,13 @@ class WorkSpace():
         del self.base_model
         self.base_model = Model.factory(self.base_model_config.base_type, self.general_config, clip_processor=clip_processor)
         self.base_model.load(self.base_model_config.path, self.base_model_config.device)
-
+    
     def set_data(self, new_batch_size):
         del self.data_split
         copied_dataset = deepcopy(self.init_dataset)
         self.data_split = dataset_utils.DataSplits(copied_dataset, new_batch_size)
-            
-    def set_validation(self, stream_instruction:Config.ProbabStream, old_batch_size, new_batch_size):
+    
+    def set_validation(self, stream_instruction:Config.ProbabStream, old_batch_size, new_batch_size, set_anchor_dstr=False):
         '''
         align validation_loader with test splits\n
         after Error detector construction or updates (seq)
@@ -60,6 +61,10 @@ class WorkSpace():
         val_shift_split, _ = Partitioner.Probability().run(val_shift_info, {'target': incorrect_dstr, 'other': correct_dstr}, stream_instruction)
         self.validation_loader = val_shift_split['new_model']
         logger.info('set validation_loader') # Align with test set inference
+
+        if set_anchor_dstr:
+            self.anchor_dstr = {'correct': correct_dstr, 'incorrect': incorrect_dstr}
+            logger.info('Set up anchor dstr')
 
     def reset(self, new_batch_size, clip_processor):
         '''
@@ -198,6 +203,34 @@ class Greedy(NonSeqStrategy):
             new_data_indices = acquistion.get_in_bound_top_indices(market_dv, n_data, bound)
         return new_data_indices
 
+class ProbabGreedy(NonSeqStrategy):
+    def __init__(self) -> None:
+        super().__init__()
+
+    def probab2weight(self, dstr_dict: Dict[str, distribution_utils.CorrectnessDisrtibution], observations):
+        weights = []
+        probab_partitioner = Partitioner.Probability()
+        for value in observations:
+            posterior = probab_partitioner.get_posterior(value, dstr_dict)
+            weights.append(posterior)
+        return np.concatenate(weights)
+    
+    def get_new_data_indices(self, operation:Config.Operation, workspacce:WorkSpace):
+        dataset_splits = workspacce.data_split
+        acquistion_n_data = operation.acquisition.n_ndata
+        new_data_indices = self.run(acquistion_n_data, dataset_splits.loader['market'], workspacce.detector, workspacce.anchor_dstr)
+        return new_data_indices  
+    
+    def run(self, n_data, market_loader, detector: Detector.Prototype, anchor_dstr):
+        market_dv, _ = detector.predict(market_loader)
+        new_weight = self.probab2weight({'target': anchor_dstr['incorrect'], 'other': anchor_dstr['correct']}, market_dv)
+        new_data_indices = acquistion.get_top_values_indices(new_weight, n_data, order='descend')
+        # select_dv = market_dv[new_data_indices]
+        # select_probab_dv = new_weight[new_data_indices]
+        # logger.info('dv: {}, {}'.format(min(select_dv), max(select_dv)))
+        # logger.info('dv probab: {}, {}'.format(min(select_probab_dv), max(select_probab_dv)))
+        return new_data_indices
+
 class Sample(NonSeqStrategy):
     def __init__(self) -> None:
         super().__init__()
@@ -288,7 +321,7 @@ class SeqCLF(Strategy):
         workspace.base_model.save(new_model_config.path)
 
         self.export_detector(new_model_config, operation.acquisition, workspace.detector)
-        self.export_data(new_model_config, operation.acquisition, new_data_total_set)
+        # self.export_data(new_model_config, operation.acquisition, new_data_total_set)
 
     def round_operate(self, round_id, operation: Config.Operation, workspace:WorkSpace):
         '''
@@ -335,6 +368,10 @@ class SeqCLF(Strategy):
     def get_new_data_indices(self, operation:Config.Operation, workspace:WorkSpace):
         pass
 
+class SeqPD(SeqCLF):
+    def __init__(self) -> None:
+        super().__init__()
+
 # class Seq(Strategy):
 #     def __init__(self) -> None:
 #         super().__init__()
@@ -380,6 +417,10 @@ def StrategyFactory(strategy):
         return Sample()
     elif strategy == 'conf':
         return Confidence()
+    elif strategy == 'pd':
+        return ProbabGreedy()
+    elif strategy == 'seq_pd':
+        return SeqPD()
     # elif strategy == 'mix':
     #     return Mix()
     # elif strategy == 'seq':
