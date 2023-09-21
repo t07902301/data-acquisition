@@ -198,14 +198,13 @@ class Ensemble(Prototype):
         return new_probab * new_weights + old_probab * old_weights
     
     @abstractmethod
-    def get_weight(self, value=None, size=None):
+    def get_weight(self, value):
         pass
 
     def _target_test(self, dataloader, new_model: Model.Prototype):
 
         dv, _ = self.detector.predict(dataloader)  
-        size = len(dv)
-        weights = self.get_weight(value=dv, size=size)
+        weights = self.get_weight(value=dv)
 
         decision_maker = Decision.factory(self.new_model_config.base_type, self.new_model_config.class_number)
         new_decision_probab = decision_maker.get(new_model, dataloader)
@@ -235,16 +234,17 @@ class DstrEnsemble(Ensemble):
         incorrect_dstr = distribution_utils.CorrectnessDisrtibution(self.base_model, self.detector, set_up_loader, pdf_type, correctness=False)
         return {'correct': correct_dstr, 'incorrect': incorrect_dstr}
 
-    def probab2weight(self, dstr_dict: Dict[str, distribution_utils.CorrectnessDisrtibution], observations, size):
+    def probab2weight(self, dstr_dict: Dict[str, distribution_utils.CorrectnessDisrtibution], observations):
         weights = []
         for value in observations:
             posterior = self.probab_partitioner.get_posterior(value, dstr_dict)
             weights.append(posterior)
+        size = len(observations)
         return np.concatenate(weights).reshape((size,1))
     
-    def get_weight(self, value, size):
-        new_weight = self.probab2weight({'target': self.anchor_dstr['incorrect'], 'other': self.anchor_dstr['correct']}, value, size)
-        # old_weight = self.probab2weight({'target': self.anchor_dstr['correct'], 'other': self.anchor_dstr['incorrect']}, value, size)
+    def get_weight(self, value):
+        new_weight = self.probab2weight({'target': self.anchor_dstr['incorrect'], 'other': self.anchor_dstr['correct']}, value)
+        # old_weight = self.probab2weight({'target': self.anchor_dstr['correct'], 'other': self.anchor_dstr['incorrect']}, value)
         old_weight = 1 - new_weight
         return {
             'new': new_weight,
@@ -258,7 +258,8 @@ class AverageEnsemble(Ensemble):
     def __init__(self, model_config: Config.NewModel, general_config) -> None:
         super().__init__(model_config, general_config)
 
-    def get_weight(self, value=None, size=None):
+    def get_weight(self, value):
+        size = len(value)
         weight = np.repeat([0.5], size).reshape((size,1))
         return {
             'new': weight,
