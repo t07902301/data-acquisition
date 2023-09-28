@@ -9,6 +9,7 @@ import pickle as pkl
 import numpy as np
 from utils import n_workers
 from utils.logging import *
+from typing import Dict
 
 def complimentary_mask(mask_length, active_spot):
     '''
@@ -26,7 +27,130 @@ def get_vis_transform(mean, std):
                                 transforms.Normalize(mean = [-x for x in mean],
                                                     std = [ 1., 1., 1. ]),])
     TOIMAGE = transforms.Compose([INV_NORM, transforms.ToPILImage()])
-    return INV_NORM, TOIMAGE
+    return TOIMAGE
+
+class MetaData():
+    def __init__(self, path) -> None:
+        data = self.load(path)
+        self.object_labels = np.asarray(data['object'])
+        self.session_labels = np.asarray(data['session'])
+        self.category_labels = np.asarray(data['category'])
+        self.data = np.asarray(data['data'])
+
+    def load(self, path):
+        fo = open(path, 'rb')
+        meta_data = pkl.load(fo)    
+        fo.close()
+        return meta_data
+
+    def get_subset(self, dataset_labels, targets, dataset_indices, ratio=0):
+        '''
+        Find indices of subsets where labels match with targets
+        '''
+        
+        results = []
+
+        for target in targets:
+
+            subset_indicies = dataset_indices[dataset_labels==target]
+
+            if ratio > 0 :
+                if type(ratio) == float:
+                    subset_indicies = np.random.choice(subset_indicies, int(ratio * len(subset_indicies)), replace=False)
+                else:
+                    subset_indicies = np.random.choice(subset_indicies, ratio, replace=False)
+
+            results.append(subset_indicies)
+            
+        results = np.concatenate(results)
+
+        return results
+
+    def balanced_split(self, ratio, categories, sessions, range_indices):
+        '''
+        Split a Core Dataset Object fairly all the way from category, session to object. Ratio is to sample in object levels.
+        '''
+        category_labels = self.category_labels[range_indices]
+        session_labels = self.session_labels[range_indices]
+        object_labels = self.object_labels[range_indices]
+
+        dataset_size = len(range_indices)
+        
+        indices = np.arange(dataset_size)
+
+        sampled_cat_indices = []
+
+        for cat in categories:
+
+            cat_indices = indices[category_labels==cat]
+            cat_session_labels = session_labels[cat_indices]
+
+            objects = [i + cat * 5 for i in range(5)]
+
+            sampled_session_indices = []
+            for session in sessions: # session labels given a cat
+
+                cat_session_indices = cat_indices[cat_session_labels==session]
+                cat_session_obj_labels = object_labels[cat_session_indices]
+
+                subset_indices = self.get_subset(cat_session_obj_labels, objects, cat_session_indices, ratio) # obj labels given a session, frames sampled
+                sampled_session_indices.append(subset_indices)
+            
+            sampled_session_indices = np.concatenate(sampled_session_indices, axis = 0)
+
+            sampled_cat_indices.append(sampled_session_indices)
+
+        sampled_cat_indices = np.concatenate(sampled_cat_indices, axis = 0)
+
+        return {
+            'sampled': sampled_cat_indices,
+            'others': indices[complimentary_mask(dataset_size, sampled_cat_indices)]
+        }
+
+    def subset2dict(self, subset_indices, range_indices):
+        data = self.data[range_indices]
+        category_labels = self.category_labels[range_indices]
+        session_labels = self.session_labels[range_indices]
+        object_labels = self.object_labels[range_indices]
+        return {
+            'data': data[subset_indices],
+            'session': session_labels[subset_indices],
+            'object': object_labels[subset_indices],
+            'category': category_labels[subset_indices]
+        }
+
+    def split(self, data_config):
+        '''
+        Get train, market, val, test set without shifts. \n Leave original meta info untouched.
+        '''
+        ratio = data_config['ratio']
+        train_size = ratio["train_from_market"]
+        test_size = ratio["test_from_all"]
+        val_from_test = ratio['val_from_test']
+
+        label_map = data_config['labels']['map']
+        categories = list(label_map.keys()) if label_map != None else [i for i in range(10)]
+        sessions = [i for i in range(11)]
+        all_data_indices = np.arange(len(self.data))
+
+        test_train_split = self.balanced_split(test_size, categories, sessions, all_data_indices)
+        test_val_indices = test_train_split['sampled']
+        train_market_indices = test_train_split['others']
+
+        val_test_split = self.balanced_split(val_from_test, categories, sessions, test_val_indices)
+        val_dict = self.subset2dict(val_test_split['sampled'], test_val_indices)
+        test_dict = self.subset2dict(val_test_split['others'], test_val_indices)
+
+        train_market_split = self.balanced_split(train_size, categories, sessions, train_market_indices)
+        train_dict = self.subset2dict(train_market_split['sampled'], train_market_indices)
+        market_dict = self.subset2dict(train_market_split['others'], train_market_indices)
+
+        ds = {}
+        ds['val'] =  val_dict
+        ds['market'] =  market_dict
+        ds['test'] = test_dict
+        ds['train'] =  train_dict
+        return ds
 
 class DataSplits():
     dataset: dict
@@ -81,9 +205,22 @@ class DataSplits():
             self.expand(target_name, new_data)
 
 class Dataset():
+    '''
+    Dataset Interface
+    '''
     def __init__(self) -> None:
         pass
 
+    def get_raw_indices(self, dataset):
+        '''
+        Reture indices to the original dataset (Train & Test in Cifar, One dataset in Core)
+        '''
+        raw_indices = [dataset[idx][-1] for idx in range(len(dataset))]
+        # for idx in range(len(dataset)):
+        #     img, coarse_target, target, raw_idx = dataset[idx] 
+        #     raw_indices.append(raw_idx)
+        return raw_indices
+    
     @abstractmethod
     def get_labels(self):
         '''
@@ -178,16 +315,16 @@ class Cifar(Dataset):
     def __init__(self) -> None:
         super().__init__()
 
-    def get_indices_by_labels(self, ds, subset_labels):
+    def get_indices_by_labels(self, ds, subset_labels, use_fine_label):
         select_indice = []
-        ds_labels = self.get_labels(ds, use_fine_label=True)
+        ds_labels = self.get_labels(ds, use_fine_label)
         for c in subset_labels:
             select_indice.append(np.arange(len(ds))[c==ds_labels])
         select_indice = np.concatenate(select_indice)
         return select_indice
 
-    def get_subset_by_labels(self, ds, subset_labels, return_indices=False):
-        select_indice = self.get_indices_by_labels(ds, subset_labels)
+    def get_subset_by_labels(self, ds, subset_labels, return_indices=False, use_fine_label=True):
+        select_indice = self.get_indices_by_labels(ds, subset_labels, use_fine_label)
         ds = torch.utils.data.Subset(ds,select_indice) 
         if return_indices:
             return ds, select_indice
@@ -263,9 +400,7 @@ class Cifar(Dataset):
             'aug_market': ds_dict['aug_market'],
         }
 
-    def create(self, config, raw_ds:dict):
-        # When all classes are used, only work on removal
-        # When some classes are neglected, test set and the big train set will be shrank.
+    def create(self, config, raw_ds:Dict[str, cifar.data.Dataset]):
         data_config = config['data']
         label_config = data_config['labels']
         select_fine_labels = label_config['select_fine_labels']
@@ -303,7 +438,7 @@ class Cifar(Dataset):
 
     def split(self, dataset, labels, target_ratio, use_fine_label = True, return_split_indices=False):
         '''
-        Split Dataset by Selecting Data from Labels with target_ratio\n
+        Split Dataset by Selecting Data of Labels with target_ratio\n
         Return (target dataset, other dataset)
         '''
         if target_ratio is None:
@@ -326,7 +461,7 @@ class Cifar(Dataset):
             dataset[split] = cifar.ModifiedDataset(dataset=dataset[split],coarse_label_transform=label_map)
         return dataset
 
-    def get_raw_ds(self, ds_root, mean, std, select_fine_labels):
+    def get_raw_ds(self, ds_root, mean, std, select_fine_labels, label_map):
         '''
         Get raw dataset with subset selected for target classes
         '''
@@ -349,13 +484,17 @@ class Cifar(Dataset):
             test_val, _ = self.get_subset_by_labels(test_val, select_fine_labels)
             aug_train_market = torch.utils.data.Subset(aug_train_market, select_indices)  
 
+            train_market = cifar.ModifiedDataset(dataset=train_market, coarse_label_transform=label_map)
+            test_val = cifar.ModifiedDataset(dataset=test_val, coarse_label_transform=label_map)
+            aug_train_market = cifar.ModifiedDataset(dataset=aug_train_market, coarse_label_transform=label_map)
+
         return {
             'train_market': train_market,
             'test_val': test_val,
             'aug_train_market': aug_train_market
         }
     
-    def get_labels(self, ds,use_fine_label):
+    def get_labels(self, ds, use_fine_label):
         ds_size = len(ds)
         label_idx = 2 if use_fine_label else 1
         labels = []
@@ -377,13 +516,13 @@ class Cifar(Dataset):
             'std': std
         }
 
-        raw_ds = self.get_raw_ds(data_config['ds_root'], mean, std, select_fine_labels)
+        raw_ds = self.get_raw_ds(data_config['ds_root'], mean, std, select_fine_labels, label_map)
 
         ds_list = []
         for epo in range(epochs):
             ds = self.create(config, raw_ds)
-            if len(select_fine_labels) != 0 and (isinstance(label_map, dict)):
-                ds = self.modify_coarse_label(ds, label_map)
+            # if len(select_fine_labels) != 0 and (isinstance(label_map, dict)):
+            #     ds = self.modify_coarse_label(ds, label_map)
             ds_list.append(ds)
 
         return ds_list, normalize_stat
@@ -395,7 +534,7 @@ class Cifar(Dataset):
         r, g, b = [], [], []
         train_size = len(train_ds)
         for idx in range(train_size):
-            raw_img = train_ds[idx][0]
+            raw_img = train_ds[idx][0] # img + labels
             img = transforms.ToTensor()(raw_img)
             r.append(img[0])
             g.append(img[1])
@@ -434,12 +573,12 @@ class Core(Dataset):
     def modify_coarse_label(self):
         pass
 
-    def normalize(self, meta_data):
-        train_ds = core.Core(meta_data)
+    def normalize(self, meta_data:MetaData):
+        train_ds = meta_data.data
         r, g, b = [], [], []
         train_size = len(train_ds)
         for idx in range(train_size):
-            raw_img = train_ds[idx][0]
+            raw_img = train_ds[idx]
             img = transforms.ToTensor()(raw_img)
             r.append(img[0])
             g.append(img[1])
@@ -541,7 +680,7 @@ class Core(Dataset):
             labels.append(label)
         return np.array(labels)
         
-    def create(self, meta_split:dict, mean, std, label_map):
+    def create(self, meta_split:Dict[str, dict], mean, std, label_map):
         base_transform = transforms.Compose([
             transforms.ToTensor(),
             transforms.Normalize(mean=mean, std=std),
@@ -597,6 +736,7 @@ class Core(Dataset):
             ds = self.create(meta_split, mean, std, label_map)
             ds_list.append(ds)
         return ds_list, normalize_stat
+        # return None, None
     
     def get_indices_by_labels(self, ds, subset_labels, option):
         select_indice = []
@@ -620,117 +760,3 @@ def factory(name):
     else:
         return Cifar()
 
-class MetaData():
-    def __init__(self, path) -> None:
-        data = self.load(path)
-        self.object_labels = np.asarray(data['object'])
-        self.session_labels = np.asarray(data['session'])
-        self.category_labels = np.asarray(data['category'])
-        self.data = np.asarray(data['data'])
-
-    def load(self, path):
-        fo = open(path, 'rb')
-        meta_data = pkl.load(fo)    
-        fo.close()
-        return meta_data
-
-    def get_subset(self, dataset_labels, targets, dataset_indices, ratio=0):
-        '''
-        Find indices of subsets where labels match with targets
-        '''
-        
-        results = []
-
-        for target in targets:
-
-            subset_indicies = dataset_indices[dataset_labels==target]
-
-            if ratio > 0 :
-                if type(ratio) == float:
-                    subset_indicies = np.random.choice(subset_indicies, int(ratio * len(subset_indicies)), replace=False)
-                else:
-                    subset_indicies = np.random.choice(subset_indicies, ratio, replace=False)
-
-            results.append(subset_indicies)
-            
-        results = np.concatenate(results)
-
-        return results
-
-    def balanced_split(self, ratio, categories, sessions):
-        '''
-        Split a Dataset Dict balanced from category, session to object. Ratio is to sample in object levels.
-        '''
-
-        dataset_size = len(self.data)
-        
-        indices = np.arange(dataset_size)
-
-        sampled_cat_indices = []
-
-        for cat in categories:
-
-            cat_indices = indices[self.category_labels==cat]
-            cat_session_labels = self.session_labels[cat_indices]
-
-            objects = [i + cat * 5 for i in range(5)]
-
-            sampled_session_indices = []
-            for session in sessions: # session labels given a cat
-
-                cat_session_indices = cat_indices[cat_session_labels==session]
-                cat_session_obj_labels = self.object_labels[cat_session_indices]
-
-                subset_indices = self.get_subset(cat_session_obj_labels, objects, cat_session_indices, ratio) # obj labels given a session, frames sampled
-                sampled_session_indices.append(subset_indices)
-            
-            sampled_session_indices = np.concatenate(sampled_session_indices, axis = 0)
-
-            sampled_cat_indices.append(sampled_session_indices)
-
-        sampled_cat_indices = np.concatenate(sampled_cat_indices, axis = 0)
-
-        return {
-            'sampled': sampled_cat_indices,
-            'others': complimentary_mask(dataset_size, sampled_cat_indices)
-        }
-
-    def subset2dict(self, subset_indices):
-        return {
-            'data': self.data[subset_indices],
-            'session': self.session_labels[subset_indices],
-            'object': self.object_labels[subset_indices],
-            'category': self.category_labels[subset_indices]
-        }
-
-    def split(self, data_config):
-        '''
-        Get train, market, val, test set without any shift
-        '''
-        ratio = data_config['ratio']
-        train_size = ratio["train"]
-        test_size = ratio["test"]
-        val_from_test = ratio['val_from_test']
-
-        label_map = data_config['labels']['map']
-        categories = list(label_map.keys()) if label_map != None else [i for i in range(10)]
-        sessions = [i for i in range(11)]
-
-        test_train_split = self.balanced_split(test_size, categories, sessions)
-        test_val_dict = self.subset2dict(test_train_split['sampled'])
-        train_market_dict = self.subset2dict(test_train_split['others'])
-
-        train_market_split = self.balanced_split(train_size, train_market_dict, categories, sessions)
-        train_dict = self.subset2dict(train_market_dict, train_market_split['sampled'])
-        market_dict = self.subset2dict(train_market_dict, train_market_split['others'])
-
-        val_test_split = self.balanced_split(val_from_test, test_val_dict, categories, sessions)
-        val_dict = self.subset2dict(test_val_dict, val_test_split['sampled'])
-        test_dict = self.subset2dict(test_val_dict, val_test_split['others'])
-
-        ds = {}
-        ds['val'] =  val_dict
-        ds['market'] =  market_dict
-        ds['test'] = test_dict
-        ds['train'] =  train_dict
-        return ds
