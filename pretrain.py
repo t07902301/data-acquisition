@@ -23,9 +23,6 @@ def run(ds:dataset_utils.DataSplits, model_config:Config.OldModel, train_flag:bo
     detector = Detector.factory(detect_instruction.name, config, clip_processor = detect_instruction.vit, split_and_search=True, data_transform='clip')
     detector.fit(base_model, ds.loader['val_shift'], ds.dataset['val_shift'], model_config.batch_size)
     
-    _, detect_prec = detector.predict(ds.loader['val_shift'], compute_metrics=True, base_model=base_model)
-    logger.info('In fitting Detector: {}'.format(detect_prec))
-
     _, detect_prec = detector.predict(ds.loader['test_shift'], compute_metrics=True, base_model=base_model)
     logger.info('In testing Detector: {}'.format(detect_prec))
 
@@ -59,7 +56,7 @@ def main(epochs,  model_dir, train_flag, device_id, base_type, detector_name, op
     logger.info('Old Model Acc before shift: {}%'.format(np.round(np.mean(acc_list),decimals=3)))
     logger.info('Old Model Acc after shift: {}%'.format(np.round(np.mean(acc_shift_list),decimals=3)))
     logger.info('Shifted Data Proportion on Old Model Misclassifications: {}%'.format(np.round(np.mean(np.array(shift_list),axis=0), decimals=3)))
-    logger.info('Detector Rough Average Accuracy: {}%'.format(np.round(np.mean(detect_prec_list), decimals=3).tolist()))
+    logger.info('Detector Average Accuracy: {}%'.format(np.round(np.mean(detect_prec_list), decimals=3).tolist()))
 
     split_data = ds.dataset
     for spit_name in split_data.keys():
