@@ -49,7 +49,10 @@ class Prototype():
         metric = None
         if compute_metrics:
             preds = clf.predict(latents)
-            metric = sklearn_metrics.balanced_accuracy_score(gts, preds)*100
+            # metric = sklearn_metrics.balanced_accuracy_score(gts, preds)*100
+            # metric = sklearn_metrics.f1_score(gts, preds, pos_label=0)*100
+            metric = sklearn_metrics.precision_score(gts, preds, pos_label=0) * 100
+
         return out_mask, out_decision, metric
     
     def raw_predict(self, latents, clf):
