@@ -105,7 +105,7 @@ class Partition(Prototype):
             old_correct = (gt==pred)
             total_correct = np.concatenate((old_correct,new_correct))
         
-        DataStat.evaluation_metric(loader['new_model'], self.base_model, new_model=new_model)
+        # DataStat.evaluation_metric(loader['new_model'], self.base_model, new_model=new_model)
 
         return total_correct.mean()*100 - self.base_acc 
     
@@ -133,8 +133,8 @@ class Probability(Partition):
         anchor_dstr = self.set_up_dstr(self.anchor_loader, operation.stream.pdf)
         self.test_loader, posteriors = self.get_subset_loader(anchor_dstr, operation.stream)
 
-        # fig_name = 'figure/test/probab.png'
-        # self.probab_dstr_plot(posteriors, fig_name)
+        fig_name = 'figure/test/probab_dstr.png'
+        self.probab_dstr_plot(posteriors, fig_name)
      
     def set_up_dstr(self, set_up_loader, pdf_type):
         correct_dstr = distribution_utils.CorrectnessDisrtibution(self.base_model, self.detector, set_up_loader, pdf_type, correctness=True)
@@ -162,16 +162,21 @@ class Probability(Partition):
         return super()._target_test(loader, new_model)
     
     def probab_dstr_plot(self, probab, fig_name, pdf_method=None):
+        # distribution_utils.plt.hist(probab, bins=10)
         test_loader = torch.utils.data.DataLoader(self.test_info['dataset'], batch_size=self.new_model_config.batch_size)
         dataset_gts, dataset_preds, _ = self.base_model.eval(test_loader)
         correct_mask = (dataset_gts == dataset_preds)
-        distribution_utils.base_plot(probab[correct_mask], 'non-error', 'green', pdf_method)        
+        distribution_utils.base_plot(probab[correct_mask], 'Easy Data', 'white', pdf_method, hatch_style='/')        
         incorrect_mask = ~correct_mask
-        distribution_utils.base_plot(probab[incorrect_mask], 'error', 'red', pdf_method)  
-        distribution_utils.plt.xlabel('Probability')
+        distribution_utils.base_plot(probab[incorrect_mask], 'Hard Data', 'white', pdf_method, hatch_style='.', alpha=0.5)  
+        distribution_utils.plt.xlabel('w1 in Prediction Ensemble', fontsize='large')
+        distribution_utils.plt.ylabel('Density', fontsize='large')
         distribution_utils.plt.savefig(fig_name)
         distribution_utils.plt.close()
-        logger.info('Save fig to {}'.format(fig_name))   
+        logger.info('Save fig to {}'.format(fig_name))  
+
+        logger.info('error with probab <= 0.5: {}'.format((probab[incorrect_mask] <= 0.5).sum())) 
+        logger.info('error with probab > 0.5: {}'.format((probab[incorrect_mask] > 0.5).sum())) 
 
 class Ensemble(Prototype):
     def __init__(self, model_config: Config.NewModel, general_config) -> None:
@@ -216,7 +221,7 @@ class Ensemble(Prototype):
         gts = dataloader_utils.get_labels(dataloader)
         final_acc = (gts==decision).mean() * 100 
 
-        DataStat.evaluation_metric(dataloader, self.base_model, ensemble_decision=decision)
+        # DataStat.evaluation_metric(dataloader, self.base_model, ensemble_decision=decision)
         
         return final_acc - self.base_acc  
     

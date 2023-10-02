@@ -5,7 +5,6 @@ import matplotlib.pyplot as plt
 import utils.objects.dataloader as dataloader_utils
 from utils.objects.Detector import Prototype as DetecorPrototye
 from utils.objects.model import Prototype as ModelPrototye
-
 def get_intervals(values):
     max_val = max(values)
     min_val = min(values)
@@ -71,13 +70,13 @@ def get_pdf(value, method):
     else:
         return get_kde(value)
     
-def base_plot(value, label, color, pdf_method=None, range=None, n_bins = 10):
-    plt.hist(value, bins= n_bins , alpha=0.3, density=True, color=color, label=label, range=range)
+def base_plot(value, label, color, pdf_method=None, range=None, n_bins = 10, hatch_style = '/', line_style='-', alpha=1):
+    plt.hist(value, bins= n_bins , alpha=alpha, density=True, color=color, label=label, range=range, fill=True, hatch=hatch_style, edgecolor='k', histtype='step')
     if pdf_method != None:
         dstr = get_pdf(value, pdf_method)
         pdf_x = get_intervals(value)
         if pdf_method == 'norm':
-            plt.plot(pdf_x, dstr.pdf(pdf_x), color=color)
+            plt.plot(pdf_x, dstr.pdf(pdf_x), color='black', linestyle=line_style)
         else:
-            plt.plot(pdf_x, dstr.evaluate(pdf_x), color=color)
-    plt.legend()
+            plt.plot(pdf_x, dstr.evaluate(pdf_x), color='black', linestyle=line_style)
+    plt.legend(fontsize=15)
