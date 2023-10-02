@@ -75,8 +75,8 @@ class WorkSpace():
     def set_market(self, clip_processor, known_labels):
         cover_market_dataset = OOD.run(self.data_split, clip_processor, known_labels, check_ds='market')
         self.init_dataset['market'] = cover_market_dataset
-        cover_aug_market_dataset = OOD.run(self.data_split, clip_processor, known_labels, check_ds='aug_market')
-        self.init_dataset['aug_market'] = cover_aug_market_dataset
+        # cover_aug_market_dataset = OOD.run(self.data_split, clip_processor, known_labels, check_ds='aug_market')
+        # self.init_dataset['aug_market'] = cover_aug_market_dataset
         logger.info('After filtering, Market size:{}'.format(len(self.init_dataset['market'])))
 
     def set_detector(self, detector_instruction: Config.Detection):
@@ -111,12 +111,14 @@ class Strategy():
 
         new_data_indices = self.get_new_data_indices(operation, workspace)
 
-        if workspace.base_model_config.base_type == 'cnn':
+        # if workspace.base_model_config.base_type == 'cnn':
 
-            new_data = torch.utils.data.Subset(workspace.data_split.dataset['aug_market'], new_data_indices)
+        #     new_data = torch.utils.data.Subset(workspace.data_split.dataset['aug_market'], new_data_indices)
         
-        else:
-            new_data = torch.utils.data.Subset(workspace.data_split.dataset['market'], new_data_indices)
+        # else:
+        #     new_data = torch.utils.data.Subset(workspace.data_split.dataset['market'], new_data_indices)
+        
+        new_data = torch.utils.data.Subset(workspace.data_split.dataset['market'], new_data_indices)
         
         new_data_info = {
             'data': new_data,
@@ -151,6 +153,12 @@ class Strategy():
         else:
             workspace.data_split.use_new_data(new_data, new_model_config, acquisition, target_name='train_non_cnn')
 
+    def export_indices(self, model_config:Config.NewModel, acquire_instruction: Config.Acquisition, dataset, stream: Config.Stream):
+        if model_config.check_rs(acquire_instruction.method, stream.bound) is False:
+            raw_indices = [dataset[idx][-1] for idx in range(len(dataset))]
+            log = Log(model_config, 'indices')
+            log.export(acquire_instruction, data=raw_indices)
+
 class NonSeqStrategy(Strategy):
     def __init__(self) -> None:
         super().__init__()
@@ -173,13 +181,8 @@ class NonSeqStrategy(Strategy):
 
         workspace.base_model.save(new_model_config.path)
 
-        self.export_indices(new_model_config, operation.acquisition, new_data_info['indices'], operation.stream)
-
-    def export_indices(self, model_config:Config.NewModel, acquire_instruction: Config.Acquisition, data, stream: Config.Stream):
-        if model_config.check_rs(acquire_instruction.method, stream.bound) is False:
-            log = Log(model_config, 'indices')
-            log.export(acquire_instruction, data=data)
-    
+        self.export_indices(new_model_config, operation.acquisition, new_data_info['data'], operation.stream)
+        
     # def import_indices(self, model_config:Config.NewModel, operation: Config.Operation, config):
     #     log = Log(model_config, 'indices')
     #     indices = log.import_log(operation, config)
@@ -305,9 +308,13 @@ class SeqCLF(Strategy):
 
         self.sub_strategy = StrategyFactory(operation.acquisition.round_acquire_method)
         new_data_total_set = None
+
+        stat_results = []
+
         for round_i in range(operation.acquisition.n_rounds):
             new_data_round_info = self.round_operate(round_i, operation, workspace)
             new_data_total_set = new_data_round_info['data'] if round_i==0 else torch.utils.data.ConcatDataset([new_data_total_set, new_data_round_info['data']])
+            stat_results.append(self.stat(workspace.base_model, new_data_round_info['data'], new_model_config.new_batch_size))
 
         new_model_config.set_path(operation)
 
@@ -321,7 +328,14 @@ class SeqCLF(Strategy):
         workspace.base_model.save(new_model_config.path)
 
         self.export_detector(new_model_config, operation.acquisition, workspace.detector)
-        # self.export_data(new_model_config, operation.acquisition, new_data_total_set)
+        self.export_indices(new_model_config, operation.acquisition, new_data_total_set, operation.stream)
+       
+        return stat_results
+
+    def stat(self, model: Model.Prototype, data, batch_size):
+        dataloader = torch.utils.data.DataLoader(data, batch_size)
+        acc = model.acc(dataloader)
+        return 100 - acc
 
     def round_operate(self, round_id, operation: Config.Operation, workspace:WorkSpace):
         '''
@@ -334,7 +348,7 @@ class SeqCLF(Strategy):
         new_data_round_info = self.sub_strategy.get_new_data_info(round_operation, workspace)
 
         data_split.reduce('market', new_data_round_info['indices'])
-        data_split.reduce('aug_market', new_data_round_info['indices'])
+        # data_split.reduce('aug_market', new_data_round_info['indices'])
         data_split.expand('val_shift', new_data_round_info['data'])
 
         workspace.set_detector(operation.detection)
@@ -361,9 +375,13 @@ class SeqCLF(Strategy):
         log = Log(model_config, 'detector')
         log.export(acquire_instruction, detector=detector)
 
-    def export_data(self, model_config:Config.NewModel, acquire_instruction: Config.SequentialAc, dataset):
-        log = Log(model_config, 'data')
-        log.export(acquire_instruction, data=dataset)
+    # def export_data(self, model_config:Config.NewModel, acquire_instruction: Config.SequentialAc, dataset):
+    #     raw_indices = []
+    #     for idx in range(len(dataset)):
+    #         img, coarse_target, target, raw_idx = dataset[idx] 
+    #         raw_indices.append(raw_idx)
+    #     log = Log(model_config, 'data')
+    #     log.export(acquire_instruction, data=raw_indices)
         
     def get_new_data_indices(self, operation:Config.Operation, workspace:WorkSpace):
         pass
