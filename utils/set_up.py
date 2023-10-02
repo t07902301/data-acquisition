@@ -16,16 +16,16 @@ def save_dataset(epochs, config, model_dir, dataset_name):
     meta_dir = model_dir[:2] # How to split meta data, None for Cifar
     meta_path = os.path.join('data/meta', '{}.pkl'.format(meta_dir))
 
-    ds_list, normalize_stat = dataset.get_data_splits_list(epochs, config, meta_path)
+    indices_list, normalize_stat = dataset.get_dataset_raw_indices(epochs, config, meta_path)
 
     data_root = os.path.join('data', model_dir)
     Config.check_dir(data_root)
-    for idx, ds in enumerate(ds_list):
+    for idx, ds in enumerate(indices_list):
         data_path = os.path.join(data_root, '{}.pt'.format(idx))
         with open(data_path, 'wb') as f:
             pkl.dump( ds, f)
             f.close()
-        logger.info('save dataset to {}'.format(data_path))
+        logger.info('save dataset indices to {}'.format(data_path))
     save_stat(normalize_stat, data_root)
 
     split_data = ds
@@ -47,19 +47,21 @@ def load_stat(model_dir):
         f.close()
     return normalize_stat
 
-def load_dataset(epochs, model_dir, data_config, option, dataset:dataset_utils.Dataset):
-    data_root = os.path.join('data', model_dir)
+def load_dataset(epochs, data_dir, data_config, option, dataset:dataset_utils.Dataset, normalized_stat):
+    data_root = os.path.join('data', data_dir)
     ds_list = []
     remove_rate = data_config['ratio']['remove_rate']
 
+    meta_path = os.path.join('data/meta/s2.pkl')
+    
     for idx in range(epochs):
         data_path = os.path.join(data_root, '{}.pt'.format(idx))
         with open(data_path, 'rb') as f:
-            ds_dict = pkl.load(f) 
+            dataset_raw_indices = pkl.load(f) 
         logger.info('dataset loaded from {}'.format(data_path))
-        final_dict = dataset.load(ds_dict, remove_rate, data_config['labels'], option)    
+        dataset_dict = dataset.load_dataset_raw_indices(dataset_raw_indices, data_config, normalized_stat, meta_path)
+        final_dict = dataset.load(dataset_dict, remove_rate, data_config['labels'], option)    
         ds_list.append(final_dict)
-
     return ds_list
 
 def load_cover_dataset(epochs, model_dir, data_config, dataset:dataset_utils.Cifar):
@@ -93,7 +95,7 @@ def set_up(epochs, model_dir, device_id, option, dataset_name):
 
     data_split_env()
 
-    data_dir = model_dir[:3] # For shift degree control
+    data_dir = model_dir[:2] # For shift degree control
 
     normalize_stat = load_stat(data_dir)
 
@@ -107,7 +109,7 @@ def set_up(epochs, model_dir, device_id, option, dataset_name):
     
     dataset = dataset_utils.factory(dataset_name)
 
-    ds_list = load_dataset(epochs, data_dir, config['data'], option, dataset)
+    ds_list = load_dataset(epochs, data_dir, config['data'], option, dataset, normalize_stat)
 
     return config, device_config, ds_list, normalize_stat
 
