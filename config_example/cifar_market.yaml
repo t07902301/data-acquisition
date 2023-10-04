@@ -1,0 +1,57 @@
+detector : 'SVM'
+detector_args:
+  hidden_layer_size: [200,100,50]
+  max_iter: 500
+  k-fold: 2
+  kernel: 'linear'
+num_workers: 1
+hparams: 
+    superclass: 1
+    subclass: 100
+    batch_size: 
+      base: 64
+      new: 32
+
+    optimizer: 
+      type: 'sgd'
+      momentum: 0.9
+      weight_decay: 5.0E-4
+    training: 
+      epochs: 10
+      lr: 0.1
+      lr_scheduler: 
+          # type: 'step'
+          type: 'cyclic'
+          lr_peak_epoch: 5    
+          # type: 'ReduceLROnPlateau'
+          # patience: 5
+
+data: 
+  root: ''
+  ratio: 
+    train : 0.4
+    market : 0.6
+    test: null
+    val_from_test: 0.25
+    remove: 
+      new_labels: 1.0
+      old_labels: null
+      
+  n_new_data: [100,  200, 300, 400]
+  seq: 
+    n_new_data: null # seq_1
+    n_rounds: 2 #seq
+  labels:
+
+    remove: [81, 90] # new labels to source
+
+    cover:
+      src: [13, 85]
+      target: [13, 85, 81, 90]
+
+    map:
+      18: 0
+      19: 1
+    select_fine_labels: [8, 13, 48, 58, 90, 41, 69, 81, 85, 89] # superclass vehicles
+
+base_root: 'model/'
