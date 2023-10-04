@@ -23,25 +23,25 @@ def get_cover_samples(dataset, is_covered):
 
     return torch.utils.data.Subset(dataset, cover_indicies)
 
-def run(ds:Dataset.DataSplits, clip_processor, known_labels):
+def run(ds:Dataset.DataSplits, clip_processor, known_labels, normal_ds = 'val_shift', check_ds = 'market'):
 
-    ref_latent, _ = dataloader_utils.get_latent(ds.loader['val_shift'], clip_processor, 'clip')
+    ref_latent, _ = dataloader_utils.get_latent(ds.loader[normal_ds], clip_processor, 'clip')
 
     clf = OneClassSVM(gamma='auto', kernel='rbf').fit(ref_latent)
     # clf = SGDOneClassSVM(random_state=0).fit(ref_latent)
     # clf = IsolationForest(random_state=0).fit(ref_latent)
     # clf = LocalOutlierFactor(novelty=True).fit(ref_latent)
 
-    test_latent, _ = dataloader_utils.get_latent(ds.loader['market'], clip_processor, 'clip')
+    test_latent, _ = dataloader_utils.get_latent(ds.loader[check_ds], clip_processor, 'clip')
 
     pred_novelty = clf.predict(test_latent)
 
-    gt_novelty = get_raw_novelty(ds.dataset['market'], known_labels)
+    gt_novelty = get_raw_novelty(ds.dataset[check_ds], known_labels)
 
-    detect_acc = sklearn_metrics.balanced_accuracy_score(gt_novelty, pred_novelty)*100
+    detect_prec = sklearn_metrics.precision_score(gt_novelty, pred_novelty, pos_label=1) * 100
 
-    cover_samples = get_cover_samples(ds.dataset['market'], pred_novelty)
+    cover_samples = get_cover_samples(ds.dataset[check_ds], pred_novelty)
 
-    print('OOD ACC:', detect_acc)
+    print('OOD Precision:', detect_prec)
 
     return cover_samples

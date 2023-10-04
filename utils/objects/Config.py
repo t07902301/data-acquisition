@@ -21,10 +21,11 @@ class Detection():
         self.vit = vit_mounted
 
 class Acquisition():
-    def __init__(self, method='', n_ndata=0, bound=None) -> None:
+    def __init__(self, method='', n_ndata=0, bound=None, seq_config=None) -> None:
         self.method = method
         self.n_ndata = n_ndata
         self.bound = bound
+        self.seq_config = seq_config
 
     @abstractmethod
     def get_new_data_size(self):
@@ -35,8 +36,8 @@ class Acquisition():
         pass
     
 class NonSeqAcquisition(Acquisition):
-    def __init__(self, method='', n_ndata=0, bound=None) -> None:
-        super().__init__(method, n_ndata, bound)
+    def __init__(self, method='', n_ndata=0, bound=None, seq_config=None) -> None:
+        super().__init__(method, n_ndata, bound, seq_config)
 
     def get_new_data_size(self, class_number):
         return class_number*self.n_ndata
@@ -45,26 +46,23 @@ class NonSeqAcquisition(Acquisition):
         return 'acquisition method: {}, n_data_per_class:{}'.format(self.method, self.n_ndata)
 
 class SequentialAc(Acquisition):
-    def __init__(self, method='', n_ndata=0, bound=None, sequential_rounds:dict=None) -> None:
-        super().__init__(method, n_ndata, bound)
-        # self.n_rounds_info = sequential_rounds
+    def __init__(self, method='', n_ndata=0, bound=None, seq_config=None) -> None:
+        super().__init__(method, n_ndata, bound, seq_config)
 
     def set_up(self):
-        self.n_rounds = 3
-        self.round_acquire_method = 'dv'
-        self.current_round = 0
-        self.n_data_non_last_round = self.n_ndata  // self.n_rounds
-        n_data_acquired = self.n_data_non_last_round * (self.n_rounds - 1)
-        self.n_data_last_round = self.n_ndata - n_data_acquired
-        self.n_data_round = 0
-        
-    def set_round(self, round):
-        self.current_round = round + 1
-        if self.current_round == self.n_rounds:
-            self.n_data_round = self.n_data_last_round
+        self.round_acquire_method = 'pd' if 'pd' in self.method else 'dv'
+        if self.seq_config['n_new_data'] != None:
+            self.n_ndata_round = self.seq_config['n_new_data']
+            self.n_rounds = self.n_ndata // self.n_ndata_round
+            self.seq_mode = 'n_data'
         else:
-            self.n_data_round = self.n_data_non_last_round
-
+            self.n_rounds = self.seq_config['n_rounds']
+            self.current_round = 0
+            self.n_data_non_last_round = self.n_ndata  // self.n_rounds
+            n_data_acquired = self.n_data_non_last_round * (self.n_rounds - 1)
+            self.n_data_last_round = self.n_ndata - n_data_acquired
+            self.seq_mode = 'n_round'
+        
     def get_new_data_size(self, class_number):
         return class_number * self.n_data_last_round + class_number * self.n_data_non_last_round * (self.n_rounds-1)
     
@@ -72,9 +70,9 @@ class SequentialAc(Acquisition):
         return 'acquisition method: {}, n_data_per_class:({},{}) in round {}'.format(
             self.method, self.n_data_non_last_round, self.n_data_last_round, self.current_round)
 
-def AcquisitionFactory(method, acquisition:Acquisition):
-    if 'seq' in method:
-        return SequentialAc(acquisition.method, acquisition.n_ndata, acquisition.bound)
+def AcquisitionFactory(acquisition:Acquisition):
+    if 'seq' in acquisition.method:
+        return SequentialAc(acquisition.method, acquisition.n_ndata, acquisition.bound, acquisition.seq_config)
     else:
         return NonSeqAcquisition(acquisition.method, acquisition.n_ndata, acquisition.bound)
     
@@ -150,7 +148,7 @@ class NewModel(Model):
         return root
     
     def check_rs(self, acquisition_method, stream_bound):
-        if acquisition_method == 'sm' and stream_bound == 0:
+        if acquisition_method == 'rs' and stream_bound == 0:
             return True
         else:
             return False

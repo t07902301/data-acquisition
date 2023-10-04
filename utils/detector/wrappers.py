@@ -3,10 +3,9 @@ import pickle as pkl
 import clip
 import torchvision.transforms as transforms
 from torch.cuda.amp import autocast
-import utils.detector.svm as svm_utils
-import utils.detector.logreg as logreg_utils
 import torch.nn as nn
-
+from utils.logging import *
+import utils.detector.learner as Learner
 def inv_norm(ds_mean, ds_std):
     if ds_std is None:
         return (lambda x: x)
@@ -23,13 +22,12 @@ class PreProcessing(nn.Module):
         self.do_standardize = do_standardize
         
     def update_stats(self, latents):
-        # latents = latents.detach().clone()
         if not torch.is_tensor(latents):
             latents = torch.tensor(latents)    
         self.mean = latents.mean(dim=0)
         self.std = (latents - self.mean).std(dim=0)
-        self.max = latents.max()
-        self.min = latents.min()
+        self.max = latents.max(dim=0)
+        self.min = latents.min(dim=0)
     
     def normalize(self, latents):
         if not torch.is_tensor(latents):
@@ -44,7 +42,7 @@ class PreProcessing(nn.Module):
     
     def forward(self, latents):
         if not torch.is_tensor(latents):
-            print('Not tensors in detector input processing')
+            logger.info('Not tensors in detector input processing')
             # latents = torch.tensor(latents) 
             latents = torch.concat(latents)  
         if self.do_standardize:
@@ -74,12 +72,31 @@ class PreProcessing(nn.Module):
 from abc import abstractmethod
 
 class Prototype:
-    def __init__(self, do_normalize, do_standardize) -> None:
+    def __init__(self, split_and_search=True, balanced=True, cv=2, do_normalize=False, args=None, do_standardize=True) -> None:
         self.pre_process = None
         self.do_normalize = do_normalize
         self.do_standardize = do_standardize
         self.clf = None
+        self.split_and_search = split_and_search
+        self.balanced = balanced
+        self.cv = cv
+        self.args = args
 
+        self.learner = Learner.Prototype()
+        
+    def export(self, filename):
+        args = {
+            'split_and_search': self.split_and_search,
+            'balanced': self.balanced,
+            'cv': self.cv,
+        }
+        with open(filename, 'wb') as f:
+            pkl.dump({
+                'clf': self.clf,
+                'pre_stats': self.pre_process._export(),
+                'args': args}, 
+                f
+            )
     def import_model(self, filename):
         with open(filename, 'rb') as f:
             out = pkl.load(f)
@@ -87,21 +104,16 @@ class Prototype:
         self.pre_process = PreProcessing()
         self.pre_process._import(out['pre_stats'])
 
-    def export(self, filename):
-        with open(filename, 'wb') as f:
-            pkl.dump({
-                'clf': self.clf,
-                'pre_stats': self.pre_process._export(),
-                }, 
-                f
-            )
+        self.split_and_search=out['args']['split_and_search']
+        self.balanced = out['args']['balanced']
+        self.cv = out['args']['cv']
         
     def set_preprocess(self, train_latents=None):
         self.pre_process = PreProcessing(do_normalize=self.do_normalize)
         if train_latents is not None:
             self.pre_process.update_stats(train_latents)
         else:
-            print("No whitening")
+            logger.info("No whitening")
 
     @abstractmethod
     def fit(self, latents, gts):
@@ -121,121 +133,76 @@ class Prototype:
         latents = self.pre_process(latents).numpy()
         return latents
 
-class LogRegressor(Prototype):
-    def __init__(self, split_and_search=True, balanced=True, cv=2, do_normalize=False, do_standardize=True):
-        super().__init__(do_normalize, do_standardize)
-        self.split_and_search = split_and_search
-        self.balanced = balanced
-        self.cv = cv
-        self.clf = None
-
-    def fit(self, latents, gts):
-        latents = self.fit_preprocess(latents)
-        # TODO add args 
-        self.clf, cv_score = logreg_utils.train(latents, gts, balanced=self.balanced, 
-                                    split_and_search=self.split_and_search)
-        return cv_score        
-    
-    def predict(self, latents, gts=None, compute_metrics=False):
-        assert self.clf is not None, "must call fit first"
-        latents = self.pre_process(latents).numpy()
-        return logreg_utils.predict(self.clf, latents, gts, compute_metrics) 
-
-    def raw_predict(self, latents):
-        assert self.clf is not None, "must call fit first"
-        latents = self.pre_process(latents).numpy()
-        pred = logreg_utils.raw_predict(latents, self.clf) 
-        return pred
-
-    def export(self, filename):
-        args = {
-            'split_and_search': self.split_and_search,
-            'balanced': self.balanced,
-            'cv': self.cv,
-        }
-        with open(filename, 'wb') as f:
-            pkl.dump({
-                'clf': self.clf,
-                'pre_stats': self.pre_process._export(),
-                'args': args}, 
-                f
-            )
-    def import_model(self, filename):
-        with open(filename, 'rb') as f:
-            out = pkl.load(f)
-        self.clf = out['clf']
-        self.pre_process = PreProcessing()
-        self.pre_process._import(out['pre_stats'])
-
-        self.split_and_search=out['args']['split_and_search']
-        self.balanced = out['args']['balanced']
-        self.cv = out['args']['cv']
-
-class SVM(Prototype):
-    def __init__(self, split_and_search=True, balanced=True, cv=2, do_normalize=False, args=None, do_standardize=True):
-        super().__init__(do_normalize, do_standardize)
-        self.split_and_search = split_and_search
-        self.balanced = balanced
-        self.cv = cv
-        self.clf = None
-        self.args = args
-
     def fit(self, latents, gts):
         assert self.pre_process is not None, 'run set_preprocess on a training set first'
         latents = self.pre_process(latents).numpy()
-        self.clf, score = svm_utils.train(latents, gts, balanced=self.balanced, 
+        self.clf, score = self.learner.train(latents, gts, balanced=self.balanced, 
                                     split_and_search=self.split_and_search,args=self.args)
         return score
     
     def predict(self, latents, gts=None, compute_metrics=False):
         assert self.clf is not None, "must call fit first"
         latents = self.pre_process(latents).numpy()
-        return svm_utils.predict(self.clf, latents, gts, compute_metrics) 
-
-    def base_fit(self, gts, latents):
-        assert self.pre_process is not None, 'run set_preprocess on a training set first'
-        latents = self.pre_process(latents).numpy()
-        clf, score = svm_utils.base_train(latents=latents, gts=gts, balanced=self.balanced, 
-                                                        split_and_search=self.split_and_search,args=self.args)
-        self.clf = clf
-        return score
+        return self.learner.predict(self.clf, latents, gts, compute_metrics) 
     
     def raw_predict(self, latents):
         assert self.clf is not None, "must call fit first"
         latents = self.pre_process(latents).numpy()
-        pred = svm_utils.raw_predict(latents, self.clf) 
+        pred = self.learner.raw_predict(latents, self.clf) 
         return pred
 
-    def export(self, filename):
-        args = {
-            'split_and_search': self.split_and_search,
-            'balanced': self.balanced,
-            'cv': self.cv,
-        }
-        with open(filename, 'wb') as f:
-            pkl.dump({
-                'clf': self.clf,
-                'pre_stats': self.pre_process._export(),
-                'args': args}, 
-                f
-            )
-    def import_model(self, filename):
-        with open(filename, 'rb') as f:
-            out = pkl.load(f)
-        self.clf = out['clf']
-        self.pre_process = PreProcessing()
-        self.pre_process._import(out['pre_stats'])
+class LogRegressor(Prototype):
+    def __init__(self, split_and_search=True, balanced=True, cv=2, do_normalize=False, do_standardize=True):
+        super().__init__(do_normalize, do_standardize)
+        self.learner = Learner.logreg()
 
-        self.split_and_search=out['args']['split_and_search']
-        self.balanced = out['args']['balanced']
-        self.cv = out['args']['cv']
+    # def fit(self, latents, gts):
+    #     latents = self.fit_preprocess(latents)
+    #     # TODO add args 
+    #     self.clf, cv_score = logreg.train(latents, gts, balanced=self.balanced, 
+    #                                 split_and_search=self.split_and_search, cv = self.cv)
+    #     return cv_score        
+    
+    # def predict(self, latents, gts=None, compute_metrics=False):
+    #     assert self.clf is not None, "must call fit first"
+    #     latents = self.pre_process(latents).numpy()
+    #     return logreg.predict(self.clf, latents, gts, compute_metrics) 
 
-    def legacy_import_model(self, filename, svm_stats):
-        with open(filename, 'rb') as f:
-            self.clf = pkl.load(f)
-        self.pre_process = PreProcessing(do_normalize=True,
-                                                      mean=svm_stats['mean'],
-                                                      std=svm_stats['std'])
+    # def raw_predict(self, latents):
+    #     assert self.clf is not None, "must call fit first"
+    #     latents = self.pre_process(latents).numpy()
+    #     pred = logreg.raw_predict(latents, self.clf) 
+    #     return pred
+
+class SVM(Prototype):
+    def __init__(self, split_and_search=True, balanced=True, cv=2, do_normalize=False, args=None, do_standardize=True) -> None:
+        super().__init__(split_and_search, balanced, cv, do_normalize, args, do_standardize)
+        self.learner = Learner.svm()
+
+    # def fit(self, latents, gts):
+    #     assert self.pre_process is not None, 'run set_preprocess on a training set first'
+    #     latents = self.pre_process(latents).numpy()
+    #     self.clf, score = self.learner.train(latents, gts, balanced=self.balanced, 
+    #                                 split_and_search=self.split_and_search,args=self.args)
+    #     return score
+    
+    # def predict(self, latents, gts=None, compute_metrics=False):
+    #     assert self.clf is not None, "must call fit first"
+    #     latents = self.pre_process(latents).numpy()
+    #     return self.learner.predict(self.clf, latents, gts, compute_metrics) 
+    
+    # def raw_predict(self, latents):
+    #     assert self.clf is not None, "must call fit first"
+    #     latents = self.pre_process(latents).numpy()
+    #     pred = self.learner.raw_predict(latents, self.clf) 
+    #     return pred
+
+    # def legacy_import_model(self, filename, svm_stats):
+    #     with open(filename, 'rb') as f:
+    #         self.clf = pkl.load(f)
+    #     self.pre_process = PreProcessing(do_normalize=True,
+    #                                                   mean=svm_stats['mean'],
+    #                                                   std=svm_stats['std'])
         
 class CLIPProcessor:
     def __init__(self, ds_mean=0, ds_std=1, 
@@ -267,22 +234,3 @@ class CLIPProcessor:
         clip_gts = torch.cat(clip_gts).numpy()
         return out, clip_gts
     
-    def evaluate_clip_captions(self, captions):
-        text = clip.tokenize(captions)
-        ds = torch.utils.data.TensorDataset(text)
-        dl = torch.utils.data.DataLoader(ds, batch_size=256, drop_last=False, shuffle=False)
-        clip_activations = []
-        with torch.no_grad():
-            for batch in dl:
-                caption = batch[0].cuda()
-                text_features = self.clip_model.encode_text(caption)
-                clip_activations.append(text_features.cpu())
-        return torch.cat(clip_activations).float()
-   
-    def get_caption_scores(self, captions, reference_caption, svm_fitter, target_c):
-        caption_latent = self.evaluate_clip_captions(captions)
-        reference_latent = self.evaluate_clip_captions([reference_caption])[0]
-        latent = caption_latent - reference_latent
-        gts = (torch.ones(len(latent))*target_c).long()
-        _, decisions = svm_fitter.predict(gts=gts, latents=latent, compute_metrics=False)
-        return decisions, caption_latent

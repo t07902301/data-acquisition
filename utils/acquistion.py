@@ -25,14 +25,15 @@ def dummy_acquire(cls_gt, cls_pred, method, img_num):
         new_img_indices = result_mask_indices
     return new_img_indices  
 
-def get_top_values_indices(values, K=0):
+def get_top_values_indices(values, K=0, order='ascend'):
     '''
-    return indices with top (target) decision scores from an ascending order
+    return indices of top values from the indicated order
     '''
-    sorting_idx = np.argsort(values) # ascending order
-    value_indices = np.arange(len(values))
-    sorted_val_indices = value_indices[sorting_idx]
-    top_val_indices = sorted_val_indices[:K]
+    if order != 'ascend':
+        sorting_idx = np.argsort(-values) # descending order
+    else:
+        sorting_idx = np.argsort(values) # ascending order
+    top_val_indices = sorting_idx[:K]
     return top_val_indices
 
 def get_in_bound_top_indices(values, K, bound):
@@ -46,16 +47,8 @@ def get_in_bound_top_indices(values, K, bound):
     sorted_in_bound_val_indices = in_bound_val_indicies[sorting_idx]
     top_idx = sorted_in_bound_val_indices[:K]
     return top_idx
-    
-def get_probab_diff(gts, probab):
-    cls_0_mask = (gts==0)
-    cls_1_mask = ~cls_0_mask
-    probab_diff = np.zeros(len(gts))
-    probab_diff[cls_0_mask] = (0.5 - probab[cls_0_mask])
-    probab_diff[cls_1_mask] = (probab[cls_1_mask] - 0.5)
-    return probab_diff
 
-def get_probab_gts(gts, probab):
+def get_probab(gts, probab):
     return probab[np.arange(len(gts)), gts]
 
 def get_distance_diff(gts, distance):

@@ -1,5 +1,6 @@
 from utils.detector.wrappers import CLIPProcessor
 import torch
+from utils.detector.fid.fid import encode
 
 def count_labels(ds, labels, use_fine_label=True):
     '''
@@ -50,8 +51,6 @@ def get_flattened(loader):
             img.append(torch.flatten(batch_info[0], start_dim=1))
             gts.append(batch_info[1].cpu())
     return torch.cat(img, dim=0), torch.cat(gts).numpy()
-
-from utils.detector.fid.fid import encode
 
 def get_latent(data_loader, clip_processor:CLIPProcessor = None, transform: str = None):
     '''

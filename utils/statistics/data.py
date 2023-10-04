@@ -5,6 +5,7 @@ import utils.dataset.wrappers as Dataset
 import utils.objects.Detector as Detector
 import numpy as np
 import torch
+from utils.logging import *
 
 class Cifar():
     def __init__(self) -> None:
@@ -76,26 +77,33 @@ def error_label_stat(split_name, data_split:Dataset.DataSplits, model:Model.Prot
     else:
         return Cifar().label_stat(error_dataset, remove_config) / len(error_dataset) * 100
 
-def pred_metric(dataloader, old_model:Model.Prototype, new_model:Model.Prototype):
-    gt,pred,_  = old_model.eval(dataloader)
+def evaluation_metric(dataloader, old_model:Model.Prototype, ensemble_decision=None, new_model:Model.Prototype=None):
+    gt, pred,_  = old_model.eval(dataloader)
     indices = np.arange(len(gt))
     old_correct_mask = (gt == pred)
     old_incorrect_mask = ~old_correct_mask
     old_correct_indices = indices[old_correct_mask]
     old_incorrect_indices = indices[old_incorrect_mask]
 
-    gt,pred,_  = new_model.eval(dataloader)
-    new_correct_mask = (gt == pred)
+    if ensemble_decision is not None:
+        new_pred = ensemble_decision
+
+    elif new_model is not None: #two-way
+        _, new_pred,_  = new_model.eval(dataloader)
+
+    new_correct_mask = (gt == new_pred)
     new_incorrect_mask = ~new_correct_mask
     new_correct_indices = indices[new_correct_mask]
     new_incorrect_indices = indices[new_incorrect_mask]
 
-    tn = len(np.intersect1d(new_incorrect_indices, old_incorrect_indices))
-    fn = len(np.intersect1d(new_incorrect_indices, old_correct_indices))
-    tp = len(np.intersect1d(new_correct_indices, old_incorrect_indices))
-    fp = len(np.intersect1d(new_correct_indices, old_correct_indices))
-    print(tn, tp)
-    print(fn, fp)
+    base_error = len(np.intersect1d(new_incorrect_indices, old_incorrect_indices))
+    undesired_error = len(np.intersect1d(new_incorrect_indices, old_correct_indices))
+    desired_non_error = len(np.intersect1d(new_correct_indices, old_incorrect_indices))
+    base_non_error = len(np.intersect1d(new_correct_indices, old_correct_indices))
+    logger.info('{}, {}'.format(base_error, desired_non_error))
+    logger.info('{}, {}'.format(undesired_error, base_non_error))
+    
+    logger.info('ACC compare: {}, {}'.format(new_correct_mask.mean()*100, old_correct_mask.mean()*100))
 
 def build_info(dataset_splits: Dataset.DataSplits, name, clf:Detector.Prototype, old_batch_size, new_batch_size):
     data_info = {}

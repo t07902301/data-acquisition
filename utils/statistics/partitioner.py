@@ -2,8 +2,10 @@ import utils.objects.Config as Config
 from abc import abstractmethod
 import numpy as np
 import torch
-from utils.statistics.distribution import disrtibution
+from utils.statistics.distribution import CorrectnessDisrtibution
 from utils.dataset.wrappers import n_workers
+from typing import Dict
+from utils.logging import *
 
 class Prototype():
     def __init__(self) -> None:
@@ -19,36 +21,31 @@ class Probability(Prototype):
     def __init__(self) -> None:
         super().__init__()
 
-    def get_posterior(self, value, dstr_dict:dict, pdf_type):
+    def get_posterior(self, value, dstr_dict: Dict[str, CorrectnessDisrtibution]):
         '''
         Get Posterior of Target Dstr in dstr_dict
         '''
         target_dstr = dstr_dict['target']
         other_dstr = dstr_dict['other']
-        if pdf_type == 'norm':
-            target_posterior = self.norm(value, target_dstr, other_dstr)  
-        else:
-            target_posterior = self.kde(value, target_dstr, other_dstr)
-        return target_posterior
+        return (target_dstr.prior * target_dstr.pdf.evaluate(value)) / (target_dstr.prior * target_dstr.pdf.evaluate(value) + other_dstr.prior * other_dstr.pdf.evaluate(value))
     
-    def norm(self, value, target_dstr: disrtibution, other_dstr:disrtibution):
-        probability_target = (target_dstr.prior * target_dstr.dstr.pdf(value)) / (target_dstr.prior * target_dstr.dstr.pdf(value) + other_dstr.prior * other_dstr.dstr.pdf(value))
-        return probability_target
+    # def norm(self, value, target_dstr: CorrectnessDisrtibution, other_dstr:CorrectnessDisrtibution):
+    #     probability_target = (target_dstr.prior * target_dstr.dstr.pdf(value)) / (target_dstr.prior * target_dstr.dstr.pdf(value) + other_dstr.prior * other_dstr.dstr.pdf(value))
+    #     return probability_target
    
-    def kde(self, value, target_dstr: disrtibution, other_dstr:disrtibution):
-        probability_target = (target_dstr.prior * target_dstr.dstr.evaluate(value)) / (target_dstr.prior * target_dstr.dstr.evaluate(value) + other_dstr.prior * other_dstr.dstr.evaluate(value))
-        # probability_target = (target_dstr.prior * target_dstr.dstr.pdf(value)) / (target_dstr.prior * target_dstr.dstr.pdf(value) + other_dstr.prior * other_dstr.dstr.pdf(value))
+    # def kde(self, value, target_dstr: CorrectnessDisrtibution, other_dstr:CorrectnessDisrtibution):
+    #     probability_target = (target_dstr.prior * target_dstr.dstr.evaluate(value)) / (target_dstr.prior * target_dstr.dstr.evaluate(value) + other_dstr.prior * other_dstr.dstr.evaluate(value))
+    #     # probability_target = (target_dstr.prior * target_dstr.dstr.pdf(value)) / (target_dstr.prior * target_dstr.dstr.pdf(value) + other_dstr.prior * other_dstr.dstr.pdf(value))
+    #     return probability_target
 
-        return probability_target
-
-    def run(self, data_info, dstr_dict:dict, stream_instruction:Config.ProbabStream):
+    def run(self, data_info, dstr_dict: Dict[str, CorrectnessDisrtibution], stream_instruction:Config.ProbabStream):
         '''
         Partition by posterior probab
         '''
         dataset_indices = np.arange(len(data_info['dataset']))
         posterior_list = []
         for idx in dataset_indices:
-            target_posterior = self.get_posterior(data_info['dv'][idx], dstr_dict, stream_instruction.pdf)
+            target_posterior = self.get_posterior(data_info['dv'][idx], dstr_dict)
             posterior_list.append(target_posterior)
         posterior_list = np.array(posterior_list).reshape((len(dataset_indices),))
         selected_mask = (posterior_list >= stream_instruction.bound)
@@ -60,16 +57,15 @@ class Probability(Prototype):
             'new_model':selected_test_loader,
             'old_model': remained_test_loader
         }   
-        # print('selected test images: {}%'.format(np.round(len(test_selected)/len(data_info['dv']), decimals=3)*100))
-        # print('new cls percent:', new_label_stat(test_selected))
-        # print('the max dv:', np.max(data_info['dv'][dataset_indices[selected_mask]]))
+        # logger.info('selected test images: {}%'.format(np.round(len(test_selected)/len(data_info['dv']), decimals=3)*100))
+        # logger.info('new cls percent:', new_label_stat(test_selected))
+        # logger.info('the max dv:', np.max(data_info['dv'][dataset_indices[selected_mask]]))
         return test_loader, posterior_list
     
 class Threshold(Prototype):
     def __init__(self) -> None:
         pass
     def run(self, data_info, threshold):
-        print(threshold)
         selected_mask = data_info['dv'] <= threshold
         dataset_indices = np.arange(len(data_info['dataset']))
         test_selected = torch.utils.data.Subset(data_info['dataset'],dataset_indices[selected_mask])
@@ -80,7 +76,7 @@ class Threshold(Prototype):
             'new_model':test_selected_loader,
             'old_model': remained_test_loader
         }   
-        print('selected test images:', len(test_selected))
+        logger.info('selected test images:{}'.format(len(test_selected)))
         return test_loader
     
 class Mistakes(Prototype):

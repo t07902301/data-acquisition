@@ -1,6 +1,4 @@
-import sys
 import utils.dataset.wrappers as Dataset
-sys.path.append('..')
 import utils.cnn.model_utils as model_utils
 import utils.cnn.trainer as trainer_utils
 import torch
@@ -10,6 +8,7 @@ import utils.detector.wrappers as wrappers
 from abc import abstractmethod
 from utils.env import model_env
 import utils.objects.dataloader as dataloader_utils
+from utils.logging import logger
 
 class Prototype():
     def __init__(self, config) -> None:
@@ -50,7 +49,7 @@ class CNN(Prototype):
     def load(self, path, device):
         out = torch.load(path, map_location=device)
         self.model.load_state_dict(out['state_dict'])
-        print('load model from {}'.format(path))
+        logger.info('load model from {}'.format(path))
 
     def eval(self, dataloader):
         self.model = self.model.eval()
@@ -72,7 +71,10 @@ class CNN(Prototype):
                     preds = torch.cat(preds).numpy()
                     preds = preds.reshape(len(preds))
                     probabs = torch.cat(probabs).numpy()
-                    probabs = probabs.reshape(len(probabs))
+                    probabs_cls_0 = 1-probabs
+                    probabs = probabs.reshape((len(probabs), 1))
+                    probabs_cls_0 = probabs_cls_0.reshape((len(probabs_cls_0), 1))
+                    probabs = np.concatenate((probabs_cls_0, probabs), axis=1)
                 else:
                     for batch_info in dataloader:
                         x, y = batch_info[0], batch_info[1]
@@ -133,7 +135,7 @@ class CNN(Prototype):
             # 'build_params': self.model._build_params,
             'state_dict': self.model.state_dict(),
         }, path)
-        print('model saved to {}'.format(path))
+        logger.info('model saved to {}'.format(path))
     
     def update(self, new_model_setter, train_loader, val_loader):
         if new_model_setter == 'refine':
@@ -146,7 +148,7 @@ class svm(Prototype):
         super().__init__(config)
         self.transform = transform
         self.clip_processor = clip_processor
-        self.model = wrappers.SVM(args=self.config['clf_args'], cv=self.config['clf_args']['k-fold'], split_and_search = split_and_search, do_normalize=True, do_standardize=False)
+        self.model = wrappers.SVM(args=self.config['detector_args'], cv=self.config['detector_args']['k-fold'], split_and_search = split_and_search, do_normalize=False, do_standardize=True)
 
     def eval(self, dataloader):
         latent, gts = dataloader_utils.get_latent(dataloader, self.clip_processor, self.transform)
@@ -161,14 +163,14 @@ class svm(Prototype):
 
     def save(self, path):
         self.model.export(path)
-        print('model saved to {}'.format(path))
+        logger.info('model saved to {}'.format(path))
 
     def load(self, path, device):
         self.model.import_model(path)
-        print('model load from {}'.format(path))
+        logger.info('model load from {}'.format(path))
     
     def update(self, new_model_config, train_loader):
-        print('Updating model has train loader of size:', dataloader_utils.get_size(train_loader))
+        logger.info('Updating model has train loader of size: {}'.format(dataloader_utils.get_size(train_loader)))
 
         self.train(train_loader)
 
@@ -177,7 +179,7 @@ class LogReg(Prototype):
         super().__init__(config)
         self.transform = transform
         self.clip_processor = clip_processor
-        self.model = wrappers.LogRegressor(cv=self.config['clf_args']['k-fold'], split_and_search = split_and_search, do_normalize=True, do_standardize=False)
+        self.model = wrappers.LogRegressor(cv=self.config['detector_args']['k-fold'], split_and_search = split_and_search, do_normalize=True, do_standardize=False)
 
     def eval(self, dataloader):
         latent, gts = dataloader_utils.get_latent(dataloader, self.clip_processor, self.transform)
@@ -192,11 +194,11 @@ class LogReg(Prototype):
 
     def save(self, path):
         self.model.export(path)
-        print('model saved to {}'.format(path))
+        logger.info('model saved to {}'.format(path))
 
     def load(self, path, device):
         self.model.import_model(path)
-        print('model load from {}'.format(path))
+        logger.info('model load from {}'.format(path))
     
     def update(self, new_model_config, train_loader):
         self.train(train_loader)
@@ -223,7 +225,7 @@ class ensembler(Prototype):
     def get_weights(self, member_id, dataloader):
         predecessor = self.members[member_id-1]
         gts, preds, _ = predecessor.eval(dataloader)
-        if self.weights == None:
+        if self.weights is None:
             self.weights = np.zeros(len(gts), dtype=bool)
         err_mask = (gts!=preds)
         total_err = err_mask.sum()
@@ -279,7 +281,7 @@ class ensembler(Prototype):
             member.model.load_state_dict(member_para)
             self.members.append(member)
         assert (len(self.members) == 1) or (len(self.members) == self.n_member), len(self.members)
-        print('load model from {}'.format(path))
+        logger.info('load model from {}'.format(path))
 
     def save(self, path):
         state_dict = {}
@@ -290,7 +292,7 @@ class ensembler(Prototype):
             for idx in range(self.n_member):
                 state_dict[idx] = self.members[idx].model.state_dict()
         torch.save(state_dict, path)
-        print('model saved to {}'.format(path))
+        logger.info('model saved to {}'.format(path))
 
     def get_vote_result(self, dataset_size, votes):
         results = []
