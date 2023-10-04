@@ -294,8 +294,9 @@ class Cifar(Dataset):
             'test_shift': torch.utils.data.Subset(raw_ds['test_val'], raw_indices_dict['test_shift']),
             'train': torch.utils.data.Subset(raw_ds['train_market'], raw_indices_dict['train']),
             'market': torch.utils.data.Subset(raw_ds['train_market'], raw_indices_dict['market']),
-            # 'aug_train': torch.utils.data.Subset(raw_ds['aug_train_market'], raw_indices_dict['train']),
-            # 'aug_market': torch.utils.data.Subset(raw_ds['aug_train_market'], raw_indices_dict['market']),
+            'train_non_cnn': torch.utils.data.Subset(raw_ds['train_market'], raw_indices_dict['train_non_cnn']),
+            'val': torch.utils.data.Subset(raw_ds['test_val'], raw_indices_dict['val']),
+            'test': torch.utils.data.Subset(raw_ds['test_val'], raw_indices_dict['test']),            
         }
         return raw_dataset_split
 
@@ -355,6 +356,16 @@ class Cifar(Dataset):
             'test_shift': test,
             'market': ds_dict['market'],
             # 'aug_market': ds_dict['aug_market'],
+        }, {
+            'train': self.get_raw_indices(old_train),
+            'train_non_cnn': self.get_raw_indices(old_train),
+            'val': self.get_raw_indices(old_val),
+            'test': self.get_raw_indices(old_test),
+            # 'val_reg': val,
+            # 'val_shift': sub_mkt,
+            'val_shift': self.get_raw_indices(val),
+            'test_shift': self.get_raw_indices(test),
+            'market': self.get_raw_indices(ds_dict['market']),           
         }
    
     def cover_load(self, ds_dict, remove_rate, cover_labels):
@@ -384,6 +395,16 @@ class Cifar(Dataset):
             'test_shift': test,
             'market': ds_dict['market'],
             # 'aug_market': ds_dict['aug_market'],
+        }, {
+            'train': self.get_raw_indices(old_train),
+            'train_non_cnn': self.get_raw_indices(old_train),
+            'val': self.get_raw_indices(old_val),
+            'test': self.get_raw_indices(old_test),
+            # 'val_reg': val,
+            # 'val_shift': sub_mkt,
+            'val_shift': self.get_raw_indices(val),
+            'test_shift': self.get_raw_indices(test),
+            'market': self.get_raw_indices(ds_dict['market']),           
         }
 
     def create(self, config, raw_ds:Dict[str, cifar.data.Dataset]):
@@ -627,6 +648,13 @@ class Core(Dataset):
             # 'aug_market': ds_dict['aug_market'],
             
             # 'sub_mkt': sub_mkt
+        }, {
+            'train': self.get_raw_indices(old_train),
+            'val': self.get_raw_indices(old_val),
+            'test': self.get_raw_indices(old_test),
+            'val_shift': self.get_raw_indices(val),
+            'test_shift': self.get_raw_indices(test),
+            'market': self.get_raw_indices(ds_dict['market']),            
         }
 
     def dual_operate(self, primal_dict, remove_rate, remove_label_config, option):
@@ -658,8 +686,8 @@ class Core(Dataset):
             'val_shift': val,
             'test_shift': test,
             'market': primal_dict['market'],
-            'aug_market': primal_dict['aug_market'],
         }
+        
 
     def load(self, ds_dict, remove_rate, label_config, option):
         remove_label_config = label_config['remove']
@@ -760,14 +788,16 @@ class Core(Dataset):
         # aug_meta_dataset = core.Core(meta_dict, augment_transform, label_map)
         return meta_dataset
     
-    def load_dataset_raw_indices(self, raw_indices_dict: Dict[str, list], data_config, normalized_stat, sampled_meta_path):
-        sampled_meta = MetaData(sampled_meta_path)
+    def load_dataset_raw_indices(self, raw_indices_dict: Dict[str, list], data_config, normalized_stat):
+        sampled_meta = MetaData(data_config['root'])
         raw_dataset = self.get_raw_dataset(sampled_meta, normalized_stat, data_config['labels']['map'])
         return {
             'val_shift': torch.utils.data.Subset(raw_dataset, raw_indices_dict['val_shift']),
             'test_shift': torch.utils.data.Subset(raw_dataset, raw_indices_dict['test_shift']),
             'train': torch.utils.data.Subset(raw_dataset, raw_indices_dict['train']),
             'market': torch.utils.data.Subset(raw_dataset, raw_indices_dict['market']), 
+            'val': torch.utils.data.Subset(raw_dataset, raw_indices_dict['val']),
+            'test': torch.utils.data.Subset(raw_dataset, raw_indices_dict['test']),               
             # 'aug_train': torch.utils.data.Subset(raw_dataset['aug_meta'], raw_indices_dict['train']), 
             # 'aug_market': torch.utils.data.Subset(raw_dataset['aug_meta'], raw_indices_dict['market']), 
         }
