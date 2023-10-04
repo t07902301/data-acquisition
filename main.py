@@ -65,7 +65,7 @@ def bound_run(parse_args, epochs, ds_list, method_list, bound, n_new_data_list, 
     logger.info('Detect Acc: {}'.format(np.mean(detect_acc_list)))
     logger.info('All: {}'.format(detect_acc_list))
 
-def main(epochs, dev_name, device, detector_name, model_dir, base_type, option, dataset_name, filter_market=False):
+def main(epochs, dev_name, device, detector_name, model_dir, base_type, filter_market=False):
 
     fh = logging.FileHandler('log/{}/{}.log'.format(model_dir, dev_name),mode='w')
     fh.setLevel(logging.DEBUG)
@@ -82,7 +82,7 @@ def main(epochs, dev_name, device, detector_name, model_dir, base_type, option, 
 
     logger.info('Filter Market: {}'.format(filter_market))
 
-    config, device_config, ds_list, normalize_stat = set_up(epochs, model_dir, device, option, dataset_name)
+    config, device_config, ds_list, normalize_stat,dataset_name, option = set_up(epochs, model_dir, device)
     
     clip_processor = Detector.load_clip(device_config, normalize_stat['mean'], normalize_stat['std'])
     stream_instruction = Config.ProbabStream(bound=probab_bound, pdf='kde', name='probab')
@@ -103,8 +103,6 @@ if __name__ == '__main__':
     parser.add_argument('-dn','--detector_name',type=str,default='svm')
     parser.add_argument('-dev','--dev',type=str, default='dv')
     parser.add_argument('-bt','--base_type',type=str,default='cnn')
-    parser.add_argument('-op','--option',type=str, default='object')
-    parser.add_argument('-ds','--dataset',type=str, default='core')
 
     args = parser.parse_args()
-    main(args.epochs, model_dir=args.model_dir, device=args.device, detector_name=args.detector_name, dev_name=args.dev, base_type=args.base_type, option=args.option, dataset_name=args.dataset)
+    main(args.epochs, model_dir=args.model_dir, device=args.device, detector_name=args.detector_name, dev_name=args.dev, base_type=args.base_type)
