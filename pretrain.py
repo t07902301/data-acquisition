@@ -33,13 +33,13 @@ def run(ds:dataset_utils.DataSplits, model_config:Config.OldModel, train_flag:bo
 
     return acc, acc_shift, detect_prec, shift_score
 
-def main(epochs,  model_dir, train_flag, device_id, base_type, detector_name, option, dataset_name):
+def main(epochs,  model_dir, train_flag, device_id, base_type, detector_name):
     fh = logging.FileHandler('log/{}/base.log'.format(model_dir),mode='w')
     fh.setLevel(logging.INFO)
     logger.addHandler(fh)
 
     logger.info('Detector Name: {}'.format(detector_name))
-    config, device_config, ds_list, normalize_stat = set_up(epochs, model_dir, device_id, option, dataset_name)
+    config, device_config, ds_list, normalize_stat, dataset_name, option = set_up(epochs, model_dir, device_id)
     acc_list, acc_shift_list, detect_prec_list, shift_list = [], [], [], []
     clip_processor = Detector.load_clip(device_config, normalize_stat['mean'], normalize_stat['std'])
     detect_instrution = Config.Detection(detector_name, clip_processor)
@@ -72,8 +72,9 @@ if __name__ == '__main__':
     parser.add_argument('-d','--device',type=int,default=0)
     parser.add_argument('-bt','--base_type',type=str,default='cnn')
     parser.add_argument('-dn','--detector_name',type=str,default='svm')
-    parser.add_argument('-op','--option',type=str, default='object')
-    parser.add_argument('-ds','--dataset',type=str, default='core')
+    # parser.add_argument('-op','--option',type=str, default='object')
+    # parser.add_argument('-ds','--dataset',type=str, default='core')
 
     args = parser.parse_args()
-    main(args.epochs,args.model_dir,args.train_flag, args.device, args.base_type, args.detector_name, args.option, args.dataset)
+    main(args.epochs,args.model_dir,args.train_flag, args.device, args.base_type, args.detector_name)
+

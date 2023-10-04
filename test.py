@@ -45,7 +45,7 @@ def bound_run(epochs, parse_args, dataset_list, new_img_num_list, method_list, o
         bound_stat_list.append(bound_stat)
     return results, bound_stat_list
 
-def main(epochs, dev_name, device, detector_name, model_dir, stream_name, base_type, option, dataset_name):
+def main(epochs, dev_name, device, detector_name, model_dir, stream_name, base_type):
     fh = logging.FileHandler('log/{}/test_{}.log'.format(model_dir, dev_name),mode='w')
     fh.setLevel(logging.INFO)
     logger.addHandler(fh)
@@ -64,7 +64,7 @@ def main(epochs, dev_name, device, detector_name, model_dir, stream_name, base_t
 
     logger.info('Stream Name: {}, Probab Bound:{}'.format(stream_name, probab_bound))
 
-    config, device_config, ds_list, normalize_stat = set_up(epochs, model_dir, device, option, dataset_name)
+    config, device_config, ds_list, normalize_stat, dataset_name, option = set_up(epochs, model_dir, device)
 
     clip_processor = Detector.load_clip(device_config, normalize_stat['mean'], normalize_stat['std'])
     stream_instruction = Config.ProbabStream(bound=probab_bound, pdf='kde', name=stream_name)
@@ -93,8 +93,6 @@ if __name__ == '__main__':
     parser.add_argument('-dev','--dev',type=str, default='dv')
     parser.add_argument('-s','--stream',type=str, default='probab')
     parser.add_argument('-bt','--base_type',type=str,default='cnn')
-    parser.add_argument('-op','--option',type=str, default='object')
-    parser.add_argument('-ds','--dataset',type=str, default='core')
 
     args = parser.parse_args()
-    main(args.epochs, model_dir=args.model_dir, device=args.device, detector_name=args.detector_name, dev_name=args.dev, stream_name=args.stream, base_type=args.base_type, option= args.option, dataset_name=args.dataset)
+    main(args.epochs, model_dir=args.model_dir, device=args.device, detector_name=args.detector_name, dev_name=args.dev, stream_name=args.stream, base_type=args.base_type)
