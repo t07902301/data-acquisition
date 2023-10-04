@@ -2,7 +2,7 @@ from utils.set_up import *
 from utils.logging import *
 
 def main(epochs,  model_dir, dataset_name):
-    fh = logging.FileHandler('log/{}/data.log'.format(model_dir),mode='w')
+    fh = logging.FileHandler('log/{}/demo_data.log'.format(model_dir),mode='w')
     fh.setLevel(logging.INFO)
     logger.addHandler(fh)
 
