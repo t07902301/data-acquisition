@@ -190,7 +190,7 @@ class TrainData():
         return check_result
    
 
-def main(epochs, new_model_setter='retrain', model_dir ='', device=0, probab_bound = 0.5, base_type='', detector_name = '', opion = '', dataset_name = '', stat_data='train', dev_name= 'dv'):
+def main(epochs, new_model_setter='retrain', model_dir ='', device=0, probab_bound = 0.5, base_type='', detector_name = '', stat_data='train', dev_name= 'dv'):
     pure = True
     fh = logging.FileHandler('log/{}/stat_{}_{}.log'.format(model_dir, dev_name, stat_data), mode='w')
     fh.setLevel(logging.INFO)
@@ -199,7 +199,7 @@ def main(epochs, new_model_setter='retrain', model_dir ='', device=0, probab_bou
     
     device_config = 'cuda:{}'.format(device)
     torch.cuda.set_device(device_config)
-    config, device_config, ds_list, normalize_stat = set_up(epochs, model_dir, device, opion, dataset_name)
+    config, device_config, ds_list, normalize_stat, dataset_name, option = set_up(epochs, model_dir, device)
     method = dev_name
 
     clip_processor = Detector.load_clip(device_config, normalize_stat['mean'], normalize_stat['std'])
@@ -228,15 +228,12 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='Process some integers.')
     parser.add_argument('-e','--epochs',type=int,default=1)
-    parser.add_argument('-md','--model_dir',type=str,default='')
+    parser.add_argument('-md','--model_dir',type=str,default='', help="(dataset name) _ task _ (other info)")
     parser.add_argument('-d','--device',type=int,default=0)
-    parser.add_argument('-bt','--base_type',type=str,default='cnn')
-    parser.add_argument('-pb','--probab_bound', type=Config.str2float, default=0.5)
-    parser.add_argument('-dn','--detector_name',type=str,default='svm')
-    parser.add_argument('-ds','--dataset',type=str, default='core')
-    parser.add_argument('-op','--option',type=str, default='object')
-    parser.add_argument('-dev','--dev',type=str, default='dv')
-    parser.add_argument('-stat','--stat',type=str, default='train')
+    parser.add_argument('-dn','--detector_name',type=str,default='svm', help="svm, logistic regression")
+    parser.add_argument('-dev','--dev',type=str, default='dv', help="dv: u-wfs, rs: random, conf: confiden-score, seq: sequential u-wfs, pd: u-wfsd, seq_pd: sequential u-wfsd")
+    parser.add_argument('-bt','--base_type',type=str,default='cnn', help="cnn, svm; structure of cnn is indicated in the arch_type field in config.yaml")
+    parser.add_argument('-stat','--stat',type=str, default='train', help="test, train :check stat of train or test data")
 
     args = parser.parse_args()
-    main(args.epochs, model_dir=args.model_dir, device=args.device, probab_bound=args.probab_bound, base_type=args.base_type, detector_name=args.detector_name, opion=args.option, dataset_name=args.dataset, dev_name=args.dev, stat_data=args.stat)
+    main(args.epochs, model_dir=args.model_dir, device=args.device, probab_bound=args.probab_bound, base_type=args.base_type, detector_name=args.detector_name, dev_name=args.dev, stat_data=args.stat)

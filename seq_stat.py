@@ -105,11 +105,11 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='Process some integers.')
     parser.add_argument('-e','--epochs',type=int,default=1)
-    parser.add_argument('-md','--model_dir',type=str,default='')
+    parser.add_argument('-md','--model_dir',type=str,default='', help="(dataset name) _ task _ (other info)")
     parser.add_argument('-d','--device',type=int,default=0)
-    parser.add_argument('-dn','--detector_name',type=str,default='svm')
-    parser.add_argument('-dev','--dev',type=str, default='dv')
-    parser.add_argument('-bt','--base_type',type=str,default='cnn')
+    parser.add_argument('-dn','--detector_name',type=str,default='svm', help="svm, logistic regression")
+    parser.add_argument('-dev','--dev',type=str, default='dv', help="dv: u-wfs, rs: random, conf: confiden-score, seq: sequential u-wfs, pd: u-wfsd, seq_pd: sequential u-wfsd")
+    parser.add_argument('-bt','--base_type',type=str,default='cnn', help="cnn, svm; structure of cnn is indicated in the arch_type field in config.yaml")
 
     args = parser.parse_args()
     main(args.epochs, model_dir=args.model_dir, device=args.device, detector_name=args.detector_name, dev_name=args.dev, base_type=args.base_type)
