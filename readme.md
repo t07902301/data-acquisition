@@ -9,7 +9,7 @@ Under the currect directory, three folder need to be set to keep outputs from ex
 
 2. **model**: keep new models, acquired data, updated detectors.   
 
-3. available data: "data" directory contains indices of designed data shifts from raw datasets 
+3. available data: **data** directory contains indices of designed data shifts from raw datasets 
 
    - Raw datasets: 
 
@@ -49,17 +49,15 @@ Examples of model_directory: core_object_resnet, cifar-4class
 
 **stat_check.py**: the distribution of acquired data; test data under WTA or partition; final detector from sequential acquisition. 
 
-## Set up Dataset
+## Dataset Generation
 
-<ins> To reproduce the generation data, please replace **utils/set_up.py** and **utils/dataset/wrapper.py** with the two files with the same name under the **stable** folder in *Data Generator* </ins>
+Shifted data splits are generated first by split raw dataset into 4 splits (train, test, validation and data pool), and then make data shifts by removing some labels from train split. By far, we first save the indices of 4 data splits and statistics for data normalization into **init_data** directory. Next we save data shifts indices into **data** directoty. 
 
-Other files in *Data Generator*
+**data_setup.py**: use "save mode" parameter to choose which indices to save (split or shift). 
 
+Preliminary processing of Core 50 can be found in *Basic Process*
 1. **core.ipynb**: 'core50_imgs.npz' -> resize to 32x32 and transform labels -> 'core_data.pkl'
     - An [auxlirary file](https://vlomonaco.github.io/core50/data/paths.pkl) is used to extract labels from "core50_imgs.npz"
 
 2. **meta.py**: sample frames from indicated categories from Core-50. ('core_data.pkl' -> sample frames -> 'core.pkl')
 
-3. **data_setup.py**: indices to data splits from the raw dataset
-    - Select indicated classes from Cifar-100 and output data splits of train, test, validation and data pools. 
-    - Results are kept in *init_data* and are later used to generate different data shifts. 
