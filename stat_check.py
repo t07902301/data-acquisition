@@ -73,10 +73,13 @@ class TestData():
         # self.correctness_dstr_plot(cor_dv, incor_dv, fig_name, pdf)
 
     def correctness_dstr_plot(self, cor_dv, incor_dv, fig_name, pdf_method=None):
-        distribution_utils.base_plot(-cor_dv, 'Easy Data', 'white', pdf_method, hatch_style='/')
-        distribution_utils.base_plot(-incor_dv, 'Hard Data', 'white', pdf_method, hatch_style='.', line_style=':', alpha=0.5)
-        distribution_utils.plt.xlabel('Error Feature Score', fontsize='large')
-        distribution_utils.plt.ylabel('Density', fontsize='large')
+        distribution_utils.base_plot(-cor_dv, 'C_w\'', 'white', pdf_method, hatch_style='/')
+        distribution_utils.base_plot(-incor_dv, 'C_w', 'white', pdf_method, hatch_style='.', line_style=':', alpha=0.5)
+        distribution_utils.plt.xlabel('Weakness Feature Score', fontsize=15)
+        distribution_utils.plt.ylabel('Probability Density', fontsize=15)
+        distribution_utils.plt.xticks(fontsize=15)
+        distribution_utils.plt.yticks(fontsize=15)
+
         # distribution_utils.plt.title('Model Performance Feature Score Distribution')
         distribution_utils.plt.savefig(fig_name)
         distribution_utils.plt.close()
@@ -98,7 +101,7 @@ class TrainData():
         if dataset_name == 'cifar':
             self.data = dataset_utils.Cifar().get_raw_dataset(data_config['root'], normalize_stat, data_config['labels']['map'])['train_market']
         else:
-            meta_path = os.path.join('rate_data/meta/s2.pkl')
+            meta_path = os.path.join('data/meta/s2.pkl')
             sampled_meta = dataset_utils.MetaData(meta_path)
             self.data = dataset_utils.Core().get_raw_dataset(sampled_meta, normalize_stat, data_config['labels']['map'])
         
@@ -187,16 +190,16 @@ class TrainData():
         return check_result
    
 
-def main(epochs, new_model_setter='retrain', model_dir ='', device=0, probab_bound = 0.5, base_type='', detector_name = '', opion = '', dataset_name = '', stat_data='train', dev_name= 'dv'):
+def main(epochs, new_model_setter='retrain', model_dir ='', device=0, probab_bound = 0.5, base_type='', detector_name = '', stat_data='train', dev_name= 'dv'):
     pure = True
-    fh = logging.FileHandler('rate_log/{}/stat_{}_{}.log'.format(model_dir, dev_name, stat_data), mode='w')
+    fh = logging.FileHandler('log/{}/stat_{}_{}.log'.format(model_dir, dev_name, stat_data), mode='w')
     fh.setLevel(logging.INFO)
     logger.addHandler(fh)
     logger.info('Detector: {}; Probab bound: {}'.format(detector_name, probab_bound))
     
     device_config = 'cuda:{}'.format(device)
     torch.cuda.set_device(device_config)
-    config, device_config, ds_list, normalize_stat = set_up(epochs, model_dir, device, opion, dataset_name)
+    config, device_config, ds_list, normalize_stat, dataset_name, option = set_up(epochs, model_dir, device)
     method = dev_name
 
     clip_processor = Detector.load_clip(device_config, normalize_stat['mean'], normalize_stat['std'])
@@ -216,7 +219,7 @@ def main(epochs, new_model_setter='retrain', model_dir ='', device=0, probab_bou
         logger.info('all: {}'.format(results.tolist()))
     else:
         stat_checker = TestData()
-        results = stat_checker.run(epochs, parse_args, config['data']['n_new_data'], method, operation, ds_list, plot=False)
+        results = stat_checker.run(epochs, parse_args, config['data']['n_new_data'], method, operation, ds_list, plot=True)
         logger.info('Test Data error stat:{}'.format(np.round(np.mean(results, axis=0), decimals=3)))
         logger.info('all: {}'.format(results))
 
@@ -225,15 +228,12 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='Process some integers.')
     parser.add_argument('-e','--epochs',type=int,default=1)
-    parser.add_argument('-md','--model_dir',type=str,default='')
+    parser.add_argument('-md','--model_dir',type=str,default='', help="(dataset name) _ task _ (other info)")
     parser.add_argument('-d','--device',type=int,default=0)
-    parser.add_argument('-bt','--base_type',type=str,default='cnn')
-    parser.add_argument('-pb','--probab_bound', type=Config.str2float, default=0.5)
-    parser.add_argument('-dn','--detector_name',type=str,default='svm')
-    parser.add_argument('-ds','--dataset',type=str, default='core')
-    parser.add_argument('-op','--option',type=str, default='object')
-    parser.add_argument('-dev','--dev',type=str, default='dv')
-    parser.add_argument('-stat','--stat',type=str, default='train')
+    parser.add_argument('-dn','--detector_name',type=str,default='svm', help="svm, logistic regression")
+    parser.add_argument('-dev','--dev',type=str, default='dv', help="dv: u-wfs, rs: random, conf: confiden-score, seq: sequential u-wfs, pd: u-wfsd, seq_pd: sequential u-wfsd")
+    parser.add_argument('-bt','--base_type',type=str,default='cnn', help="cnn, svm; structure of cnn is indicated in the arch_type field in config.yaml")
+    parser.add_argument('-stat','--stat',type=str, default='train', help="test, train :check stat of train or test data")
 
     args = parser.parse_args()
-    main(args.epochs, model_dir=args.model_dir, device=args.device, probab_bound=args.probab_bound, base_type=args.base_type, detector_name=args.detector_name, opion=args.option, dataset_name=args.dataset, dev_name=args.dev, stat_data=args.stat)
+    main(args.epochs, model_dir=args.model_dir, device=args.device, probab_bound=args.probab_bound, base_type=args.base_type, detector_name=args.detector_name, dev_name=args.dev, stat_data=args.stat)

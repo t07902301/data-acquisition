@@ -1,0 +1,52 @@
+detector : 'SVM'
+detector_args:
+  hidden_layer_size: [200,100,50]
+  max_iter: 500
+  k-fold: 2
+  kernel: 'linear'
+num_workers: 1
+hparams: 
+    superclass: 4
+    subclass: 100
+    arch: 'squeezenet'
+    arch_type: 'other'
+    batch_size: 
+      base: 128
+      new: 128
+    optimizer: 
+      type: 'sgd'
+      momentum: 0.9
+      weight_decay: 5.0E-4
+    training: 
+      epochs: 20
+      lr: 0.1
+      lr_scheduler: 
+          # type: 'step'
+          type: 'cyclic'
+          lr_peak_epoch: 10    
+          # type: 'ReduceLROnPlateau'
+          # patience: 5
+
+data: 
+  root: ''
+  ratio: 
+    train : 0.4
+    market : 0.6
+    test: 0.5
+    val_from_test: 0.5
+    remove: 
+      new_labels: 1.0
+      old_labels: null
+  n_new_data: [600, 900, 1200, 1500, 1800, 2100]
+  seq: 
+    n_new_data: null 
+    n_rounds: 2 #seq
+  labels:
+    map:
+      8: 0
+      12: 1
+      11: 2
+      16: 3
+    select_fine_labels: [3, 42, 43, 88, 97, 34, 63, 64, 66, 75, 15, 19, 21, 31, 38, 36, 50, 65, 74, 80] 
+    remove: [3, 97, 34, 64, 74, 80, 21, 38] 
+base_root: 'model/'

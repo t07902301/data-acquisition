@@ -90,7 +90,7 @@ class WorkSpace():
     
 class Strategy():
     def __init__(self) -> None:
-        pass
+        self.stat_mode = False
 
     @abstractmethod
     def operate(self, operation: Config.Operation, new_model_config:Config.NewModel, workspace:WorkSpace):
@@ -314,7 +314,10 @@ class SeqCLF(Strategy):
         for round_i in range(operation.acquisition.n_rounds):
             new_data_round_info = self.round_operate(round_i, operation, workspace)
             new_data_total_set = new_data_round_info['data'] if round_i==0 else torch.utils.data.ConcatDataset([new_data_total_set, new_data_round_info['data']])
-            stat_results.append(self.stat(workspace.base_model, new_data_round_info['data'], new_model_config.new_batch_size))
+            if self.stat_mode:
+                _, acc = workspace.detector.predict(workspace.data_split.loader['test_shift'], workspace.base_model,True)
+                stat_results.append(acc)
+                # stat_results.append(self.stat(workspace.base_model, new_data_round_info['data'], new_model_config.new_batch_size))
 
         new_model_config.set_path(operation)
 
@@ -330,7 +333,8 @@ class SeqCLF(Strategy):
         self.export_detector(new_model_config, operation.acquisition, workspace.detector)
         self.export_indices(new_model_config, operation.acquisition, new_data_total_set, operation.stream)
        
-        return stat_results
+        if self.stat_mode:
+            return stat_results
 
     def stat(self, model: Model.Prototype, data, batch_size):
         dataloader = torch.utils.data.DataLoader(data, batch_size)
@@ -374,14 +378,6 @@ class SeqCLF(Strategy):
     def export_detector(self, model_config:Config.NewModel, acquire_instruction: Config.SequentialAc, detector: Detector.Prototype):
         log = Log(model_config, 'detector')
         log.export(acquire_instruction, detector=detector)
-
-    # def export_data(self, model_config:Config.NewModel, acquire_instruction: Config.SequentialAc, dataset):
-    #     raw_indices = []
-    #     for idx in range(len(dataset)):
-    #         img, coarse_target, target, raw_idx = dataset[idx] 
-    #         raw_indices.append(raw_idx)
-    #     log = Log(model_config, 'data')
-    #     log.export(acquire_instruction, data=raw_indices)
         
     def get_new_data_indices(self, operation:Config.Operation, workspace:WorkSpace):
         pass

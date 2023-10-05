@@ -1,0 +1,51 @@
+detector : 'SVM'
+detector_args:
+  hidden_layer_size: [200,100,50]
+  max_iter: 500
+  k-fold: 2
+  kernel: 'linear'
+num_workers: 1
+hparams: 
+    sessions: 11
+    superclass: 10
+    subclass: 50
+    arch: 'resnet34'
+    arch_type: 'cifar_resnet'
+    batch_size: 
+      base: 128
+      new: 64
+    optimizer: 
+      type: 'sgd'
+      momentum: 0.9
+      weight_decay: 5.0E-4
+    training: 
+      epochs: 20
+      lr: 0.1
+      lr_scheduler: 
+          # type: 'step'
+          type: 'cyclic'
+          lr_peak_epoch: 5    
+          # type: 'ReduceLROnPlateau'
+          # patience: 5
+
+data: 
+  root: ''
+  ratio: 
+    train : 0.3
+    market : 0.7
+    test: 0.1
+    val_from_test: 0.5
+    remove: 
+      new_labels: 1.0
+      old_labels: null
+  n_new_data: [600, 900, 1200, 1500, 1800, 2100]
+  seq: 
+    n_new_data: null #300 # seq_1
+    n_rounds: 2 #seq
+  labels:
+    remove:
+      object: [0,5,10,20,30,40,15,25,35,45]
+      session: []
+    map: null
+  
+base_root: 'model/'
