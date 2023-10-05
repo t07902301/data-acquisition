@@ -1,5 +1,7 @@
 # Data Acquisition for Generalizing Black-Box Models
 
+All code to reproduce experiment results are marked <ins>underline</ins>. 
+
 ## Set up
 
 Under the currect directory, three folder need to be set to keep outputs from experiments.
@@ -23,7 +25,7 @@ Examples of model_directory: core_object_resnet, cifar-4class
 
 ## Set up Source Models
 
-**pretrain.py**: train source models and evaluate them before and after data shifts.
+<ins>**pretrain.py**: train source models and evaluate them before and after data shifts.</ins>
 
 ## Data Acquisition + New Model Generation
 
@@ -33,31 +35,31 @@ Examples of model_directory: core_object_resnet, cifar-4class
 
 - If the precision is bigger than threshold,the proportion of target labels in filtered market, then market filtering should work.
 
-**main.py** : run the acquisition. 
+<ins>**main.py** : run the acquisition.</ins>
 
 ## Test New Model
 
 **utils/checker.py**: ensemble methods (AE, WTA, partition by feature scores)
 
-**test.py**: evaluate models from acquisition
+<ins>**test.py**: evaluate models from acquisition. </ins>
 
 ## Acquisition Statistics
 
-**pretrain.py**: base model performance before and after data shifts; classification accuracy on c_w and c_\not{w} in detector
+<ins>**pretrain.py**</ins>: base model performance before and after data shifts; classification accuracy on c_w and c_\not{w} in detector
 
-**seq_stat.py**: only run sequential strategy and return statistics of detection accuracy or misclassification in acquired data. No model building and saving. 
+<ins>**seq_stat.py**</ins>: only run sequential strategy and return statistics of detection accuracy or misclassification in acquired data. No model building and saving. 
 
-**stat_check.py**: the distribution of acquired data; test data under WTA or partition; final detector from sequential acquisition. 
+<ins>**stat_check.py**</ins>: the distribution of acquired data; test data under WTA or partition; final detector from sequential acquisition. 
 
 ## Dataset Generation
 
 Shifted data splits are generated first by split raw dataset into 4 splits (train, test, validation and data pool), and then make data shifts by removing some labels from train split. By far, we first save the indices of 4 data splits and statistics for data normalization into **init_data** directory. Next we save data shifts indices into **data** directoty. 
 
-**data_setup.py**: use "save mode" parameter to choose which indices to save (split or shift). 
+<ins>**data_setup.py**</ins>: use "save mode" parameter to choose which indices to save (split or shift). 
 
 Preliminary processing of Core 50 can be found in *Basic Process*
 1. **core.ipynb**: 'core50_imgs.npz' -> resize to 32x32 and transform labels -> 'core_data.pkl'
     - An [auxlirary file](https://vlomonaco.github.io/core50/data/paths.pkl) is used to extract labels from "core50_imgs.npz"
 
-2. **meta.py**: sample frames from indicated categories from Core-50. ('core_data.pkl' -> sample frames -> 'core.pkl')
+2. <ins>**meta.py**</ins>: sample frames from indicated categories from Core-50. ('core_data.pkl' -> sample frames -> 'core.pkl')
 
