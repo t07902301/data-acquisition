@@ -187,9 +187,9 @@ class Dataset():
         return raw_indices
     
     @abstractmethod
-    def load_dataset_raw_indices(self, raw_indices_dict:Dict[str, list], data_config, normalized_stat, sampled_meta_path):
+    def load_dataset_raw_indices(self, raw_indices_dict:Dict[str, list], data_config, normalized_stat):
         '''
-        Read raw indices and return a split from the original dataset (Augment)
+        Load indices of data shift or split given the number of keys in indices dict.
         '''
         pass
     
@@ -215,9 +215,9 @@ class Dataset():
         pass
 
     @abstractmethod
-    def load(self, ds_dict, remove_rate, label_config, option):
+    def create_shift(self, ds_dict, remove_rate, label_config, option):
         '''
-        Load dataset splits with data shift degree
+        Get dataset shifts indices from loading shifted data splits
         '''
         pass
 
@@ -229,7 +229,7 @@ class Dataset():
         pass
 
     @abstractmethod
-    def get_dataset_raw_indices(self, epochs, config, meta_path):
+    def create_4_splits(self, epochs, config):
         '''
         Get dataset splits from raw or meta dataset
         '''
@@ -287,17 +287,20 @@ class Cifar(Dataset):
     def __init__(self) -> None:
         super().__init__()
 
-    def load_dataset_raw_indices(self, raw_indices_dict:Dict[str, list], data_config, normalized_stat, sampled_meta_path=None):
+    def load_dataset_raw_indices(self, raw_indices_dict:Dict[str, list], data_config, normalized_stat):
         raw_ds = self.get_raw_dataset(data_config['root'], normalized_stat, data_config['labels']['map'])
         raw_dataset_split = {
             'val_shift': torch.utils.data.Subset(raw_ds['test_val'], raw_indices_dict['val_shift']),
             'test_shift': torch.utils.data.Subset(raw_ds['test_val'], raw_indices_dict['test_shift']),
             'train': torch.utils.data.Subset(raw_ds['train_market'], raw_indices_dict['train']),
             'market': torch.utils.data.Subset(raw_ds['train_market'], raw_indices_dict['market']),
-            'train_non_cnn': torch.utils.data.Subset(raw_ds['train_market'], raw_indices_dict['train_non_cnn']),
-            'val': torch.utils.data.Subset(raw_ds['test_val'], raw_indices_dict['val']),
-            'test': torch.utils.data.Subset(raw_ds['test_val'], raw_indices_dict['test']),            
+            # 'aug_train': torch.utils.data.Subset(raw_ds['aug_train_market'], raw_indices_dict['train']),
+            # 'aug_market': torch.utils.data.Subset(raw_ds['aug_train_market'], raw_indices_dict['market']),
         }
+        if len(list(raw_indices_dict.keys()))>4:
+            raw_dataset_split['train_non_cnn'] = torch.utils.data.Subset(raw_ds['train_market'], raw_indices_dict['train'])
+            raw_dataset_split['val'] = torch.utils.data.Subset(raw_ds['test_val'], raw_indices_dict['val'])
+            raw_dataset_split['test'] = torch.utils.data.Subset(raw_ds['test_val'], raw_indices_dict['test'])   
         return raw_dataset_split
 
     def get_indices_by_labels(self, ds, subset_labels, use_fine_label):
@@ -316,13 +319,13 @@ class Cifar(Dataset):
         else:
             return ds, None
         
-    def load(self, ds_dict:Dict[str, cifar.CIFAR100], remove_rate, label_config, option):
+    def create_shift(self, ds_dict, remove_rate, label_config, option):
         if 'cover' in label_config:
             return self.cover_load(ds_dict, remove_rate, label_config['cover'])
         else:
-            return self.non_cover_load(ds_dict, remove_rate, label_config, option)
+            return self.non_cover_load(ds_dict, remove_rate, label_config)
 
-    def non_cover_load(self, ds_dict:Dict[str, cifar.CIFAR100], remove_rate, label_config, option):
+    def non_cover_load(self, ds_dict:Dict[str, cifar.CIFAR100], remove_rate, label_config):
         new_labels = label_config['remove']
         new_labels_remove_rate = remove_rate['new_labels']
         old_labels_remove_rate = remove_rate['old_labels']
@@ -347,7 +350,6 @@ class Cifar(Dataset):
         return {
             # 'train': old_aug_train,
             'train': old_train,
-            'train_non_cnn': old_train,
             'val': old_val,
             'test': old_test,
             # 'val_reg': val,
@@ -358,7 +360,6 @@ class Cifar(Dataset):
             # 'aug_market': ds_dict['aug_market'],
         }, {
             'train': self.get_raw_indices(old_train),
-            'train_non_cnn': self.get_raw_indices(old_train),
             'val': self.get_raw_indices(old_val),
             'test': self.get_raw_indices(old_test),
             # 'val_reg': val,
@@ -388,7 +389,6 @@ class Cifar(Dataset):
         
         return {
             'train': old_train,
-            'train_non_cnn': old_train,
             'val': old_val,
             'test': old_test,
             'val_shift': val,
@@ -397,7 +397,6 @@ class Cifar(Dataset):
             # 'aug_market': ds_dict['aug_market'],
         }, {
             'train': self.get_raw_indices(old_train),
-            'train_non_cnn': self.get_raw_indices(old_train),
             'val': self.get_raw_indices(old_val),
             'test': self.get_raw_indices(old_test),
             # 'val_reg': val,
@@ -437,14 +436,6 @@ class Cifar(Dataset):
             'test_shift': self.get_raw_indices(test_ds),
             'train': self.get_raw_indices(train_ds)
         }
-        # modified_labels = list(set(select_fine_labels) - set(target_test_label))
-        # balanced_train_ds = balance_dataset(target_test_label, modified_labels, left_train) # make shifted and original labels balanced?
-        # raw_indices['val_shift'] =  
-        # raw_indices['market'] =  self.get_raw_indices(market_ds)
-        # raw_indices['test_shift'] = self.get_raw_indices(test_ds)
-        # raw_indices['train'] =  self.get_raw_indices(train_ds)
-        # ds['aug_market'] = aug_market_ds
-        # ds['aug_train'] = aug_train_ds
         return raw_indices
 
     def split(self, dataset, labels, target_ratio, use_fine_label = True, return_split_indices=False):
@@ -466,11 +457,6 @@ class Cifar(Dataset):
             return target_subset, other_subset, split_indices
         else:
             return target_subset, other_subset
-
-    def modify_coarse_label(self,dataset, label_map):
-        for split in dataset.keys():
-            dataset[split] = cifar.ModifiedDataset(dataset=dataset[split],coarse_label_transform=label_map)
-        return dataset
 
     def fine_label_raw_subset(self, raw_ds:Dict[str, cifar.CIFAR100], select_fine_labels):
         '''
@@ -524,7 +510,7 @@ class Cifar(Dataset):
             labels.append(label)
         return np.array(labels)
 
-    def get_dataset_raw_indices(self, epochs, config, meta_path):
+    def create_4_splits(self, epochs, config):
         data_config = config['data']
         label_config = data_config['labels']
         select_fine_labels = label_config['select_fine_labels']
@@ -646,8 +632,6 @@ class Core(Dataset):
             'test_shift': test,
             'market': ds_dict['market'],
             # 'aug_market': ds_dict['aug_market'],
-            
-            # 'sub_mkt': sub_mkt
         }, {
             'train': self.get_raw_indices(old_train),
             'val': self.get_raw_indices(old_val),
@@ -679,17 +663,23 @@ class Core(Dataset):
             val, test = primal_dict['val_shift'], primal_dict['test_shift']
             
         return {
-            # 'train': old_aug_train,
             'train': old_train,
             'val': old_val,
             'test': old_test,
             'val_shift': val,
             'test_shift': test,
             'market': primal_dict['market'],
+        }, {
+            'train': self.get_raw_indices(old_train),
+            'val': self.get_raw_indices(old_val),
+            'test': self.get_raw_indices(old_test),
+            'val_shift': self.get_raw_indices(val),
+            'test_shift': self.get_raw_indices(test),
+            'market': self.get_raw_indices(primal_dict['market']),            
         }
         
 
-    def load(self, ds_dict, remove_rate, label_config, option):
+    def create_shift(self, ds_dict, remove_rate, label_config, option):
         remove_label_config = label_config['remove']
         if option == 'both':
             primal_dict = self.primal_operate(ds_dict, remove_rate, remove_label_config, option = 'session')
@@ -768,6 +758,7 @@ class Core(Dataset):
             }
         
     def get_raw_dataset(self, meta: MetaData, normalize_stat, label_map):
+
         meta_dict = {
             'data': meta.data,
             'session': meta.session_labels,
@@ -791,20 +782,24 @@ class Core(Dataset):
     def load_dataset_raw_indices(self, raw_indices_dict: Dict[str, list], data_config, normalized_stat):
         sampled_meta = MetaData(data_config['root'])
         raw_dataset = self.get_raw_dataset(sampled_meta, normalized_stat, data_config['labels']['map'])
-        return {
+        indices_dict = {
             'val_shift': torch.utils.data.Subset(raw_dataset, raw_indices_dict['val_shift']),
             'test_shift': torch.utils.data.Subset(raw_dataset, raw_indices_dict['test_shift']),
             'train': torch.utils.data.Subset(raw_dataset, raw_indices_dict['train']),
             'market': torch.utils.data.Subset(raw_dataset, raw_indices_dict['market']), 
-            'val': torch.utils.data.Subset(raw_dataset, raw_indices_dict['val']),
-            'test': torch.utils.data.Subset(raw_dataset, raw_indices_dict['test']),               
             # 'aug_train': torch.utils.data.Subset(raw_dataset['aug_meta'], raw_indices_dict['train']), 
             # 'aug_market': torch.utils.data.Subset(raw_dataset['aug_meta'], raw_indices_dict['market']), 
         }
+        if len(list(raw_indices_dict.keys()))>4:
+            indices_dict['val'] = torch.utils.data.Subset(raw_dataset, raw_indices_dict['val'])
+            indices_dict['test'] = torch.utils.data.Subset(raw_dataset, raw_indices_dict['test'])
+        return indices_dict       
 
-    def get_dataset_raw_indices(self, epochs, config, sampled_meta_path):
+    def create_4_splits(self, epochs, config):
         data_config = config['data']
-        sampled_meta = MetaData(sampled_meta_path)
+
+        sampled_meta = MetaData(config['data']['root'])
+
         mean, std = self.normalize(sampled_meta)
 
         normalize_stat = {
