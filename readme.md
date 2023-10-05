@@ -1,4 +1,4 @@
-# Data Acquisition for Generalizing Models behind APIs under Harmful Data Shifts
+# Data Acquisition for Generalizing Black-Box Models
 
 ## Set up
 
