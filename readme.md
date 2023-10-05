@@ -57,8 +57,9 @@ Other files in *Data Generator*
 
 1. **core.ipynb**: 'core50_imgs.npz' -> resize to 32x32 and transform labels -> 'core_data.pkl'
     - An [auxlirary file](https://vlomonaco.github.io/core50/data/paths.pkl) is used to extract labels from "core50_imgs.npz"
+
 2. **meta.py**: sample frames from indicated categories from Core-50. ('core_data.pkl' -> sample frames -> 'core.pkl')
 
 3. **data_setup.py**: indices to data splits from the raw dataset
-    - select indicated classes from Cifar-100 and output data splits of train, test, validation and data pools. 
-
+    - Select indicated classes from Cifar-100 and output data splits of train, test, validation and data pools. 
+    - Results are kept in *init_data* and are later used to generate different data shifts. 
