@@ -28,7 +28,7 @@ hparams:
           # patience: 5
 
 data: 
-  root: '' # cifar: 'path_to_cifar_zip'; core: path_to_meta_pkl
+  root: '' # cifar: 'path_to_cifar_zip'; core: path_to_core_pkl
   ratio: 
     train : 0.4
     market : 0.6

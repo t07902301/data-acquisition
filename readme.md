@@ -1,45 +1,64 @@
 # Data Acquisition for Generalizing Models behind APIs under Harmful Data Shifts
 
-## Directory of Results and Data
+## Set up
 
-log/, data/, model/ 
+Under the currect directory, three folder need to be set to keep outputs from experiments.
 
-### Configuration Example
+1. **log**: keep all output from logger.
+    - config.yaml: model training, detector training, data split and shift. **config.yaml** under *config* folder is a template. Configs for all tasks are also in *config* folder.
 
-## Set up Dataset
+2. **model**: keep new models, acquired data, updated detectors.   
 
-1. meta.py: sample frames from indicated categories from Core-50.
+3. available data: "data" directory contains indices of designed data shifts from raw datasets 
 
-2. data_setup.py: indices to data splits from the raw dataset (core-50 with sampled frames.)
-    - select indicated classes from Cifar-100.
-    - data shift generated.
+   - Raw datasets: 
 
-check out-of-distribution detection precision with ood.py. 
-If the precision is bigger than threshold,the proportion of target labels in filtered market, then market filtering should work.
+    1. [Cifar-100](https://www.cs.toronto.edu/~kriz/cifar-100-python.tar.gz): Indicate the path to the downloaded zip in the "root" field of the config file
 
-## Set up Base Models
+    2. [Core-50](http://bias.csr.unibo.it/maltoni/download/core50/core50_imgs.npz): the original "core50_imgs.npz" file has images compressed to 32x32 and sampled off 30 frames from each object and session. The new dataset is called "core.pkl". 
 
-pretrain.py: use data split indices to load actual data from the raw dataset. (sampled core-50 from meta.py)
+model_directory with the format of - (dataset name) _ task _ (other info) - is used to name all relevant outputs in **log**, **model**, and **data**. 
+
+Examples of model_directory: core_object_resnet, cifar-4class
+
+## Set up Source Models
+
+**pretrain.py**: train source models and evaluate them before and after data shifts.
 
 ## Data Acquisition + New Model Generation
 
-strategy.py: acquisition strategy + workspace (base model, data splits, detector if needed.) + build and save new models
+**utils/strategy.py**: acquisition strategy + workspace (source model, data splits, detector if needed.) + build and save new models
 
-ood.py: filter out irrelevant data from the data pool. build novelty detector (one-class SVM) in the validation set, and return detection accuracy.   
+**utils/ood.py**: filter out irrelevant data from the data pool. build novelty detector (one-class SVM) in the validation set, and return detection accuracy.   
 
-main.py: run the acquisition. 
+- If the precision is bigger than threshold,the proportion of target labels in filtered market, then market filtering should work.
 
+**main.py** : run the acquisition. 
 
 ## Test New Model
 
-checker.py: ensemble methods (AE, WTA, partition by feature scores)
+**utils/checker.py**: ensemble methods (AE, WTA, partition by feature scores)
 
-test.py: evaluate models from acquisition
+**test.py**: evaluate models from acquisition
 
-## Statistics before, during and after Acquisition
+## Acquisition Statistics
 
-pretrain.py: base model performance before and after data shifts; classification accuracy on c_w and c_\not{w} in detector
+**pretrain.py**: base model performance before and after data shifts; classification accuracy on c_w and c_\not{w} in detector
 
-seq_stat.py: only run sequential strategy and return statistics of detection accuracy or misclassification in acquired data. No model building and saving. 
+**seq_stat.py**: only run sequential strategy and return statistics of detection accuracy or misclassification in acquired data. No model building and saving. 
 
-stat_check.py: the distribution of acquired data; test data under WTA or partition; final detector from sequential acquisition. 
+**stat_check.py**: the distribution of acquired data; test data under WTA or partition; final detector from sequential acquisition. 
+
+## Set up Dataset
+
+<ins> To reproduce the generation data, please replace **utils/set_up.py** and **utils/dataset/wrapper.py** with the two files with the same name under the **stable** folder in *Data Generator* </ins>
+
+Other files in *Data Generator*
+
+1. **core.ipynb**: 'core50_imgs.npz' -> resize to 32x32 and transform labels -> 'core_data.pkl'
+    - An [auxlirary file](https://vlomonaco.github.io/core50/data/paths.pkl) is used to extract labels from "core50_imgs.npz"
+2. **meta.py**: sample frames from indicated categories from Core-50. ('core_data.pkl' -> sample frames -> 'core.pkl')
+
+3. **data_setup.py**: indices to data splits from the raw dataset
+    - select indicated classes from Cifar-100 and output data splits of train, test, validation and data pools. 
+
