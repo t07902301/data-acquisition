@@ -78,11 +78,11 @@ class LogRegressor(Prototype):
         latent, latent_gts = dataloader_utils.get_latent(data_loader, self.clip_processor, self.transform)
         if compute_metrics:
             correctness = get_correctness(data_loader, base_model, latent_gts)
-            _, conf_distance, metric = self.model.predict(latent, correctness, compute_metrics)
+            _, conf, metric = self.model.predict(latent, correctness, compute_metrics)
         else:
-            _, conf_distance, _ = self.model.predict(latent)
+            _, conf, _ = self.model.predict(latent)
             metric = None
-        return conf_distance, metric 
+        return conf, metric 
     
 def factory(detector_type, config, clip_processor:wrappers.CLIPProcessor, split_and_search=True, data_transform = 'clip'):
     if detector_type == 'svm':
