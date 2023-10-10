@@ -25,14 +25,11 @@ def dummy_acquire(cls_gt, cls_pred, method, img_num):
         new_img_indices = result_mask_indices
     return new_img_indices  
 
-def get_top_values_indices(values, K=0, order='ascend'):
+def get_top_values_indices(values, K=0):
     '''
-    return indices of top values from the indicated order
+    return indices of top values
     '''
-    if order != 'ascend':
-        sorting_idx = np.argsort(-values) # descending order
-    else:
-        sorting_idx = np.argsort(values) # ascending order
+    sorting_idx = np.argsort(-values) # descending order
     top_val_indices = sorting_idx[:K]
     return top_val_indices
 

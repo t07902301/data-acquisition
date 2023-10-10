@@ -41,19 +41,6 @@ class Prototype():
     @abstractmethod
     def fit(self, C, class_weight, x, gt, cv_splits=2, args= None):
         pass
-
-    def predict(self, clf, latents, gts=None, compute_metrics=False):
-        dataset_size = len(latents)
-        out_mask, out_decision = np.zeros(dataset_size), np.zeros(dataset_size)
-        out_decision = clf.decision_function(latents)
-        metric = None
-        if compute_metrics:
-            preds = clf.predict(latents)
-            # metric = sklearn_metrics.balanced_accuracy_score(gts, preds)*100
-            # metric = sklearn_metrics.f1_score(gts, preds, pos_label=0)*100
-            metric = sklearn_metrics.precision_score(gts, preds, pos_label=0) * 100
-
-        return out_mask, out_decision, metric
     
     def raw_predict(self, latents, clf):
         return clf.predict(latents)
@@ -71,7 +58,19 @@ class logreg(Prototype):
         cv_scores = cross_val_score(clf, x, gt, cv=cv, scoring=scorer)
         average_cv_scores = np.mean(cv_scores)*100
         return clf, average_cv_scores
-
+    
+    def predict(self, clf: LogisticRegression, latents, gts=None, compute_metrics=False):
+        dataset_size = len(latents)
+        out_mask, out_decision = np.zeros(dataset_size), np.zeros(dataset_size)
+        out_decision = clf.predict_proba(latents)[:, 0]
+        metric = None
+        if compute_metrics:
+            preds = clf.predict(latents)
+            # metric = sklearn_metrics.balanced_accuracy_score(gts, preds)*100
+            # metric = sklearn_metrics.f1_score(gts, preds, pos_label=0)*100
+            metric = sklearn_metrics.precision_score(gts, preds, pos_label=0) * 100
+        return out_mask, out_decision, metric
+    
 class svm(Prototype):
     def __init__(self) -> None:
         super().__init__()
@@ -87,3 +86,16 @@ class svm(Prototype):
         cv_scores = cross_val_score(clf, x, gt, cv=cv, scoring=scorer)
         average_cv_scores = np.mean(cv_scores)*100
         return clf, average_cv_scores
+    
+    def predict(self, clf, latents, gts=None, compute_metrics=False):
+        dataset_size = len(latents)
+        out_mask, out_decision = np.zeros(dataset_size), np.zeros(dataset_size)
+        out_decision = -clf.decision_function(latents)
+        metric = None
+        if compute_metrics:
+            preds = clf.predict(latents)
+            # metric = sklearn_metrics.balanced_accuracy_score(gts, preds)*100
+            # metric = sklearn_metrics.f1_score(gts, preds, pos_label=0)*100
+            metric = sklearn_metrics.precision_score(gts, preds, pos_label=0) * 100
+
+        return out_mask, out_decision, metric
