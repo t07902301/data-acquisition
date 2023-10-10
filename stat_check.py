@@ -40,15 +40,16 @@ class TestData():
         
     def run(self, epochs, parse_args, new_img_num_list, method, operation:Config.Operation, dataset_list: List[dict], plot):
         results = []
-        for epo in range(epochs):
-            logger.info('in epoch {}'.format(epo))
-            checker = Checker.instantiate(epo, parse_args, dataset_list[epo], operation)
-            datasplits = dataset_utils.DataSplits(dataset_list[epo], checker.new_model_config.new_batch_size)
-            if 'seq' in method:
+        if 'seq' in method:
+            for epo in range(epochs):
+                logger.info('in epoch {}'.format(epo))
+                checker = Checker.instantiate(epo, parse_args, dataset_list[epo], operation)
                 seq_error_stat = self.seq_run(operation, new_img_num_list, checker)   # update checker's detector by logs
                 results.append(seq_error_stat)
-            else:
-                results.append(self.error_stat(checker))
+        else:
+            epo = 0
+            checker = Checker.instantiate(epo, parse_args, dataset_list[epo], operation)
+            results.append(self.error_stat(checker)[0])
 
         if plot:
             self.plot(checker, dataset_list[epo], operation.stream.pdf)
@@ -73,8 +74,8 @@ class TestData():
         # self.correctness_dstr_plot(cor_dv, incor_dv, fig_name, pdf)
 
     def correctness_dstr_plot(self, cor_dv, incor_dv, fig_name, pdf_method=None):
-        distribution_utils.base_plot(-cor_dv, 'C_w\'', 'white', pdf_method, hatch_style='/')
-        distribution_utils.base_plot(-incor_dv, 'C_w', 'white', pdf_method, hatch_style='.', line_style=':', alpha=0.5)
+        distribution_utils.base_plot(cor_dv, 'C_w\'', 'white', pdf_method, hatch_style='/')
+        distribution_utils.base_plot(incor_dv, 'C_w', 'white', pdf_method, hatch_style='.', line_style=':', alpha=0.5)
         distribution_utils.plt.xlabel('Weakness Feature Score', fontsize=15)
         distribution_utils.plt.ylabel('Probability Density', fontsize=15)
         distribution_utils.plt.xticks(fontsize=15)
@@ -101,8 +102,7 @@ class TrainData():
         if dataset_name == 'cifar':
             self.data = dataset_utils.Cifar().get_raw_dataset(data_config['root'], normalize_stat, data_config['labels']['map'])['train_market']
         else:
-            meta_path = os.path.join('data/meta/s2.pkl')
-            sampled_meta = dataset_utils.MetaData(meta_path)
+            sampled_meta = dataset_utils.MetaData(data_config['root'])
             self.data = dataset_utils.Core().get_raw_dataset(sampled_meta, normalize_stat, data_config['labels']['map'])
         
     def dv_dstr_plot(self, cor_dv, incor_dv, n_data, pdf_method=None, range=None):
@@ -181,15 +181,14 @@ class TrainData():
         return prec
 
     def n_data_run(self, operation:Config.Operation, checker: Checker.Prototype, data_split:dataset_utils.DataSplits, pdf_method):
-        if 'seq' in operation.acquisition.method:
-            # check_result = self.check_indices(operation, data_split, checker, pdf_method, None)
-            check_result = self.check_clf(operation, data_split, checker)
-        else:
-            distribution = distribution_utils.Disrtibution(checker.detector, data_split.loader['val_shift'], operation.stream.pdf)
-            check_result = self.check_indices(operation, data_split, checker, pdf_method, distribution)
+        check_result = self.check_indices(operation, data_split, checker, pdf_method, None)
+        # if 'seq' in operation.acquisition.method:
+        #     check_result = self.check_clf(operation, data_split, checker)
+        # else:
+        #     distribution = distribution_utils.Disrtibution(checker.detector, data_split.loader['val_shift'], operation.stream.pdf)
+        #     check_result = self.check_indices(operation, data_split, checker, pdf_method, distribution)
         return check_result
    
-
 def main(epochs, new_model_setter='retrain', model_dir ='', device=0, probab_bound = 0.5, base_type='', detector_name = '', stat_data='train', dev_name= 'dv'):
     pure = True
     fh = logging.FileHandler('log/{}/stat_{}_{}.log'.format(model_dir, dev_name, stat_data), mode='w')
@@ -219,8 +218,8 @@ def main(epochs, new_model_setter='retrain', model_dir ='', device=0, probab_bou
         logger.info('all: {}'.format(results.tolist()))
     else:
         stat_checker = TestData()
-        results = stat_checker.run(epochs, parse_args, config['data']['n_new_data'], method, operation, ds_list, plot=True)
-        logger.info('Test Data error stat:{}'.format(np.round(np.mean(results, axis=0), decimals=3)))
+        results = stat_checker.run(epochs, parse_args, config['data']['n_new_data'], method, operation, ds_list, plot=False)
+        logger.info('Test Data error stat:{}'.format(np.round(np.mean(results), decimals=3)))
         logger.info('all: {}'.format(results))
 
 import argparse
@@ -236,4 +235,4 @@ if __name__ == '__main__':
     parser.add_argument('-stat','--stat',type=str, default='train', help="test, train :check stat of train or test data")
 
     args = parser.parse_args()
-    main(args.epochs, model_dir=args.model_dir, device=args.device, probab_bound=args.probab_bound, base_type=args.base_type, detector_name=args.detector_name, dev_name=args.dev, stat_data=args.stat)
+    main(args.epochs, model_dir=args.model_dir, device=args.device, base_type=args.base_type, detector_name=args.detector_name, dev_name=args.dev, stat_data=args.stat)
