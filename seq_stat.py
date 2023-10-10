@@ -72,20 +72,14 @@ def bound_run(parse_args, epochs, ds_list, method_list, bound, n_new_data_list, 
         avg_stat = np.mean(detect_acc_list[:, idx, :], axis=0)
         logger.info('{}: {}, {}'.format(n_data, avg_stat[0], avg_stat[1]))
 
-def main(epochs, dev_name, device, detector_name, model_dir, base_type, filter_market=False):
+def main(epochs, device, detector_name, model_dir, base_type, filter_market=False):
 
-    fh = logging.FileHandler('log/{}/{}.log'.format(model_dir, dev_name),mode='w')
+    fh = logging.FileHandler('log/{}/seq_stat.log'.format(model_dir),mode='w')
     fh.setLevel(logging.DEBUG)
     logger.addHandler(fh)
 
     pure, new_model_setter = True, 'retrain'
-
-    if dev_name == 'rs':
-        method, probab_bound = dev_name, 0
-    elif dev_name == 'refine':
-        method, new_model_setter, pure, probab_bound = 'dv', 'refine', False, 0
-    else:
-        method, probab_bound = dev_name, 0.5 
+    method, probab_bound = 'seq', 0.5 
 
     logger.info('Filter Market: {}'.format(filter_market))
 
@@ -94,7 +88,7 @@ def main(epochs, dev_name, device, detector_name, model_dir, base_type, filter_m
     clip_processor = Detector.load_clip(device_config, normalize_stat['mean'], normalize_stat['std'])
     stream_instruction = Config.ProbabStream(bound=probab_bound, pdf='kde', name='probab')
     detect_instruction = Config.Detection(detector_name, clip_processor)
-    acquire_instruction = Config.Acquisition(seq_config=config['data']['seq']) if 'seq' in config['data'] else Config.Acquisition()
+    acquire_instruction = Config.Acquisition(seq_config=config['data']['seq']) 
     operation = Config.Operation(acquire_instruction, stream_instruction, detect_instruction)
 
     parse_args = (model_dir, device_config, base_type, pure, new_model_setter, config, filter_market)
@@ -108,8 +102,7 @@ if __name__ == '__main__':
     parser.add_argument('-md','--model_dir',type=str,default='', help="(dataset name) _ task _ (other info)")
     parser.add_argument('-d','--device',type=int,default=0)
     parser.add_argument('-dn','--detector_name',type=str,default='svm', help="svm, logistic regression")
-    parser.add_argument('-dev','--dev',type=str, default='dv', help="dv: u-wfs, rs: random, conf: confiden-score, seq: sequential u-wfs, pd: u-wfsd, seq_pd: sequential u-wfsd")
     parser.add_argument('-bt','--base_type',type=str,default='cnn', help="cnn, svm; structure of cnn is indicated in the arch_type field in config.yaml")
 
     args = parser.parse_args()
-    main(args.epochs, model_dir=args.model_dir, device=args.device, detector_name=args.detector_name, dev_name=args.dev, base_type=args.base_type)
+    main(args.epochs, model_dir=args.model_dir, device=args.device, detector_name=args.detector_name, base_type=args.base_type)
