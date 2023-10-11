@@ -66,11 +66,10 @@ def bound_run(parse_args, epochs, ds_list, method_list, bound, n_new_data_list, 
         detect_acc = epoch_run(parse_args, method_list, n_new_data_list, dataset, epo, operation)
         detect_acc_list.append(detect_acc)
     detect_acc_list = np.array(detect_acc_list)
-    logger.info('All: {}'.format(detect_acc_list))
 
     for idx, n_data in enumerate(n_new_data_list):
         avg_stat = np.mean(detect_acc_list[:, idx, :], axis=0)
-        logger.info('{}: {}, {}'.format(n_data, avg_stat[0], avg_stat[1]))
+        logger.info('{}: [{}, {}],'.format(n_data, avg_stat[0], avg_stat[1]))
 
 def main(epochs, device, detector_name, model_dir, base_type, filter_market=False):
 

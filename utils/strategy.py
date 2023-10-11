@@ -315,7 +315,7 @@ class SeqCLF(Strategy):
             new_data_round_info = self.round_operate(round_i, operation, workspace)
             new_data_total_set = new_data_round_info['data'] if round_i==0 else torch.utils.data.ConcatDataset([new_data_total_set, new_data_round_info['data']])
             if self.stat_mode:
-                # _, acc = workspace.detector.predict(workspace.data_split.loader['test_shift'], workspace.base_model,True)
+                # _, acc = workspace.detector.predict(workspace.data_split.loader['test_shift'], workspace.base_model, metrics='precision')
                 # stat_results.append(acc)
                 # stat_results.append(self.error_stat(workspace.base_model, new_data_round_info['data'], new_model_config.new_batch_size))
                 stat_results.append(self.error_stat(workspace.base_model, workspace.data_split.dataset['val_shift'], new_model_config.new_batch_size))

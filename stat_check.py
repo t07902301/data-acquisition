@@ -144,7 +144,7 @@ class TrainData():
         new_data = torch.utils.data.Subset(self.data, new_data_indices)
         new_data_loader = torch.utils.data.DataLoader(new_data, batch_size=model_config.new_batch_size)
 
-        # new_data_dv, _ = checker.detector.predict(new_data_loader, checker.base_model)
+        # new_data_dv, _ = checker.detector.predict(new_data_loader)
 
         # probab = distribution.pdf.accumulate(max(new_data_dv), min(new_data_dv))
 
@@ -165,10 +165,10 @@ class TrainData():
         # plot_range = (-2.5, 0) # test_dv
         # self.dv_dstr_plot(cor_dv, incor_dv, acquisition_config.n_ndata, pdf_method, plot_range)
 
-        # market_dv, _ = checker.detector.predict(data_split.loader['market'], checker.base_model)
-        # test_dv, _ = checker.detector.predict(data_split.loader['test_shift'], checker.base_model)
+        # market_dv, _ = checker.detector.predict(data_split.loader['market'])
+        # test_dv, _ = checker.detector.predict(data_split.loader['test_shift']l)
         # new_data_dv = market_dv[indices]
-        # new_data_dv, _ = checker.detector.predict(new_data_loader, checker.base_model)
+        # new_data_dv, _ = checker.detector.predict(new_data_loader)
         # ks_result = Distribution.kstest(new_data_dv, test_dv)
         # return ks_result.pvalue
         
@@ -177,7 +177,7 @@ class TrainData():
         model_config.set_path(operation)
         log = Log(model_config, 'detector')
         detector = log.import_log(operation, checker.general_config)
-        _, prec = detector.predict(data_split.loader['test_shift'], checker.base_model, compute_metrics=True)
+        _, prec = detector.predict(data_split.loader['test_shift'], checker.base_model, metrics='recall')
         return prec
 
     def n_data_run(self, operation:Config.Operation, checker: Checker.Prototype, data_split:dataset_utils.DataSplits, pdf_method):
