@@ -69,8 +69,6 @@ class PreProcessing(nn.Module):
         self.max = stats['max']
         self.min = stats['min']
 
-from abc import abstractmethod
-
 class Prototype:
     def __init__(self, split_and_search=True, balanced=True, cv=2, do_normalize=False, args=None, do_standardize=True) -> None:
         self.pre_process = None
@@ -115,24 +113,6 @@ class Prototype:
         else:
             logger.info("No whitening")
 
-    @abstractmethod
-    def fit(self, latents, gts):
-        pass
-
-    def fit_preprocess(self, latents):
-        assert self.pre_process is not None, 'run set_preprocess on a training set first'
-        latents = self.pre_process(latents).numpy()
-        return latents
-
-    @abstractmethod
-    def predict(self, latents):
-        pass
-
-    def predict_preprocess(self, latents):
-        assert self.clf is not None, "must call fit first"
-        latents = self.pre_process(latents).numpy()
-        return latents
-
     def fit(self, latents, gts):
         assert self.pre_process is not None, 'run set_preprocess on a training set first'
         latents = self.pre_process(latents).numpy()
@@ -140,10 +120,10 @@ class Prototype:
                                     split_and_search=self.split_and_search,args=self.args)
         return score
     
-    def predict(self, latents, gts=None, compute_metrics=False):
+    def predict(self, latents, gts=None, metrics=None):
         assert self.clf is not None, "must call fit first"
         latents = self.pre_process(latents).numpy()
-        return self.learner.predict(self.clf, latents, gts, compute_metrics) 
+        return self.learner.predict(self.clf, latents, gts, metrics) 
     
     def raw_predict(self, latents):
         assert self.clf is not None, "must call fit first"
@@ -152,58 +132,15 @@ class Prototype:
         return pred
 
 class LogRegressor(Prototype):
-    def __init__(self, split_and_search=True, balanced=True, cv=2, do_normalize=False, do_standardize=True):
-        super().__init__(do_normalize, do_standardize)
+    def __init__(self, split_and_search=True, balanced=True, cv=2, do_normalize=False, args=None, do_standardize=True) -> None:
+        super().__init__(split_and_search, balanced, cv, do_normalize, args, do_standardize)
         self.learner = Learner.logreg()
-
-    # def fit(self, latents, gts):
-    #     latents = self.fit_preprocess(latents)
-    #     # TODO add args 
-    #     self.clf, cv_score = logreg.train(latents, gts, balanced=self.balanced, 
-    #                                 split_and_search=self.split_and_search, cv = self.cv)
-    #     return cv_score        
-    
-    # def predict(self, latents, gts=None, compute_metrics=False):
-    #     assert self.clf is not None, "must call fit first"
-    #     latents = self.pre_process(latents).numpy()
-    #     return logreg.predict(self.clf, latents, gts, compute_metrics) 
-
-    # def raw_predict(self, latents):
-    #     assert self.clf is not None, "must call fit first"
-    #     latents = self.pre_process(latents).numpy()
-    #     pred = logreg.raw_predict(latents, self.clf) 
-    #     return pred
 
 class SVM(Prototype):
     def __init__(self, split_and_search=True, balanced=True, cv=2, do_normalize=False, args=None, do_standardize=True) -> None:
         super().__init__(split_and_search, balanced, cv, do_normalize, args, do_standardize)
         self.learner = Learner.svm()
 
-    # def fit(self, latents, gts):
-    #     assert self.pre_process is not None, 'run set_preprocess on a training set first'
-    #     latents = self.pre_process(latents).numpy()
-    #     self.clf, score = self.learner.train(latents, gts, balanced=self.balanced, 
-    #                                 split_and_search=self.split_and_search,args=self.args)
-    #     return score
-    
-    # def predict(self, latents, gts=None, compute_metrics=False):
-    #     assert self.clf is not None, "must call fit first"
-    #     latents = self.pre_process(latents).numpy()
-    #     return self.learner.predict(self.clf, latents, gts, compute_metrics) 
-    
-    # def raw_predict(self, latents):
-    #     assert self.clf is not None, "must call fit first"
-    #     latents = self.pre_process(latents).numpy()
-    #     pred = self.learner.raw_predict(latents, self.clf) 
-    #     return pred
-
-    # def legacy_import_model(self, filename, svm_stats):
-    #     with open(filename, 'rb') as f:
-    #         self.clf = pkl.load(f)
-    #     self.pre_process = PreProcessing(do_normalize=True,
-    #                                                   mean=svm_stats['mean'],
-    #                                                   std=svm_stats['std'])
-        
 class CLIPProcessor:
     def __init__(self, ds_mean=0, ds_std=1, 
                  arch='ViT-B/32', device='cuda'):
