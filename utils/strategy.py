@@ -317,8 +317,8 @@ class SeqCLF(Strategy):
             if self.stat_mode:
                 # _, acc = workspace.detector.predict(workspace.data_split.loader['test_shift'], workspace.base_model,True)
                 # stat_results.append(acc)
-                # stat_results.append(self.stat(workspace.base_model, new_data_round_info['data'], new_model_config.new_batch_size))
-                stat_results.append(self.stat(workspace.base_model, workspace.data_split.dataset['val_shift'], new_model_config.new_batch_size))
+                # stat_results.append(self.error_stat(workspace.base_model, new_data_round_info['data'], new_model_config.new_batch_size))
+                stat_results.append(self.error_stat(workspace.base_model, workspace.data_split.dataset['val_shift'], new_model_config.new_batch_size))
         
         if self.stat_mode:
             return stat_results
@@ -337,7 +337,7 @@ class SeqCLF(Strategy):
         self.export_detector(new_model_config, operation.acquisition, workspace.detector)
         self.export_indices(new_model_config, operation.acquisition, new_data_total_set, operation.stream)
 
-    def stat(self, model: Model.Prototype, data, batch_size):
+    def error_stat(self, model: Model.Prototype, data, batch_size):
         dataloader = torch.utils.data.DataLoader(data, batch_size)
         acc = model.acc(dataloader)
         return 100 - acc
