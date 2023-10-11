@@ -6,17 +6,18 @@ detector_args:
   kernel: 'linear'
 num_workers: 1
 
-hparams: 
+hparams: #hyper-paramter settings for source/base models and padding models 
     superclass: 1
     subclass: 100
     batch_size: 
-      base: 64
-      new: 32
+      base: 64 # for source/base models 
+      new: 32 # for padding models
 
     optimizer: 
       type: 'sgd'
       momentum: 0.9
       weight_decay: 5.0E-4
+
     training: 
       epochs: 10
       lr: 0.1
@@ -29,30 +30,28 @@ hparams:
 
 data: 
   root: '' # cifar: 'path_to_cifar_zip'; core: path_to_core_pkl
-  ratio: 
+  ratio: # 1. test_val + train_market -> 2. test, val, train, market -> 3. shifts in test and val
     train : 0.4
     market : 0.6
     test: null
     val_from_test: 0.25
-    remove: 
+    remove: # how many data of predefined labels to be removed
       new_labels: 1.0
       old_labels: null
 
-  n_new_data: [100, 200, 300, 400]
+  n_new_data: [100, 200, 300, 400] # the number of new data
   seq: 
-    n_new_data: null # seq_1
-    n_rounds: 2 #seq
+    n_new_data: null # the number of data acquired in each round 
+    n_rounds: 2 # the number of acquisition rounds 
+  
   labels:
-
-    remove: [81, 90] # new labels to source
-
-    cover:
+    remove: [81, 90] # labels new to source domain
+    cover: # make a mismatch between the market and the data pool 
       src: [13, 85, 8, 41]
       target: [81, 90, 13, 85]
-
     map:
       18: 0
       19: 1
-    select_fine_labels: [8, 13, 48, 58, 90, 41, 69, 81, 85, 89] # superclass vehicles
+    select_fine_labels: [8, 13, 48, 58, 90, 41, 69, 81, 85, 89] # select some superclass with balanced assignments of subclasses
   
-base_root: 'model/'
+base_root: 'model/' # model root dir
