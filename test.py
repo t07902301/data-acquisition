@@ -45,22 +45,19 @@ def bound_run(epochs, parse_args, dataset_list, new_img_num_list, method_list, o
         bound_stat_list.append(bound_stat)
     return results, bound_stat_list
 
-def main(epochs, dev_name, device, detector_name, model_dir, stream_name, base_type):
-    fh = logging.FileHandler('log/{}/test_{}.log'.format(model_dir, dev_name),mode='w')
+def main(epochs, acquisition_method, device, detector_name, model_dir, stream_name, base_type, probab_bound):
+    fh = logging.FileHandler('log/{}/test_{}.log'.format(model_dir, acquisition_method),mode='w')
     fh.setLevel(logging.INFO)
     logger.addHandler(fh)
 
     new_model_setter = 'retrain'
     pure = True
     
-    if dev_name == 'rs':
-        method, probab_bound, stream_name = dev_name, 0, 'probab'
-        # method, probab_bound = dev_name, 0.5
+    if acquisition_method == 'rs':
+        probab_bound, stream_name = 0, 'probab'
 
-    elif dev_name == 'refine':
-        method, new_model_setter, pure, probab_bound = 'dv', 'refine', False, 0
-    else:
-        method, probab_bound = dev_name, 0.5
+    # if  dev_name == 'refine':
+    #     acquisition_method, new_model_setter, pure, probab_bound, stream_name = 'dv', 'refine', False, 0, , 'probab'
 
     logger.info('Stream Name: {}, Probab Bound:{}'.format(stream_name, probab_bound))
 
@@ -73,14 +70,11 @@ def main(epochs, dev_name, device, detector_name, model_dir, stream_name, base_t
     operation = Config.Operation(acquire_instruction, stream_instruction, detect_instruction)
     parse_args = (model_dir, device_config, base_type, pure, new_model_setter, config)
 
-    result, bound_stat = bound_run(epochs, parse_args, ds_list, config['data']['n_new_data'], method, operation)
+    result, bound_stat = bound_run(epochs, parse_args, ds_list, config['data']['n_new_data'], acquisition_method, operation)
     result = np.array(result)
     
-    logger.info(method)
+    logger.info(acquisition_method)
     logger.info('avg:{}'.format(np.round(np.mean(result, axis=0), decimals=3).tolist()))
-    
-    logger.info(method)
-    logger.info('all: {}'.format(result.tolist()))
 
 import argparse
 if __name__ == '__main__':
@@ -90,9 +84,9 @@ if __name__ == '__main__':
     parser.add_argument('-md','--model_dir',type=str,default='', help="(dataset name) _ task _ (other info)")
     parser.add_argument('-d','--device',type=int,default=0)
     parser.add_argument('-dn','--detector_name',type=str,default='svm', help="svm, logistic regression")
-    parser.add_argument('-dev','--dev',type=str, default='dv', help="dv: u-wfs, rs: random, conf: confiden-score, seq: sequential u-wfs, pd: u-wfsd, seq_pd: sequential u-wfsd")
+    parser.add_argument('-pd','--probab_bound',type=float,default=0.5, help='A bound of the probability from Cw to assign test set and create corresponding val set for model training.')
+    parser.add_argument('-am','--acquisition_method',type=str, default='dv', help="Acquisition Strategy; dv: u-wfs, rs: random, conf: confiden-score, seq: sequential u-wfs, pd: u-wfsd, seq_pd: sequential u-wfsd")
     parser.add_argument('-s','--stream',type=str, default='probab', help="dstr: AE, probab: WTA")
-    parser.add_argument('-bt','--base_type',type=str,default='cnn', help="cnn, svm; structure of cnn is indicated in the arch_type field in config.yaml")
-
+    parser.add_argument('-bt','--base_type',type=str,default='cnn', help="Source/Base Model Type: cnn, svm; structure of cnn is indicated in the arch_type field in config.yaml")
     args = parser.parse_args()
-    main(args.epochs, model_dir=args.model_dir, device=args.device, detector_name=args.detector_name, dev_name=args.dev, stream_name=args.stream, base_type=args.base_type)
+    main(args.epochs, model_dir=args.model_dir, device=args.device, detector_name=args.detector_name, acquisition_method=args.acquisition_method, stream_name=args.stream, base_type=args.base_type, probab_bound=args.probab_bound)
