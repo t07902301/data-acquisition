@@ -73,16 +73,15 @@ class WorkSpace():
         self.set_up(new_batch_size, clip_processor)
 
     def set_market(self, clip_processor, known_labels):
-        cover_market_dataset = OOD.run(self.data_split, clip_processor, known_labels, check_ds='market')
-        self.init_dataset['market'] = cover_market_dataset
+        filtered_market = OOD.run(self.data_split, clip_processor, known_labels, check_ds='market')
+        self.init_dataset['market'] = filtered_market
         # cover_aug_market_dataset = OOD.run(self.data_split, clip_processor, known_labels, check_ds='aug_market')
         # self.init_dataset['aug_market'] = cover_aug_market_dataset
         logger.info('After filtering, Market size:{}'.format(len(self.init_dataset['market'])))
 
     def set_detector(self, detector_instruction: Config.Detection):
-        val_loader, val_dataset = self.data_split.loader['val_shift'], self.data_split.dataset['val_shift']
         detector = Detector.factory(detector_instruction.name, self.general_config, detector_instruction.vit)
-        detector.fit(self.base_model, val_loader, val_dataset, batch_size=None)
+        detector.fit(self.base_model, self.data_split.loader['val_shift'])
         self.detector = detector
 
     def reset_detector(self, detector_instruction: Config.Detection):
@@ -227,7 +226,7 @@ class ProbabGreedy(NonSeqStrategy):
     def run(self, n_data, market_loader, detector: Detector.Prototype, anchor_dstr):
         market_dv, _ = detector.predict(market_loader)
         new_weight = self.probab2weight({'target': anchor_dstr['incorrect'], 'other': anchor_dstr['correct']}, market_dv)
-        new_data_indices = acquistion.get_top_values_indices(new_weight, n_data, order='descend')
+        new_data_indices = acquistion.get_top_values_indices(new_weight, n_data)
         # select_dv = market_dv[new_data_indices]
         # select_probab_dv = new_weight[new_data_indices]
         # logger.info('dv: {}, {}'.format(min(select_dv), max(select_dv)))
@@ -261,19 +260,19 @@ class Confidence(NonSeqStrategy):
         new_data_indices = self.run(acquistion_n_data, dataset_splits.loader['market'], workspacce.base_model, workspacce.base_model_config)
         return new_data_indices      
 
-    def get_confs_score(self,  base_model_config: Config.OldModel, base_model:Model.Prototype,market_loader):
+    def get_confidence_score(self,  base_model_config: Config.OldModel, base_model:Model.Prototype,market_loader):
 
         market_gts, _, market_score = base_model.eval(market_loader)
 
         if base_model_config.base_type == 'svm':
-            confs = acquistion.get_distance_diff(market_gts, market_score)
+            confs = acquistion.get_gt_distance(market_gts, market_score)
         else:
-            confs = acquistion.get_probab(market_gts, market_score)
+            confs = acquistion.get_gt_probab(market_gts, market_score)
         return confs
 
     def run(self, n_data, market_loader,  base_model:Model.Prototype, base_model_config: Config.OldModel):
 
-        confs = self.get_confs_score(base_model_config, base_model, market_loader)
+        confs = self.get_confidence_score(base_model_config, base_model, market_loader)
 
         new_data_indices = acquistion.get_top_values_indices(confs, n_data)
 
@@ -316,9 +315,11 @@ class SeqCLF(Strategy):
             new_data_total_set = new_data_round_info['data'] if round_i==0 else torch.utils.data.ConcatDataset([new_data_total_set, new_data_round_info['data']])
             if self.stat_mode:
                 # _, acc = workspace.detector.predict(workspace.data_split.loader['test_shift'], workspace.base_model, metrics='precision')
-                # stat_results.append(acc)
-                # stat_results.append(self.error_stat(workspace.base_model, new_data_round_info['data'], new_model_config.new_batch_size))
-                stat_results.append(self.error_stat(workspace.base_model, workspace.data_split.dataset['val_shift'], new_model_config.new_batch_size))
+                # stat_results.append(acc) # detector predcision change
+
+                # stat_results.append(self.error_stat(workspace.base_model, new_data_round_info['data'], new_model_config.new_batch_size)) # error in acquired data 
+
+                stat_results.append(self.error_stat(workspace.base_model, workspace.data_split.dataset['val_shift'], new_model_config.new_batch_size)) # error to train detector
         
         if self.stat_mode:
             return stat_results
