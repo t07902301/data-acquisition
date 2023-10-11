@@ -73,16 +73,15 @@ class WorkSpace():
         self.set_up(new_batch_size, clip_processor)
 
     def set_market(self, clip_processor, known_labels):
-        cover_market_dataset = OOD.run(self.data_split, clip_processor, known_labels, check_ds='market')
-        self.init_dataset['market'] = cover_market_dataset
+        filtered_market = OOD.run(self.data_split, clip_processor, known_labels, check_ds='market')
+        self.init_dataset['market'] = filtered_market
         # cover_aug_market_dataset = OOD.run(self.data_split, clip_processor, known_labels, check_ds='aug_market')
         # self.init_dataset['aug_market'] = cover_aug_market_dataset
         logger.info('After filtering, Market size:{}'.format(len(self.init_dataset['market'])))
 
     def set_detector(self, detector_instruction: Config.Detection):
-        val_loader, val_dataset = self.data_split.loader['val_shift'], self.data_split.dataset['val_shift']
         detector = Detector.factory(detector_instruction.name, self.general_config, detector_instruction.vit)
-        detector.fit(self.base_model, val_loader, val_dataset, batch_size=None)
+        detector.fit(self.base_model, self.data_split.loader['val_shift'])
         self.detector = detector
 
     def reset_detector(self, detector_instruction: Config.Detection):
@@ -227,7 +226,7 @@ class ProbabGreedy(NonSeqStrategy):
     def run(self, n_data, market_loader, detector: Detector.Prototype, anchor_dstr):
         market_dv, _ = detector.predict(market_loader)
         new_weight = self.probab2weight({'target': anchor_dstr['incorrect'], 'other': anchor_dstr['correct']}, market_dv)
-        new_data_indices = acquistion.get_top_values_indices(new_weight, n_data, order='descend')
+        new_data_indices = acquistion.get_top_values_indices(new_weight, n_data)
         # select_dv = market_dv[new_data_indices]
         # select_probab_dv = new_weight[new_data_indices]
         # logger.info('dv: {}, {}'.format(min(select_dv), max(select_dv)))
@@ -261,19 +260,19 @@ class Confidence(NonSeqStrategy):
         new_data_indices = self.run(acquistion_n_data, dataset_splits.loader['market'], workspacce.base_model, workspacce.base_model_config)
         return new_data_indices      
 
-    def get_confs_score(self,  base_model_config: Config.OldModel, base_model:Model.Prototype,market_loader):
+    def get_confidence_score(self,  base_model_config: Config.OldModel, base_model:Model.Prototype,market_loader):
 
         market_gts, _, market_score = base_model.eval(market_loader)
 
         if base_model_config.base_type == 'svm':
-            confs = acquistion.get_distance_diff(market_gts, market_score)
+            confs = acquistion.get_gt_distance(market_gts, market_score)
         else:
-            confs = acquistion.get_probab(market_gts, market_score)
+            confs = acquistion.get_gt_probab(market_gts, market_score)
         return confs
 
     def run(self, n_data, market_loader,  base_model:Model.Prototype, base_model_config: Config.OldModel):
 
-        confs = self.get_confs_score(base_model_config, base_model, market_loader)
+        confs = self.get_confidence_score(base_model_config, base_model, market_loader)
 
         new_data_indices = acquistion.get_top_values_indices(confs, n_data)
 
@@ -315,10 +314,16 @@ class SeqCLF(Strategy):
             new_data_round_info = self.round_operate(round_i, operation, workspace)
             new_data_total_set = new_data_round_info['data'] if round_i==0 else torch.utils.data.ConcatDataset([new_data_total_set, new_data_round_info['data']])
             if self.stat_mode:
-                _, acc = workspace.detector.predict(workspace.data_split.loader['test_shift'], workspace.base_model,True)
-                stat_results.append(acc)
-                # stat_results.append(self.stat(workspace.base_model, new_data_round_info['data'], new_model_config.new_batch_size))
+                # _, acc = workspace.detector.predict(workspace.data_split.loader['test_shift'], workspace.base_model, metrics='precision')
+                # stat_results.append(acc) # detector predcision change
 
+                # stat_results.append(self.error_stat(workspace.base_model, new_data_round_info['data'], new_model_config.new_batch_size)) # error in acquired data 
+
+                stat_results.append(self.error_stat(workspace.base_model, workspace.data_split.dataset['val_shift'], new_model_config.new_batch_size)) # error to train detector
+        
+        if self.stat_mode:
+            return stat_results
+        
         new_model_config.set_path(operation)
 
         workspace.set_data(new_model_config.new_batch_size) # recover validation & (aug)market
@@ -332,11 +337,8 @@ class SeqCLF(Strategy):
 
         self.export_detector(new_model_config, operation.acquisition, workspace.detector)
         self.export_indices(new_model_config, operation.acquisition, new_data_total_set, operation.stream)
-       
-        if self.stat_mode:
-            return stat_results
 
-    def stat(self, model: Model.Prototype, data, batch_size):
+    def error_stat(self, model: Model.Prototype, data, batch_size):
         dataloader = torch.utils.data.DataLoader(data, batch_size)
         acc = model.acc(dataloader)
         return 100 - acc
@@ -346,14 +348,12 @@ class SeqCLF(Strategy):
         Get new data, update (aug)market and val_shift, new detector from updated val_shift
         '''
         round_operation = self.round_set_up(operation, round_id)    
-        data_split = workspace.data_split
         logger.info('In round {}, {} data is acquired'.format(round_id, round_operation.acquisition.n_ndata))
 
         new_data_round_info = self.sub_strategy.get_new_data_info(round_operation, workspace)
 
-        data_split.reduce('market', new_data_round_info['indices'])
-        # data_split.reduce('aug_market', new_data_round_info['indices'])
-        data_split.expand('val_shift', new_data_round_info['data'])
+        workspace.data_split.reduce('market', new_data_round_info['indices'])
+        workspace.data_split.expand('val_shift', new_data_round_info['data'])
 
         workspace.set_detector(operation.detection)
 

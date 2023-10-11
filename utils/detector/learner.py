@@ -42,25 +42,32 @@ class Prototype():
     def fit(self, C, class_weight, x, gt, cv_splits=2, args= None):
         pass
 
-    def predict(self, clf, latents, gts=None, compute_metrics=False):
-        dataset_size = len(latents)
-        out_mask, out_decision = np.zeros(dataset_size), np.zeros(dataset_size)
-        out_decision = clf.decision_function(latents)
-        metric = None
-        if compute_metrics:
-            preds = clf.predict(latents)
-            # metric = sklearn_metrics.balanced_accuracy_score(gts, preds)*100
-            # metric = sklearn_metrics.f1_score(gts, preds, pos_label=0)*100
-            metric = sklearn_metrics.precision_score(gts, preds, pos_label=0) * 100
-
-        return out_mask, out_decision, metric
+    @abstractmethod
+    def predict(self, clf, latents, gts=None, metrics=None):
+        '''
+        Feature Scores from class 0 (gt!=pred) \n
+        SVM : opposite decision values \n
+        Logistic Regression: prediction probability
+        '''
+        pass
     
     def raw_predict(self, latents, clf):
         return clf.predict(latents)
     
+    def compute_metrics(self, clf, latents, gts, metric='precision'):
+        preds = clf.predict(latents)
+        if metric == 'f1-score':
+            metric = sklearn_metrics.f1_score(gts, preds, pos_label=0) * 100
+        elif metric == 'recall':
+            metric = sklearn_metrics.balanced_accuracy_score(gts, preds) * 100
+        else:
+            metric = sklearn_metrics.precision_score(gts, preds, pos_label=0) * 100
+        return metric
+    
 class logreg(Prototype):
     def __init__(self) -> None:
         super().__init__()
+
     def fit(self, C, class_weight, x, gt, cv_splits=2, args= None):
         '''
         x : input of svm; gt: groud truth of svm; cv: #cross validation splits
@@ -71,10 +78,20 @@ class logreg(Prototype):
         cv_scores = cross_val_score(clf, x, gt, cv=cv, scoring=scorer)
         average_cv_scores = np.mean(cv_scores)*100
         return clf, average_cv_scores
-
+    
+    def predict(self, clf: LogisticRegression, latents, gts=None, metrics=None):
+        dataset_size = len(latents)
+        out_mask, out_decision = np.zeros(dataset_size), np.zeros(dataset_size)
+        out_decision = clf.predict_proba(latents)[:, 0]
+        metric = None
+        if metrics != None:
+            metric = self.compute_metrics(clf, latents, gts, metrics)
+        return out_mask, out_decision, metric
+    
 class svm(Prototype):
     def __init__(self) -> None:
         super().__init__()
+
     def fit(self, C, class_weight, x, gt, cv_splits=2, args=None):
         data_split_env()
         kernel = args['kernel']
@@ -87,3 +104,12 @@ class svm(Prototype):
         cv_scores = cross_val_score(clf, x, gt, cv=cv, scoring=scorer)
         average_cv_scores = np.mean(cv_scores)*100
         return clf, average_cv_scores
+    
+    def predict(self, clf, latents, gts=None, metrics=None):
+        dataset_size = len(latents)
+        out_mask, out_decision = np.zeros(dataset_size), np.zeros(dataset_size)
+        out_decision = -clf.decision_function(latents)
+        metric = None
+        if metrics != None:
+            metric = self.compute_metrics(clf, latents, gts, metrics)
+        return out_mask, out_decision, metric

@@ -1,32 +1,36 @@
 import numpy as np
 import utils.detector.wrappers as wrappers
 import utils.objects.model as Model
-from abc import abstractmethod
 import utils.objects.dataloader as dataloader_utils
 from utils.logging import *
-
-def precision(detector, clip_processor, dataloader, base_model):
-    data_clip = clip_processor.evaluate_clip_images(dataloader)
-    gt, pred, conf = Model.evaluate(dataloader, base_model)
-    _, dv, _ = detector.predict(latents=data_clip, gts=gt, compute_metrics=False, preds=None)
-    dataset_len = len(gt)
-    detector_cls_incorrect = np.arange(dataset_len)[dv<=0]
-    real_cls_incorrect = np.arange(dataset_len)[gt!=pred]
-    return np.intersect1d(detector_cls_incorrect, real_cls_incorrect).size / detector_cls_incorrect.size
 
 class Prototype():
     def __init__(self, data_transform:str) -> None:
         self.transform = data_transform
         self.model = wrappers.Prototype(None, None)
-    @abstractmethod
+    
     def fit(self, base_model:Model.Prototype, data_loader, data=None, batch_size = None):
-        pass
-    @abstractmethod
-    def predict(self, data_loader, base_model:Model.Prototype=None, compute_metrics=False):
         '''
-        Decision Scores + Performance Metrics
+        Train Detector and Log out the Best Cross Validation Performance for Reguarization Penalty
         '''
-        pass
+        latent, latent_gts = dataloader_utils.get_latent(data_loader, self.clip_processor, self.transform)
+        correctness = get_correctness(data_loader, base_model, latent_gts)
+        self.model.set_preprocess(latent) 
+        score = self.model.fit(latent, correctness)
+        logger.info('Best CV Score: {}'.format(score))
+        
+    def predict(self, data_loader, base_model:Model.Prototype=None, metrics=None):
+        '''
+        Feature Scores + Performance Metrics
+        '''
+        latent, latent_gts = dataloader_utils.get_latent(data_loader, self.clip_processor, self.transform)
+        if metrics != None:
+            correctness = get_correctness(data_loader, base_model, latent_gts)
+            _, feature_score, metric = self.model.predict(latent, correctness, metrics)
+        else:
+            _, feature_score, _ = self.model.predict(latent)
+            metric = None
+        return feature_score, metric 
 
     def save(self, path):
         self.model.export(path)
@@ -40,55 +44,22 @@ class SVM(Prototype):
     def __init__(self, config, clip_processor:wrappers.CLIPProcessor, split_and_search=True, data_transform = 'clip') -> None:
         super().__init__(data_transform)
         self.clip_processor = clip_processor
-        self.model = wrappers.SVM(args=config['detector_args'], cv=config['detector_args']['k-fold'], split_and_search = split_and_search, do_normalize=False, do_standardize=True)
+        self.model = wrappers.SVM(args=config['detector_args'], cv=config['detector_args']['k-fold'], split_and_search = split_and_search)
         # #TODO take the mean and std assumed norm dstr
         # set_up_latent = get_latent(set_up_dataloader, clip_processor, self.transform)
         # self.model.set_preprocess(set_up_latent) 
-    
-    def fit(self, base_model:Model.Prototype, data_loader, data=None, batch_size=None):
-        latent, latent_gts = dataloader_utils.get_latent(data_loader, self.clip_processor, self.transform)
-        correctness = get_correctness(data_loader, base_model, latent_gts)
-        self.model.set_preprocess(latent) 
-        score = self.model.fit(latent, correctness)
-        logger.info('Best CV Score: {}'.format(score))
-    
-    def predict(self, data_loader, base_model:Model.Prototype=None, compute_metrics=False):
-        latent, latent_gts = dataloader_utils.get_latent(data_loader, self.clip_processor, self.transform)
-        if compute_metrics:
-            correctness = get_correctness(data_loader, base_model, latent_gts)
-            _, dv, metric = self.model.predict(latent, correctness, compute_metrics)
-        else:
-            _, dv, _ = self.model.predict(latent)
-            metric = None
-        return dv, metric 
 
 class LogRegressor(Prototype):
-    def __init__(self, config, data_transform: str, clip_processor:wrappers.CLIPProcessor) -> None:
+    def __init__(self, config, clip_processor:wrappers.CLIPProcessor, split_and_search=True, data_transform = 'clip') -> None:
         super().__init__(data_transform)
         self.clip_processor = clip_processor
-        self.model = wrappers.LogRegressor(do_normalize=True, do_standardize=False)
-
-    def fit(self, base_model:Model.Prototype, data_loader, data=None, batch_size = None):
-        latent, latent_gts = dataloader_utils.get_latent(data_loader, self.clip_processor, self.transform)
-        correctness = get_correctness(data_loader, base_model, latent_gts)
-        self.model.set_preprocess(latent) #TODO val set norm stat may be not accurate as those from train_clip
-        self.model.fit(latent, correctness)
-        
-    def predict(self, data_loader, base_model: Model.Prototype=None, compute_metrics=False):
-        latent, latent_gts = dataloader_utils.get_latent(data_loader, self.clip_processor, self.transform)
-        if compute_metrics:
-            correctness = get_correctness(data_loader, base_model, latent_gts)
-            _, conf_distance, metric = self.model.predict(latent, correctness, compute_metrics)
-        else:
-            _, conf_distance, _ = self.model.predict(latent)
-            metric = None
-        return conf_distance, metric 
+        self.model = wrappers.LogRegressor(cv=config['detector_args']['k-fold'], split_and_search=split_and_search)
     
 def factory(detector_type, config, clip_processor:wrappers.CLIPProcessor, split_and_search=True, data_transform = 'clip'):
     if detector_type == 'svm':
         return SVM(config, clip_processor, split_and_search, data_transform)
     elif detector_type == 'logregs':
-        return LogRegressor(config, data_transform, clip_processor)
+        return LogRegressor(config, clip_processor, split_and_search, data_transform)
     # elif detector_type == 'resnet':
     #     return resnet()
     # else:

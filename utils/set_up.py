@@ -61,7 +61,7 @@ def save_dataset_shift(epochs, model_dir, config):
     dataset = dataset_utils.factory(dataset_name)
 
     split_dir = 'init_data/{}_{}'.format(dataset_name, task)
-    shift_dir = 'dev/{}'.format(model_dir)
+    shift_dir = 'data/{}'.format(model_dir)
     normalized_stat = load_stat(split_dir)
 
     for idx in range(epochs):
@@ -123,7 +123,7 @@ def set_up(epochs, model_dir, device_id):
 
     split_dir = 'init_data/{}_{}'.format(dataset_name, task)
 
-    shift_dir = 'dev/{}'.format(model_dir)
+    shift_dir = 'data/{}'.format(model_dir)
 
     normalize_stat = load_stat(split_dir)
 
@@ -136,6 +136,5 @@ def set_up(epochs, model_dir, device_id):
 
     data = load_dataset(epochs, shift_dir, config['data'], dataset, normalize_stat)
 
-    logger.info('{}'.format(list(data[0].keys())))
     return config, device_config, data, normalize_stat, dataset_name, task
 

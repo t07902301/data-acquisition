@@ -54,7 +54,7 @@ def get_flattened(loader):
 
 def get_latent(data_loader, clip_processor:CLIPProcessor = None, transform: str = None):
     '''
-    Return Latent and True Labels (avoid train loader shuffles!)
+    Encode Images to Latents and True Labels (avoid train loader shuffles!)
     '''
     if transform == 'clip':
         latent, gts = clip_processor.evaluate_clip_images(data_loader)  

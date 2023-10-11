@@ -25,14 +25,11 @@ def dummy_acquire(cls_gt, cls_pred, method, img_num):
         new_img_indices = result_mask_indices
     return new_img_indices  
 
-def get_top_values_indices(values, K=0, order='ascend'):
+def get_top_values_indices(values, K=0):
     '''
-    return indices of top values from the indicated order
+    return indices of top values
     '''
-    if order != 'ascend':
-        sorting_idx = np.argsort(-values) # descending order
-    else:
-        sorting_idx = np.argsort(values) # ascending order
+    sorting_idx = np.argsort(-values) # descending order
     top_val_indices = sorting_idx[:K]
     return top_val_indices
 
@@ -48,13 +45,21 @@ def get_in_bound_top_indices(values, K, bound):
     top_idx = sorted_in_bound_val_indices[:K]
     return top_idx
 
-def get_probab(gts, probab):
+def get_gt_probab(gts, probab):
+    '''
+    Return Prediction Probability of True Labels \n
+    probab: (n_samples, n_class)
+    '''
     return probab[np.arange(len(gts)), gts]
 
-def get_distance_diff(gts, distance):
+def get_gt_distance(gts, decision_values):
+    '''
+    Return Distance to HyperPlane of True Labels \n
+    decision_values: (n_samples)
+    '''
     cls_0_mask = (gts==0)
     cls_1_mask = ~cls_0_mask
-    probab_diff = np.zeros(len(gts))
-    probab_diff[cls_0_mask] = (0 - distance[cls_0_mask])
-    probab_diff[cls_1_mask] = (distance[cls_1_mask] - 0)
-    return probab_diff
+    distance = np.zeros(len(gts))
+    distance[cls_0_mask] = (0 - decision_values[cls_0_mask])
+    distance[cls_1_mask] = (decision_values[cls_1_mask])
+    return distance[gts]
