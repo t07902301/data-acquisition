@@ -315,9 +315,10 @@ class SeqCLF(Strategy):
             new_data_round_info = self.round_operate(round_i, operation, workspace)
             new_data_total_set = new_data_round_info['data'] if round_i==0 else torch.utils.data.ConcatDataset([new_data_total_set, new_data_round_info['data']])
             if self.stat_mode:
-                _, acc = workspace.detector.predict(workspace.data_split.loader['test_shift'], workspace.base_model,True)
-                stat_results.append(acc)
+                # _, acc = workspace.detector.predict(workspace.data_split.loader['test_shift'], workspace.base_model,True)
+                # stat_results.append(acc)
                 # stat_results.append(self.stat(workspace.base_model, new_data_round_info['data'], new_model_config.new_batch_size))
+                stat_results.append(self.stat(workspace.base_model, workspace.data_split.dataset['val_shift'], new_model_config.new_batch_size))
         
         if self.stat_mode:
             return stat_results
@@ -335,8 +336,6 @@ class SeqCLF(Strategy):
 
         self.export_detector(new_model_config, operation.acquisition, workspace.detector)
         self.export_indices(new_model_config, operation.acquisition, new_data_total_set, operation.stream)
-       
-
 
     def stat(self, model: Model.Prototype, data, batch_size):
         dataloader = torch.utils.data.DataLoader(data, batch_size)
@@ -348,14 +347,12 @@ class SeqCLF(Strategy):
         Get new data, update (aug)market and val_shift, new detector from updated val_shift
         '''
         round_operation = self.round_set_up(operation, round_id)    
-        data_split = workspace.data_split
         logger.info('In round {}, {} data is acquired'.format(round_id, round_operation.acquisition.n_ndata))
 
         new_data_round_info = self.sub_strategy.get_new_data_info(round_operation, workspace)
 
-        data_split.reduce('market', new_data_round_info['indices'])
-        # data_split.reduce('aug_market', new_data_round_info['indices'])
-        data_split.expand('val_shift', new_data_round_info['data'])
+        workspace.data_split.reduce('market', new_data_round_info['indices'])
+        workspace.data_split.expand('val_shift', new_data_round_info['data'])
 
         workspace.set_detector(operation.detection)
 
