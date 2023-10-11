@@ -150,8 +150,6 @@ class TrainData():
 
         # return probab
 
-        # old_labels = set(Subset.config['data']['train_label']) - set(Subset.config['data']['remove_fine_labels'])
-        # logger.info(Subset.label_stat(new_data, Subset.config['data']['remove_fine_labels']), Subset.label_stat(new_data, old_labels))
         return 100 - checker.base_model.acc(new_data_loader)
     
         # train_loader = torch.utils.data.DataLoader(data_split.dataset['train'], batch_size= model_config.new_batch_size)
@@ -231,7 +229,7 @@ if __name__ == '__main__':
     parser.add_argument('-dn','--detector_name',type=str,default='svm', help="svm, logistic regression")
     parser.add_argument('-am','--acquisition_method',type=str, default='dv', help="Acquisition Strategy; dv: u-wfs, rs: random, conf: confiden-score, seq: sequential u-wfs, pd: u-wfsd, seq_pd: sequential u-wfsd")
     parser.add_argument('-bt','--base_type',type=str,default='cnn', help="Source/Base Model Type: cnn, svm; structure of cnn is indicated in the arch_type field in config.yaml")
-    parser.add_argument('-stat','--stat',type=str, default='train', help="test, train :check stat of train or test data")
+    parser.add_argument('-stat','--stat',type=str, default='train', help="test, train: check statistics (e.g. misclassification percentage, final detector recall) of train or test data")
     parser.add_argument('-pd','--probab_bound',type=float,default=0.5, help='A bound of the probability from Cw to assign test set and create corresponding val set for model training.')
 
     args = parser.parse_args()

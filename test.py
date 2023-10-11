@@ -86,7 +86,7 @@ if __name__ == '__main__':
     parser.add_argument('-dn','--detector_name',type=str,default='svm', help="svm, logistic regression")
     parser.add_argument('-pd','--probab_bound',type=float,default=0.5, help='A bound of the probability from Cw to assign test set and create corresponding val set for model training.')
     parser.add_argument('-am','--acquisition_method',type=str, default='dv', help="Acquisition Strategy; dv: u-wfs, rs: random, conf: confiden-score, seq: sequential u-wfs, pd: u-wfsd, seq_pd: sequential u-wfsd")
-    parser.add_argument('-s','--stream',type=str, default='probab', help="dstr: AE, probab: WTA")
+    parser.add_argument('-s','--stream',type=str, default='probab', help="Ensemble Method; dstr: AE, probab: WTA")
     parser.add_argument('-bt','--base_type',type=str,default='cnn', help="Source/Base Model Type: cnn, svm; structure of cnn is indicated in the arch_type field in config.yaml")
     args = parser.parse_args()
     main(args.epochs, model_dir=args.model_dir, device=args.device, detector_name=args.detector_name, acquisition_method=args.acquisition_method, stream_name=args.stream, base_type=args.base_type, probab_bound=args.probab_bound)
