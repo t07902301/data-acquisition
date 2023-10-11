@@ -150,8 +150,6 @@ class TrainData():
 
         # return probab
 
-        # old_labels = set(Subset.config['data']['train_label']) - set(Subset.config['data']['remove_fine_labels'])
-        # logger.info(Subset.label_stat(new_data, Subset.config['data']['remove_fine_labels']), Subset.label_stat(new_data, old_labels))
         return 100 - checker.base_model.acc(new_data_loader)
     
         # train_loader = torch.utils.data.DataLoader(data_split.dataset['train'], batch_size= model_config.new_batch_size)
@@ -189,9 +187,9 @@ class TrainData():
         #     check_result = self.check_indices(operation, data_split, checker, pdf_method, distribution)
         return check_result
    
-def main(epochs, new_model_setter='retrain', model_dir ='', device=0, probab_bound = 0.5, base_type='', detector_name = '', stat_data='train', dev_name= 'dv'):
+def main(epochs, new_model_setter='retrain', model_dir ='', device=0, probab_bound = 0.5, base_type='', detector_name = '', stat_data='train', acquisition_method= 'dv'):
     pure = True
-    fh = logging.FileHandler('log/{}/stat_{}_{}.log'.format(model_dir, dev_name, stat_data), mode='w')
+    fh = logging.FileHandler('log/{}/stat_{}_{}.log'.format(model_dir, acquisition_method, stat_data), mode='w')
     fh.setLevel(logging.INFO)
     logger.addHandler(fh)
     logger.info('Detector: {}; Probab bound: {}'.format(detector_name, probab_bound))
@@ -199,7 +197,6 @@ def main(epochs, new_model_setter='retrain', model_dir ='', device=0, probab_bou
     device_config = 'cuda:{}'.format(device)
     torch.cuda.set_device(device_config)
     config, device_config, ds_list, normalize_stat, dataset_name, option = set_up(epochs, model_dir, device)
-    method = dev_name
 
     clip_processor = Detector.load_clip(device_config, normalize_stat['mean'], normalize_stat['std'])
     stream_instruction = Config.ProbabStream(bound=probab_bound, pdf='kde', name='probab')
@@ -211,14 +208,14 @@ def main(epochs, new_model_setter='retrain', model_dir ='', device=0, probab_bou
     
     if stat_data == 'train':
         stat_checker = TrainData(dataset_name, config['data'], normalize_stat)
-        results = stat_checker.run(epochs, parse_args, config['data']['n_new_data'], method, operation, ds_list, stream_instruction.pdf)
+        results = stat_checker.run(epochs, parse_args, config['data']['n_new_data'], acquisition_method, operation, ds_list, stream_instruction.pdf)
         results = np.array(results)
-        logger.info(method)
+        logger.info(acquisition_method)
         logger.info('Train Data stat: {}'.format(np.round(np.mean(results, axis=0), decimals=3).tolist()))
         logger.info('all: {}'.format(results.tolist()))
     else:
         stat_checker = TestData()
-        results = stat_checker.run(epochs, parse_args, config['data']['n_new_data'], method, operation, ds_list, plot=False)
+        results = stat_checker.run(epochs, parse_args, config['data']['n_new_data'], acquisition_method, operation, ds_list, plot=False)
         logger.info('Test Data error stat:{}'.format(np.round(np.mean(results), decimals=3)))
         logger.info('all: {}'.format(results))
 
@@ -230,9 +227,10 @@ if __name__ == '__main__':
     parser.add_argument('-md','--model_dir',type=str,default='', help="(dataset name) _ task _ (other info)")
     parser.add_argument('-d','--device',type=int,default=0)
     parser.add_argument('-dn','--detector_name',type=str,default='svm', help="svm, logistic regression")
-    parser.add_argument('-dev','--dev',type=str, default='dv', help="dv: u-wfs, rs: random, conf: confiden-score, seq: sequential u-wfs, pd: u-wfsd, seq_pd: sequential u-wfsd")
-    parser.add_argument('-bt','--base_type',type=str,default='cnn', help="cnn, svm; structure of cnn is indicated in the arch_type field in config.yaml")
-    parser.add_argument('-stat','--stat',type=str, default='train', help="test, train :check stat of train or test data")
+    parser.add_argument('-am','--acquisition_method',type=str, default='dv', help="Acquisition Strategy; dv: u-wfs, rs: random, conf: confiden-score, seq: sequential u-wfs, pd: u-wfsd, seq_pd: sequential u-wfsd")
+    parser.add_argument('-bt','--base_type',type=str,default='cnn', help="Source/Base Model Type: cnn, svm; structure of cnn is indicated in the arch_type field in config.yaml")
+    parser.add_argument('-stat','--stat',type=str, default='train', help="test, train: check statistics (e.g. misclassification percentage, final detector recall) of train or test data")
+    parser.add_argument('-pd','--probab_bound',type=float,default=0.5, help='A bound of the probability from Cw to assign test set and create corresponding val set for model training.')
 
     args = parser.parse_args()
-    main(args.epochs, model_dir=args.model_dir, device=args.device, base_type=args.base_type, detector_name=args.detector_name, dev_name=args.dev, stat_data=args.stat)
+    main(args.epochs, model_dir=args.model_dir, device=args.device, base_type=args.base_type, detector_name=args.detector_name, acquisition_method=args.acquisition_method, stat_data=args.stat, probab_bound=args.probab_bound)

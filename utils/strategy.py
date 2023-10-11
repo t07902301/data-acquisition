@@ -198,11 +198,11 @@ class Greedy(NonSeqStrategy):
         return new_data_indices  
     
     def run(self, n_data, market_loader, detector: Detector.Prototype, bound=None):
-        market_dv, _ = detector.predict(market_loader)
+        market_feature_score, _ = detector.predict(market_loader)
         if bound == None:
-            new_data_indices = acquistion.get_top_values_indices(market_dv, n_data)
+            new_data_indices = acquistion.get_top_values_indices(market_feature_score, n_data)
         else:
-            new_data_indices = acquistion.get_in_bound_top_indices(market_dv, n_data, bound)
+            new_data_indices = acquistion.get_in_bound_top_indices(market_feature_score, n_data, bound)
         return new_data_indices
 
 class ProbabGreedy(NonSeqStrategy):
@@ -224,13 +224,13 @@ class ProbabGreedy(NonSeqStrategy):
         return new_data_indices  
     
     def run(self, n_data, market_loader, detector: Detector.Prototype, anchor_dstr):
-        market_dv, _ = detector.predict(market_loader)
-        new_weight = self.probab2weight({'target': anchor_dstr['incorrect'], 'other': anchor_dstr['correct']}, market_dv)
+        market_feature_score, _ = detector.predict(market_loader)
+        new_weight = self.probab2weight({'target': anchor_dstr['incorrect'], 'other': anchor_dstr['correct']}, market_feature_score)
         new_data_indices = acquistion.get_top_values_indices(new_weight, n_data)
-        # select_dv = market_dv[new_data_indices]
-        # select_probab_dv = new_weight[new_data_indices]
-        # logger.info('dv: {}, {}'.format(min(select_dv), max(select_dv)))
-        # logger.info('dv probab: {}, {}'.format(min(select_probab_dv), max(select_probab_dv)))
+        # select_feature_score = market_feature_score[new_data_indices]
+        # select_probab_feature_score = new_weight[new_data_indices]
+        # logger.info('dv: {}, {}'.format(min(select_feature_score), max(select_feature_score)))
+        # logger.info('dv probab: {}, {}'.format(min(select_probab_feature_score), max(select_probab_feature_score)))
         return new_data_indices
 
 class Sample(NonSeqStrategy):
@@ -286,9 +286,9 @@ class Confidence(NonSeqStrategy):
 #     def get_new_data_indices(self, n_data, dataset_splits: dataset_utils.DataSplits, detector_instruction: Config.Detection, bound = None):
 #         detector = Detector.SVM(dataset_splits.loader['train_clip'], self.clip_processor)
 #         _ = detector.fit(self.base_model, dataset_splits.loader['val_shift'])
-#         market_dv, _ = detector.predict(dataset_splits.loader['market'], self.base_model)
-#         greedy_results = acquistion.get_top_values_indices(market_dv, n_data-n_data//2)
-#         sample_results = acquistion.sample_acquire(market_dv,n_data//2)
+#         market_feature_score, _ = detector.predict(dataset_splits.loader['market'], self.base_model)
+#         greedy_results = acquistion.get_top_values_indices(market_feature_score, n_data-n_data//2)
+#         sample_results = acquistion.sample_acquire(market_feature_score,n_data//2)
 #         new_data_cls_indices = np.concatenate([greedy_results, sample_results])
 #         detector_info = None
 #         return new_data_cls_indices, detector_info       

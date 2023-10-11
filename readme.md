@@ -1,6 +1,6 @@
 # Data Acquisition for Generalizing Black-Box Models
 
-All code to reproduce experiment results are marked <ins>underline</ins>. 
+All code to reproduce experiment results are marked with <ins>underline</ins>, and the help of parameters for code execution can be found in the *main* entry of each code. 
 
 ## Set up
 
@@ -22,6 +22,8 @@ Under the currect directory, three folder need to be set to keep outputs from ex
 model_directory with the format of - (dataset name) _ task _ (other info) - is used to name all relevant outputs in **log**, **model**, and **data**. 
 
 Examples of model_directory: core_object_resnet, cifar-4class
+
+<!-- 4. **figure**: store some figures from check.py and stat_check.py -->
 
 ## Set up Source Models
 
@@ -50,6 +52,8 @@ Examples of model_directory: core_object_resnet, cifar-4class
 <ins>**seq_stat.py**</ins>: only run sequential strategy and return statistics of detection accuracy or misclassification in acquired data. No model building and saving. 
 
 <ins>**stat_check.py**</ins>: the distribution of acquired data; test data under WTA or partition; final detector from sequential acquisition. 
+
+<ins>**data_valuation.py**</ins>: examine the relation between u-wfs and u-wfsd. 
 
 ## Dataset Generation
 

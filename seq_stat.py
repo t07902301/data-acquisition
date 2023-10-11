@@ -71,14 +71,14 @@ def bound_run(parse_args, epochs, ds_list, method_list, bound, n_new_data_list, 
         avg_stat = np.mean(detect_acc_list[:, idx, :], axis=0)
         logger.info('{}: [{}, {}],'.format(n_data, avg_stat[0], avg_stat[1]))
 
-def main(epochs, device, detector_name, model_dir, base_type, filter_market=False):
+def main(epochs, device, detector_name, model_dir, base_type, probab_bound, filter_market=False):
 
     fh = logging.FileHandler('log/{}/seq_stat.log'.format(model_dir),mode='w')
     fh.setLevel(logging.DEBUG)
     logger.addHandler(fh)
 
     pure, new_model_setter = True, 'retrain'
-    method, probab_bound = 'seq', 0.5 
+    acquisition_method = 'seq'
 
     logger.info('Filter Market: {}'.format(filter_market))
 
@@ -91,7 +91,7 @@ def main(epochs, device, detector_name, model_dir, base_type, filter_market=Fals
     operation = Config.Operation(acquire_instruction, stream_instruction, detect_instruction)
 
     parse_args = (model_dir, device_config, base_type, pure, new_model_setter, config, filter_market)
-    bound_run(parse_args, epochs, ds_list, method, None, config['data']['n_new_data'], operation)
+    bound_run(parse_args, epochs, ds_list, acquisition_method, None, config['data']['n_new_data'], operation)
 
 import argparse
 if __name__ == '__main__':
@@ -101,7 +101,8 @@ if __name__ == '__main__':
     parser.add_argument('-md','--model_dir',type=str,default='', help="(dataset name) _ task _ (other info)")
     parser.add_argument('-d','--device',type=int,default=0)
     parser.add_argument('-dn','--detector_name',type=str,default='svm', help="svm, logistic regression")
-    parser.add_argument('-bt','--base_type',type=str,default='cnn', help="cnn, svm; structure of cnn is indicated in the arch_type field in config.yaml")
+    parser.add_argument('-bt','--base_type',type=str,default='cnn', help="Source/Base Model Type: cnn, svm; structure of cnn is indicated in the arch_type field in config.yaml")
+    parser.add_argument('-pd','--probab_bound',type=float,default=0.5, help='A bound of the probability from Cw to assign test set and create corresponding val set for model training.')
 
     args = parser.parse_args()
-    main(args.epochs, model_dir=args.model_dir, device=args.device, detector_name=args.detector_name, base_type=args.base_type)
+    main(args.epochs, model_dir=args.model_dir, device=args.device, detector_name=args.detector_name, base_type=args.base_type, probab_bound=args.probab_bound)
