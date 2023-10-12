@@ -24,7 +24,7 @@ hparams:
       lr_scheduler: 
           # type: 'step'
           type: 'cyclic'
-          lr_peak_epoch: 5    
+          lr_peak_epoch: 10    
           # type: 'ReduceLROnPlateau'
           # patience: 5
 
