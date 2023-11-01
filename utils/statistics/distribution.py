@@ -57,6 +57,9 @@ class Disrtibution():
         self.type = pdf_type
 
 class CorrectnessDisrtibution():
+    '''
+    Prior probability; \n Probability densiity function; \n Correct Predictions or not
+    '''
     def __init__(self, model: ModelPrototye, detector:DetecorPrototye, dataloader, pdf_type, correctness: bool) -> None:
         target_dv =  DataStat.get_correctness_dv(model, dataloader, detector, correctness=correctness)
         dataloader_size = dataloader_utils.get_size(dataloader)

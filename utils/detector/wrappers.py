@@ -128,8 +128,7 @@ class Prototype:
     def raw_predict(self, latents):
         assert self.clf is not None, "must call fit first"
         latents = self.pre_process(latents).numpy()
-        pred = self.learner.raw_predict(latents, self.clf) 
-        return pred
+        return self.clf.predict(latents)
 
 class LogRegressor(Prototype):
     def __init__(self, split_and_search=True, balanced=True, cv=2, do_normalize=False, args=None, do_standardize=True) -> None:

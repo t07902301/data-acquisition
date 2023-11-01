@@ -4,7 +4,7 @@ from sklearn.svm import LinearSVC, SVC
 import sklearn.metrics as sklearn_metrics
 from sklearn.model_selection import cross_val_score, StratifiedKFold
 from utils.logging import *
-from utils.env import seed, data_split_env
+from utils.env import seed, data_env
 from abc import abstractmethod
 
 class Prototype():
@@ -72,8 +72,9 @@ class logreg(Prototype):
         '''
         x : input of svm; gt: groud truth of svm; cv: #cross validation splits
         '''
-        cv = StratifiedKFold(shuffle=True, random_state=0, n_splits=cv_splits) # randomness in shuffling for cross validation
-        clf = LogisticRegression(random_state=0, max_iter=50, solver='liblinear', C=C, class_weight=class_weight)
+        data_env()
+        cv = StratifiedKFold(shuffle=True, random_state=seed, n_splits=cv_splits) # randomness in shuffling for cross validation
+        clf = LogisticRegression(random_state=seed, max_iter=50, solver='liblinear', C=C, class_weight=class_weight)
         scorer = sklearn_metrics.make_scorer(sklearn_metrics.balanced_accuracy_score)
         cv_scores = cross_val_score(clf, x, gt, cv=cv, scoring=scorer)
         average_cv_scores = np.mean(cv_scores)*100
@@ -93,7 +94,7 @@ class svm(Prototype):
         super().__init__()
 
     def fit(self, C, class_weight, x, gt, cv_splits=2, args=None):
-        data_split_env()
+        data_env()
         kernel = args['kernel']
         cv = StratifiedKFold(shuffle=True, random_state=seed, n_splits=cv_splits) # randomness in shuffling for cross validation
         if kernel == 'linearSVC':

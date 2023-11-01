@@ -10,7 +10,7 @@ class Log():
     name: str
     def __init__(self, model_config:Config.NewModel, name) -> None:
         '''
-        Add log name ('data','indices',...) to the model_config root
+        Add log name ('detector','indices',...) to the model_config root
         '''
         assert model_config.root_detector != None, 'Set up model config path first'
         self.root = os.path.join(model_config.root_detector, 'log', name)
@@ -18,7 +18,8 @@ class Log():
         self.name = name
    
     def set_path(self, acquistion_config:Config.Acquisition):
-        self.path = os.path.join(self.root, '{}_{}.pt'.format(acquistion_config.method, acquistion_config.n_ndata))  
+        threshold_name = '_{}%'.format(int(acquistion_config.threshold*100)) if acquistion_config.threshold != None else ''
+        self.path = os.path.join(self.root, '{}_{}{}.pt'.format(acquistion_config.method, acquistion_config.budget, threshold_name))
 
     def export(self, acquistion_config:Config.Acquisition, data=None, detector:Detector.Prototype=None):
         self.set_path(acquistion_config)

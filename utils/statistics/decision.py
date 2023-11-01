@@ -42,10 +42,9 @@ class Distance(Prototye):
         return distance
     
     def apply(self, ensembled_decision):
-        # ensembled_decision: array (n_size, n_class) - binary
         size = len(ensembled_decision)
         ensembled_decision = ensembled_decision.reshape(size)
-        class_1_mask = (ensembled_decision >= 0)
+        class_1_mask = (ensembled_decision <= 0)
         preds = np.zeros(size)
         preds[class_1_mask] = 1
         return preds

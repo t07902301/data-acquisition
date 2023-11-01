@@ -6,7 +6,7 @@ import os
 import pickle as pkl
 def run(model_dir, frame_sample_ratio):
     config = load_config(model_dir)
-    meta_data = MetaData('core_data.pkl')
+    meta_data = MetaData('core_data.pkl') # resized 32x32 data from core50_imgs.npz 
     label_map = config['data']['labels']['map']
     category = list(label_map.keys()) if label_map != None else [i for i in range(10)]
     sessions = [i for i in range(11)]
@@ -15,14 +15,14 @@ def run(model_dir, frame_sample_ratio):
     return meta_data.subset2dict(split_results['sampled'], all_data_indices)
 
 def main(model_dir =''):
-    fh = logging.FileHandler('log/{}/meta.log'.format(model_dir),mode='w')
+    fh = logging.FileHandler('log/{}/core.log'.format(model_dir),mode='w')
     fh.setLevel(logging.INFO)
     logger.addHandler(fh)
     config = load_config(model_dir)
     frame_sample_ratio = config['data']['ratio']['frame']
 
     meta = run(model_dir, frame_sample_ratio)
-    meta_path = os.path.join('data/meta', '{}.pkl'.format(model_dir[:2]))
+    meta_path = os.path.join(config['data']['root'], '{}.pkl'.format(model_dir[:2]))
     fw = open(meta_path, 'wb')
     pkl.dump(meta, fw)
     print('save to', meta_path)
