@@ -35,6 +35,15 @@ class Acquisition():
     @abstractmethod
     def get_info(self):
         pass
+
+    def set_budget(self, budget):
+        self.budget = budget
+
+    def set_threshold(self, threshold):
+        self.threshold = threshold
+
+    def set_method(self, method):
+        self.method = method
     
 class NonSeqAcquisition(Acquisition):
     def __init__(self, method='', budget=0, threshold=None, seq_config=None) -> None:
@@ -71,11 +80,11 @@ class SequentialAc(Acquisition):
         return 'acquisition method: {}, n_data_per_class:({},{}) in round {}'.format(
             self.method, self.budget_non_last_round, self.budget_last_round, self.current_round)
 
-def AcquisitionFactory(acquisition_method, data_config, utility_threshold=None):
+def AcquisitionFactory(acquisition_method, data_config):
     if 'seq' in acquisition_method:
-        return SequentialAc(method=acquisition_method, threshold=utility_threshold, seq_config=data_config['seq'])
+        return SequentialAc(method=acquisition_method, seq_config=data_config['seq'])
     else:
-        return NonSeqAcquisition(method=acquisition_method, threshold=utility_threshold)
+        return NonSeqAcquisition(method=acquisition_method)
     
 class Operation():
     '''

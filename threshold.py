@@ -47,7 +47,7 @@ class Train():
 
     def threshold_run(self, operation: Config.Operation, new_model_config:Config.NewModel, workspace: WorkSpace):
         for threshold in self.threshold_list:
-            operation.acquisition.threshold = threshold
+            operation.acquisition.set_threshold(threshold)
             self.train(operation, new_model_config, workspace)
 
     def train(self, operation: Config.Operation, new_model_config:Config.NewModel, workspace: WorkSpace):

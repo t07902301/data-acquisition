@@ -5,29 +5,26 @@ from utils.logging import *
 def run(operation: Config.Operation, new_model_config:Config.NewModel, workspace: WorkSpace):
     strategy = StrategyFactory(operation.acquisition.method)
     strategy.stat_mode = True
-    stat_results = strategy.operate(operation, new_model_config, workspace)
-    return stat_results
+    stat = strategy.operate(operation, new_model_config, workspace)
+    return stat
 
-def budget_run(new_img_num_list, operation: Config.Operation, new_model_config:Config.NewModel, workspace: WorkSpace):
-    budget_results = []
-    for new_img_num in new_img_num_list:
-        operation.acquisition.budget = new_img_num
-        stat_results = run(operation, new_model_config, workspace)
-        budget_results.append(stat_results)
-    return budget_results
+def budget_run(budget_list, operation: Config.Operation, new_model_config:Config.NewModel, workspace: WorkSpace):
+    budget_stat = []
+    for budget in budget_list:
+        operation.acquisition.budget = budget
+        stat = run(operation, new_model_config, workspace)
+        budget_stat.append(stat)
+    return budget_stat
 
-def method_run(method, new_img_num_list, new_model_config:Config.NewModel, operation: Config.Operation, workspace: WorkSpace):
+def method_run(budget_list, new_model_config:Config.NewModel, operation: Config.Operation, workspace: WorkSpace):
     workspace.set_detector(operation.detection)
     workspace.set_validation(new_model_config.new_batch_size)
 
-    operation.acquisition.method = method
-    operation.acquisition = Config.AcquisitionFactory(operation.acquisition)
+    budget_stat = budget_run(budget_list, operation, new_model_config, workspace)
 
-    budget_results = budget_run(new_img_num_list, operation, new_model_config, workspace)
+    return budget_stat
 
-    return budget_results
-
-def epoch_run(parse_args, method, n_data_list, dataset:dict, epo, operation: Config.Operation):
+def epoch_run(parse_args, budget_list, dataset:dict, epo, operation: Config.Operation):
 
     model_dir, device_config, base_type, pure, new_model_setter, config, filter_market = parse_args
     batch_size = config['hparams']['batch_size']
@@ -45,24 +42,8 @@ def epoch_run(parse_args, method, n_data_list, dataset:dict, epo, operation: Con
         known_labels = config['data']['labels']['cover']['target']
         workspace.set_market(operation.detection.vit, known_labels)
    
-    detect_acc = method_run(method, n_data_list, new_model_config, operation, workspace)
-    return detect_acc
-
-def bound_run(parse_args, epochs, ds_list, method_list, bound, budget_list, operation: Config.Operation):
-
-    operation.acquisition.bound = bound
-    detect_acc_list = []
-
-    for epo in range(epochs):
-        logger.info('In epoch {}'.format(epo))
-        dataset = ds_list[epo]
-        detect_acc = epoch_run(parse_args, method_list, budget_list, dataset, epo, operation)
-        detect_acc_list.append(detect_acc)
-    detect_acc_list = np.array(detect_acc_list)
-
-    for idx, n_data in enumerate(budget_list):
-        avg_stat = np.mean(detect_acc_list[:, idx, :], axis=0)
-        logger.info('{}: [{}, {}],'.format(n_data, avg_stat[0], avg_stat[1]))
+    stat = method_run(budget_list, new_model_config, operation, workspace)
+    return stat
 
 def main(epochs, device, detector_name, model_dir, base_type, ensemble_criterion, ensemble_name, filter_market=False):
 
@@ -80,12 +61,25 @@ def main(epochs, device, detector_name, model_dir, base_type, ensemble_criterion
     clip_processor = Detector.load_clip(device_config, normalize_stat['mean'], normalize_stat['std'])
     ensemble_instruction = Config.Ensemble(ensemble_criterion, ensemble_name, pdf='kde')
     detect_instruction = Config.Detection(detector_name, clip_processor)
-    acquire_instruction = Config.Acquisition(seq_config=config['data']['seq']) 
+    acquire_instruction = Config.AcquisitionFactory(acquisition_method=acquisition_method, data_config=config['data'])
     operation = Config.Operation(acquire_instruction, ensemble_instruction, detect_instruction)
 
     parse_args = (model_dir, device_config, base_type, pure, new_model_setter, config, filter_market)
-    bound_run(parse_args, epochs, ds_list, acquisition_method, None, config['data']['budget'], operation)
 
+    stat_list = []
+    budget_list = config['data']['budget']
+
+    for epo in range(epochs):
+        logger.info('In epoch {}'.format(epo))
+        dataset = ds_list[epo]
+        stat = epoch_run(parse_args, budget_list, dataset, epo, operation)
+        stat_list.append(stat)
+    stat_list = np.array(stat_list)
+
+    for idx, n_data in enumerate(budget_list):
+        avg_stat = np.mean(stat_list[:, idx, :], axis=0)
+        logger.info('{}: [{}, {}],'.format(n_data, avg_stat[0], avg_stat[1]))
+        
 import argparse
 if __name__ == '__main__':
 

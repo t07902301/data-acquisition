@@ -25,10 +25,9 @@ class TestData():
         return [new_error_stat, old_error_stat]
     
     def seq_run(self, operation:Config.Operation, budget_list, checker:Checker.Probability):
-        operation.acquisition.method = 'seq'
         seq_error_stat = []
         for budget in budget_list:
-            operation.acquisition.budget = budget
+            operation.acquisition.set_budget(budget)
             checker.new_model_config.set_path(operation)
             logger.info('Seq Running:')
             detector_log = Log(checker.new_model_config, 'detector')
@@ -38,9 +37,9 @@ class TestData():
             seq_error_stat.append(self.error_stat(checker)[0]) # only fetch error in mew model test set
         return seq_error_stat
         
-    def run(self, epochs, parse_args, budget_list, method, operation:Config.Operation, dataset_list: List[dict], plot):
+    def run(self, epochs, parse_args, budget_list, operation:Config.Operation, dataset_list: List[dict], plot):
         results = []
-        if 'seq' in method:
+        if 'seq' in operation.acquisition.method:
             for epo in range(epochs):
                 logger.info('in epoch {}'.format(epo))
                 checker = Checker.instantiate(epo, parse_args, dataset_list[epo], operation)
@@ -113,24 +112,23 @@ class TrainData():
         Distribution.plt.close()
         logger.info('Save fig to figure/train/dv{}_{}.png'.format(pdf_name, budget))
 
-    def run(self, epochs, parse_args, budget_list, method, operation:Config.Operation, dataset_list: List[dict], pdf_method):
+    def run(self, epochs, parse_args, budget_list, operation:Config.Operation, dataset_list: List[dict], pdf_method):
         results = []
         for epo in range(epochs):
             logger.info('in epoch {}'.format(epo))
             checker = Checker.instantiate(epo, parse_args, dataset_list[epo], operation)
             data_split = dataset_utils.DataSplits(dataset_list[epo], checker.general_config['hparams']['batch_size']['new'])
-            result_epoch = self.epoch_run(operation, method, budget_list, checker, data_split, pdf_method)
+            result_epoch = self.epoch_run(operation, budget_list, checker, data_split, pdf_method)
             results.append(result_epoch)
         return results
 
-    def epoch_run(self, operation:Config.Operation, method, budget_list, checker:Checker.Prototype, data_split:dataset_utils.DataSplits, pdf_method):
-        operation.acquisition.method = method
+    def epoch_run(self, operation:Config.Operation, budget_list, checker:Checker.Prototype, data_split:dataset_utils.DataSplits, pdf_method):
         return self.method_run(budget_list, operation, checker, data_split, pdf_method)
 
     def method_run(self, budget_list, operation:Config.Operation, checker: Checker.Prototype, data_split:dataset_utils.DataSplits, pdf_method):
         acc_change_list = []
         for budget in budget_list:
-            operation.acquisition.budget = budget
+            operation.acquisition.set_budget(budget)
             acc_change = self.budget_run(operation, checker, data_split, pdf_method)
             acc_change_list.append(acc_change)
         return acc_change_list
@@ -203,7 +201,7 @@ def main(epochs, new_model_setter='retrain', model_dir ='', device=0, base_type=
     clip_processor = Detector.load_clip(device_config, normalize_stat['mean'], normalize_stat['std'])
     ensemble_instruction = Config.Ensemble(ensemble_criterion, ensemble_name, pdf)
     detect_instruction = Config.Detection(detector_name, clip_processor)
-    acquire_instruction = Config.AcquisitionFactory(utility_threshold=utility_threshold, acquisition_method=acquisition_method, data_config=config['data'])
+    acquire_instruction = Config.AcquisitionFactory(acquisition_method=acquisition_method, data_config=config['data'])
     
     operation = Config.Operation(acquire_instruction, ensemble_instruction, detect_instruction)
     
@@ -211,14 +209,13 @@ def main(epochs, new_model_setter='retrain', model_dir ='', device=0, base_type=
     
     if stat_data == 'train':
         stat_checker = TrainData(dataset_name, config['data'], normalize_stat)
-        results = stat_checker.run(epochs, parse_args, config['data']['budget'], acquisition_method, operation, ds_list, ensemble_instruction.pdf)
+        results = stat_checker.run(epochs, parse_args, config['data']['budget'], operation, ds_list, ensemble_instruction.pdf)
         results = np.array(results)
-        logger.info(acquisition_method)
         logger.info('Train Data stat: {}'.format(np.round(np.mean(results, axis=0), decimals=3).tolist()))
         logger.info('all: {}'.format(results.tolist()))
     else:
         stat_checker = TestData()
-        results = stat_checker.run(epochs, parse_args, config['data']['budget'], acquisition_method, operation, ds_list, plot=False)
+        results = stat_checker.run(epochs, parse_args, config['data']['budget'], operation, ds_list, plot=False)
         logger.info('Test Data error stat:{}'.format(np.round(np.mean(results), decimals=3)))
         logger.info('all: {}'.format(results))
 

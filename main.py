@@ -8,14 +8,13 @@ def run(operation: Config.Operation, new_model_config:Config.NewModel, workspace
 
 def budget_run(budget_list, operation: Config.Operation, new_model_config:Config.NewModel, workspace: WorkSpace):
     for budget in budget_list:
-        operation.acquisition.budget = budget
+        operation.acquisition.set_budget(budget)
         run(operation, new_model_config, workspace)
 
-def method_run(method, budget_list, new_model_config:Config.NewModel, operation: Config.Operation, workspace: WorkSpace):
+def method_run(budget_list, new_model_config:Config.NewModel, operation: Config.Operation, workspace: WorkSpace):
+    method = operation.acquisition.method
     if method != 'rs':
         workspace.set_detector(operation.detection)
-        # set_anchor_dstr = True if 'pd' in method else False
-        # workspace.set_validation(operation.stream, new_model_config.batch_size, new_model_config.new_batch_size, set_anchor_dstr)
         workspace.set_validation(new_model_config.new_batch_size)
         if 'pd' in method:
             workspace.set_anchor_dstr(operation.stream)
@@ -26,7 +25,7 @@ def method_run(method, budget_list, new_model_config:Config.NewModel, operation:
 
     budget_run(budget_list, operation, new_model_config, workspace)
 
-def epoch_run(parse_args, method, budget_list, dataset:dict, epo, operation: Config.Operation):
+def epoch_run(parse_args, budget_list, dataset:dict, epo, operation: Config.Operation):
 
     model_dir, device_config, base_type, pure, new_model_setter, config, filter_market = parse_args
     batch_size = config['hparams']['batch_size']
@@ -44,7 +43,7 @@ def epoch_run(parse_args, method, budget_list, dataset:dict, epo, operation: Con
         known_labels = config['data']['labels']['cover']['target']
         workspace.set_market(operation.detection.vit, known_labels)
    
-    method_run(method, budget_list, new_model_config, operation, workspace)
+    method_run(budget_list, new_model_config, operation, workspace)
 
 def main(epochs, acquisition_method, device, detector_name, model_dir, base_type, filter_market=False):
 
@@ -70,7 +69,7 @@ def main(epochs, acquisition_method, device, detector_name, model_dir, base_type
     for epo in range(epochs):
         logger.info('In epoch {}'.format(epo))
         dataset = ds_list[epo]
-        epoch_run(parse_args, acquisition_method, config['data']['budget'], dataset, epo, operation)
+        epoch_run(parse_args, config['data']['budget'], dataset, epo, operation)
 
 import argparse
 if __name__ == '__main__':

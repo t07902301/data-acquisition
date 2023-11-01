@@ -33,21 +33,23 @@ class TestData():
         logger.info(fig_name)
         plt.clf()
 
-    def run(self, epochs, parse_args, operation:Config.Operation, dataset_list: List[dict]):
-        for epo in range(epochs):
-            logger.info('in epoch {}'.format(epo))
-            checker = Checker.instantiate(epo, parse_args, dataset_list[epo], operation)
-            anchor_dstr = checker.set_up_dstr(checker.anchor_loader, operation.stream.pdf)
-            datasplits = dataset_utils.DataSplits(dataset_list[epo], checker.new_model_config.new_batch_size)
+    def run(self, epoch, parse_args, operation:Config.Operation, dataset_list: List[dict]):
+        '''
+        Visualize data valuation results of a dataset from a given epoch 
+        '''
+        logger.info('in epoch {}'.format(epoch))
+        checker = Checker.instantiate(epoch, parse_args, dataset_list[epoch], operation)
+        anchor_dstr = checker.set_up_dstr(checker.anchor_loader, operation.stream.pdf)
+        datasplits = dataset_utils.DataSplits(dataset_list[epoch], checker.new_model_config.new_batch_size)
 
-            feature_scores, _ = checker.detector.predict(datasplits.loader['test_shift'])
-            new_weight = self.probab2weight({'target': anchor_dstr['incorrect'], 'other': anchor_dstr['correct']}, feature_scores)
-           
-            data_valuation, fig_name = feature_scores, 'figure/u-wfs.png'
-            self.plot(data_valuation, feature_scores, new_weight, fig_name, 100, 'purple')
+        feature_scores, _ = checker.detector.predict(datasplits.loader['test_shift'])
+        new_weight = self.probab2weight({'target': anchor_dstr['incorrect'], 'other': anchor_dstr['correct']}, feature_scores)
+        
+        data_valuation, fig_name = feature_scores, 'figure/u-wfs.png'
+        self.plot(data_valuation, feature_scores, new_weight, fig_name, 100, 'purple')
 
-            data_valuation, fig_name = new_weight, 'figure/u-wfsd.png' 
-            self.plot(data_valuation, feature_scores, new_weight, fig_name, 100, 'blue')
+        data_valuation, fig_name = new_weight, 'figure/u-wfsd.png' 
+        self.plot(data_valuation, feature_scores, new_weight, fig_name, 100, 'blue')
 
 def main(epochs, new_model_setter='retrain', model_dir ='', device=0, probab_bound = 0.5, base_type='', detector_name = ''):
     pure = True
@@ -61,15 +63,15 @@ def main(epochs, new_model_setter='retrain', model_dir ='', device=0, probab_bou
     config, device_config, ds_list, normalize_stat, dataset_name, option = set_up(epochs, model_dir, device)
 
     clip_processor = Detector.load_clip(device_config, normalize_stat['mean'], normalize_stat['std'])
-    stream_instruction = Config.ProbabStream(bound=probab_bound, pdf='kde', name='probab')
+    ensemble_instruction = Config.Ensemble()
     detect_instruction = Config.Detection(detector_name, clip_processor)
-    acquire_instruction = Config.Acquisition()
-    operation = Config.Operation(acquire_instruction, stream_instruction, detect_instruction)
+    acquire_instruction = Config.AcquisitionFactory(acquisition_method='', data_config=config['data'])
+    operation = Config.Operation(acquire_instruction, ensemble_instruction, detect_instruction)
     
     parse_args = (model_dir, device_config, base_type, pure, new_model_setter, config)
     
     stat_checker = TestData()
-    stat_checker.run(epochs, parse_args, operation, ds_list)
+    stat_checker.run(0, parse_args, operation, ds_list)
 
 import argparse
 if __name__ == '__main__':
@@ -80,7 +82,6 @@ if __name__ == '__main__':
     parser.add_argument('-d','--device',type=int,default=0)
     parser.add_argument('-dn','--detector_name',type=str,default='svm', help="svm, logistic regression")
     parser.add_argument('-bt','--base_type',type=str,default='cnn', help="Source/Base Model Type: cnn, svm; structure of cnn is indicated in the arch_type field in config.yaml")
-    parser.add_argument('-pd','--probab_bound',type=float,default=0.5, help='A bound of the probability from Cw to assign test set and create corresponding val set for model training.')
 
     args = parser.parse_args()
-    main(args.epochs, model_dir=args.model_dir, device=args.device, probab_bound=args.probab_bound, base_type=args.base_type, detector_name=args.detector_name)
+    main(args.epochs, model_dir=args.model_dir, device=args.device, base_type=args.base_type, detector_name=args.detector_name)
