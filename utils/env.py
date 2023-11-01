@@ -15,6 +15,6 @@ def model_env():
 
 generator = torch.Generator()
 
-def data_split_env():
+def data_env():
     np.random.seed(seed)
     random.seed(seed)    

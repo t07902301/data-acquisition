@@ -5,7 +5,7 @@ import utils.dataset.wrappers as dataset_utils
 import torch
 import os
 import pickle as pkl
-from utils.env import data_split_env
+from utils.env import data_env
 import numpy as np
 from utils.logging import *
 
@@ -13,7 +13,7 @@ def save_dataset_split(epochs, model_dir, config):
     '''
     Generate indices of train, test. validation, and data pool
     '''
-    data_split_env()
+    data_env()
 
     dataset_name, task, aux = parse(model_dir)
     dataset = dataset_utils.factory(dataset_name)
@@ -117,7 +117,7 @@ def set_up(epochs, model_dir, device_id):
     Load data shifts indices, normalize stat and config
     '''
 
-    data_split_env()
+    data_env()
 
     dataset_name, task, aux = parse(model_dir)
 
