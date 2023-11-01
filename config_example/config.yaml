@@ -30,18 +30,17 @@ hparams: #hyper-paramter settings for source/base models and padding models
 
 data: 
   root: '' # cifar: 'path_to_cifar_zip'; core: path_to_core_pkl
-  ratio: # 1. test_val + train_market -> 2. test, val, train, market -> 3. shifts in test and val
-    train : 0.4
-    market : 0.6
-    test: null
-    val_from_test: 0.25
-    remove: # how many data of predefined labels to be removed
+  ratio: # dataset generation: step 1. test_val + train_market; step 2. test, val, train, market; step 3. shifts in test and val
+    train : 0.4 # the proportion of training data from train_market
+    test_from_all: null # test_val proportion (only used by Core dataset)
+    val_from_test: 0.25  # the proportion of validation data from test_val
+    remove: # how many data of predefined labels are removed
       new_labels: 1.0
       old_labels: null
 
-  n_new_data: [100, 200, 300, 400] # the number of new data
+  budget: [100, 200, 300, 400] # budgets for data acquisition 
   seq: 
-    n_new_data: null # the number of data acquired in each round 
+    budget: null # budgets in each round of data acquisition 
     n_rounds: 2 # the number of acquisition rounds 
   
   labels:
