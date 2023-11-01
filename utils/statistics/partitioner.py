@@ -38,7 +38,7 @@ class Probability(Prototype):
     #     # probability_target = (target_dstr.prior * target_dstr.dstr.pdf(value)) / (target_dstr.prior * target_dstr.dstr.pdf(value) + other_dstr.prior * other_dstr.dstr.pdf(value))
     #     return probability_target
 
-    def run(self, data_info, dstr_dict: Dict[str, CorrectnessDisrtibution], stream_instruction:Config.ProbabStream):
+    def run(self, data_info, dstr_dict: Dict[str, CorrectnessDisrtibution], ensemble_instruction:Config.Ensemble):
         '''
         Partition by posterior probab
         '''
@@ -48,7 +48,7 @@ class Probability(Prototype):
             target_posterior = self.get_posterior(data_info['dv'][idx], dstr_dict)
             posterior_list.append(target_posterior)
         posterior_list = np.array(posterior_list).reshape((len(dataset_indices),))
-        selected_mask = (posterior_list >= stream_instruction.bound)
+        selected_mask = (posterior_list >= ensemble_instruction.criterion)
         selected_test = torch.utils.data.Subset(data_info['dataset'],dataset_indices[selected_mask])
         remained_test = torch.utils.data.Subset(data_info['dataset'],dataset_indices[~selected_mask])
         selected_test_loader = torch.utils.data.DataLoader(selected_test, batch_size=data_info['new_batch_size'], num_workers=n_workers)

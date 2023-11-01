@@ -130,19 +130,19 @@ class Probability(Partition):
     def set_up(self, old_model_config:Config.OldModel, datasplits:Dataset.DataSplits, operation:Config.Operation):
         super().set_up(old_model_config, datasplits, operation)
         self.anchor_loader = datasplits.loader['val_shift'] # keep for Seq
-        anchor_dstr = self.set_up_dstr(self.anchor_loader, operation.stream.pdf)
-        self.test_loader, posteriors = self.get_subset_loader(anchor_dstr, operation.stream)
+        anchor_dstr = self.set_up_dstr(self.anchor_loader, operation.ensemble.pdf)
+        self.test_loader, posteriors = self.get_subset_loader(anchor_dstr, operation.ensemble)
 
-        fig_name = 'figure/test/probab_dstr.png'
-        self.probab_dstr_plot(posteriors, fig_name)
+        # fig_name = 'figure/test/probab_dstr.png'
+        # self.probab_dstr_plot(posteriors, fig_name)
      
     def set_up_dstr(self, set_up_loader, pdf_type):
         correct_dstr = distribution_utils.CorrectnessDisrtibution(self.base_model, self.detector, set_up_loader, pdf_type, correctness=True)
         incorrect_dstr = distribution_utils.CorrectnessDisrtibution(self.base_model, self.detector, set_up_loader, pdf_type, correctness=False)
         return {'correct': correct_dstr, 'incorrect': incorrect_dstr}
 
-    def get_subset_loader(self, anchor_dstr:Dict[str, distribution_utils.CorrectnessDisrtibution], stream_instruction:Config.ProbabStream):
-        loader, posteriors = Partitioner.Probability().run(self.test_info, {'target': anchor_dstr['incorrect'], 'other': anchor_dstr['correct']}, stream_instruction)
+    def get_subset_loader(self, anchor_dstr:Dict[str, distribution_utils.CorrectnessDisrtibution], ensemble_instruction:Config.Ensemble):
+        loader, posteriors = Partitioner.Probability().run(self.test_info, {'target': anchor_dstr['incorrect'], 'other': anchor_dstr['correct']}, ensemble_instruction)
         return loader, posteriors
 
     def run(self, operation:Config.Operation):
@@ -154,8 +154,8 @@ class Probability(Partition):
             logger.info('Seq Running:')
             detector_log = Log(self.new_model_config, 'detector')
             self.detector = detector_log.import_log(operation, self.general_config)
-            anchor_dstr = self.set_up_dstr(self.anchor_loader, operation.stream.pdf)
-            self.test_loader, _ = self.get_subset_loader(anchor_dstr, operation.stream)
+            anchor_dstr = self.set_up_dstr(self.anchor_loader, operation.ensemble.pdf)
+            self.test_loader, _ = self.get_subset_loader(anchor_dstr, operation.ensemble)
         return self._target_test(self.test_loader, new_model)
 
     def _target_test(self, loader, new_model: Model.Prototype):
@@ -169,8 +169,8 @@ class Probability(Partition):
         distribution_utils.base_plot(probab[correct_mask], 'C_w\'', 'white', pdf_method, hatch_style='/')        
         incorrect_mask = ~correct_mask
         distribution_utils.base_plot(probab[incorrect_mask], 'C_w', 'white', pdf_method, hatch_style='.', alpha=0.5)  
-        distribution_utils.plt.xlabel('W_p in Prediction Ensemble', fontsize=15)
-        distribution_utils.plt.ylabel('Probability Density', fontsize=15)
+        distribution_utils.plt.xlabel('W_p in Prediction Ensemble', fontsize=12)
+        distribution_utils.plt.ylabel('Probability Density', fontsize=12)
         distribution_utils.plt.xticks(fontsize=15)
         distribution_utils.plt.yticks(fontsize=15)
         distribution_utils.plt.savefig(fig_name)
@@ -183,6 +183,10 @@ class Probability(Partition):
 class Ensemble(Prototype):
     def __init__(self, model_config: Config.NewModel, general_config) -> None:
         super().__init__(model_config, general_config)
+
+    @abstractmethod
+    def set_up_dstr(self, anchor, pdf):
+        pass
     
     def set_up(self, old_model_config:Config.OldModel, datasplits:Dataset.DataSplits, operation:Config.Operation):
         super().set_up(old_model_config, datasplits, operation)
@@ -195,7 +199,7 @@ class Ensemble(Prototype):
             logger.info('Seq Running:')
             detector_log = Log(self.new_model_config, 'detector')
             self.detector = detector_log.import_log(operation, self.general_config)
-            self.anchor_dstr = self.set_up_dstr(self.anchor_loader, operation.stream.pdf)
+            self.anchor_dstr = self.set_up_dstr(self.anchor_loader, operation.ensemble.pdf)
         return self._target_test(self.test_loader, new_model)
 
     def ensemble_decision(self, new_probab, new_weights, old_probab, old_weights):
@@ -234,7 +238,7 @@ class DstrEnsemble(Ensemble):
     def set_up(self, old_model_config:Config.OldModel, datasplits:Dataset.DataSplits, operation:Config.Operation):
         super().set_up(old_model_config, datasplits, operation)
         self.probab_partitioner = Partitioner.Probability()
-        self.anchor_dstr = self.set_up_dstr(datasplits.loader['val_shift'], operation.stream.pdf)
+        self.anchor_dstr = self.set_up_dstr(datasplits.loader['val_shift'], operation.ensemble.pdf)
 
     def set_up_dstr(self, set_up_loader, pdf_type):
         correct_dstr = distribution_utils.CorrectnessDisrtibution(self.base_model, self.detector, set_up_loader, pdf_type, correctness=True)
@@ -272,53 +276,40 @@ class AverageEnsemble(Ensemble):
             'new': weight,
             'old': weight
         }
-   
+    def set_up_dstr(self, anchor, pdf):
+        return None
 # class AdaBoostEnsemble(Ensemble):
 #     def __init__(self, model_config: Config.NewModel) -> None:
 #         super().__init__(model_config)
+#         self.old_alpha = self.get_boosting_alpha(self.base_model, self.anchor_loader)
     
 #     def get_boosting_alpha(self, model:Model.Prototype, dataloader):
-#         gts, preds, _  = model.eval(dataloader)
-#         err_mask = (gts!=preds)
-#         total_err = err_mask.mean()
-#         alpha = np.log((1 - total_err) / total_err) / 2
-#         logger.info(total_err, alpha)
+#         acc = model.acc(dataloader)
+#         error_rate = 1 - acc
+#         alpha = np.log(acc / error_rate) / 2
+#         # gts, preds, _  = model.eval(dataloader)
+#         # err_mask = (gts!=preds)
+#         # total_err = err_mask.mean()
+#         # alpha = np.log((1 - total_err) / total_err) / 2
+#         # logger.info(total_err, alpha)
 #         return alpha
     
 #     def ensemble_probab(self, new_probab, old_probab, new_model, old_model, anchor_dataloader):
-#         new_alpha = self.get_boosting_alpha(new_model, anchor_dataloader)
-#         old_alpha = self.get_boosting_alpha(old_model, anchor_dataloader)
+
 #         probab = new_probab * new_alpha + old_probab * old_alpha
 #         return probab
-
-# class MaxDstr(DstrEnsemble):
-#     def __init__(self, model_config: Config.NewModel) -> None:
-#         super().__init__(model_config)
-
-#     def ensemble_probab(self, dataloader, new_probab, old_probab):
-#         old_weights, new_weights = self.get_dstr_weights(dataloader, self.pdf_type)
-#         return np.max(old_weights * old_probab, new_weights * new_probab)
-        
-    
-# class MaxAverage(AverageEnsemble):
-#     def __init__(self, model_config: Config.NewModel) -> None:
-#         super().__init__(model_config)
-#     def ensemble_probab(self, dataloader, new_probab, old_probab):
-#         return max(new_probab, old_probab)
     
 def factory(name, new_model_config, general_config):
     if name == 'subset':
         checker = Partition(new_model_config, general_config)
-    elif name == 'probab':
+    elif name == 'wta':
         checker = Probability(new_model_config, general_config)
-    elif name == 'dstr':
+    elif name == 'ae':
         checker = DstrEnsemble(new_model_config, general_config)
-    elif name == 'avg':
+    elif name == 'meec':
         checker = AverageEnsemble(new_model_config, general_config)
-    # elif name == 'max_dstr':
-    #     checker = MaxDstr(new_model_config)
-    # elif name == 'max_avg':
-    #     checker = MaxAverage(new_model_config)
+    # elif name == 'ada':
+    #     checker = AdaBoostEnsemble(new_model_config, general_config)
     else:
         checker = Prototype(new_model_config, general_config)
     return checker
@@ -338,6 +329,6 @@ def get_configs(epoch, parse_args, dataset):
 
 def instantiate(epoch, parse_args, dataset, operation: Config.Operation):
     old_model_config, new_model_config, dataset_splits, general_config = get_configs(epoch, parse_args, dataset)
-    checker = factory(operation.stream.name, new_model_config, general_config)
+    checker = factory(operation.ensemble.name, new_model_config, general_config)
     checker.set_up(old_model_config, dataset_splits, operation)
     return checker
