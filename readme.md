@@ -41,9 +41,10 @@ Examples of model_directory: core_object_resnet, cifar-4class
 
 ## Test New Model
 
-**utils/checker.py**: ensemble methods (AE, WTA, partition by feature scores)
+**utils/checker.py**: ensemble methods (AE, WTA, MEEC)
 
 <ins>**test.py**: evaluate models from acquisition. </ins>
+
 
 ## Acquisition Statistics
 
@@ -54,6 +55,8 @@ Examples of model_directory: core_object_resnet, cifar-4class
 <ins>**stat_check.py**</ins>: the distribution of acquired data; test data under WTA or partition; final detector from sequential acquisition. 
 
 <ins>**data_valuation.py**</ins>: examine the relation between u-wfs and u-wfsd. 
+
+<ins>**threshold.py** : training, testing, and statistic analysis of experiments on utility threshold.</ins>
 
 ## Dataset Generation
 
