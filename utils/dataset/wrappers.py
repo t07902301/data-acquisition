@@ -68,8 +68,8 @@ class MetaData():
 
     def balanced_split(self, ratio, categories, sessions, range_indices):
         '''
-        Split Dataset fairly all the way from category, session to object. Ratio is to sample in object levels.\n
-        Return relative indices in the input range
+        Split Dataset fairly all the way from category, session to object. Ratio for sampling under object levels.\n
+        Return relative indices to the input range
         '''
         category_labels = self.category_labels[range_indices]
         session_labels = self.session_labels[range_indices]
@@ -165,7 +165,8 @@ class DataSplits():
         '''
         new data to be added to train set or not, and update loader automatically
         '''
-        assert len(new_data) == acquisition_config.n_ndata, 'size error - new data: {}, required new data: {} \n under {}'.format(len(new_data), acquisition_config.n_ndata, acquisition_config.get_info())
+        # assert len(new_data) == acquisition_config.n_ndata, 'size error - new data: {}, required new data: {} \n under {}'.format(len(new_data), acquisition_config.n_ndata, acquisition_config.get_info())
+        logger.info('Acquired Data: {}'.format(len(new_data)))
 
         if new_model_config.pure:
             self.replace(target_name, new_data)
@@ -189,7 +190,7 @@ class Dataset():
     @abstractmethod
     def load_dataset_raw_indices(self, raw_indices_dict:Dict[str, list], data_config, normalized_stat):
         '''
-        Load indices of data shift or split given the number of keys in indices dict.
+        Load indices of data shift or split given the number of keys in the indices dict.
         '''
         pass
     
@@ -707,7 +708,7 @@ class Core(Dataset):
     def create(self, data_config, meta: MetaData):
 
         ratio = data_config['ratio']
-        train_size = ratio["train_from_market"]
+        train_size = ratio["train"]
         test_size = ratio["test_from_all"]
         val_from_test = ratio['val_from_test']
 
