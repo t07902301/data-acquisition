@@ -6,26 +6,27 @@ def run(operation: Config.Operation, new_model_config:Config.NewModel, workspace
     strategy = StrategyFactory(operation.acquisition.method)
     strategy.operate(operation, new_model_config, workspace)
 
-def data_run(new_img_num_list, operation: Config.Operation, new_model_config:Config.NewModel, workspace: WorkSpace):
-    for new_img_num in new_img_num_list:
-        operation.acquisition.n_ndata = new_img_num
+def budget_run(budget_list, operation: Config.Operation, new_model_config:Config.NewModel, workspace: WorkSpace):
+    for budget in budget_list:
+        operation.acquisition.budget = budget
         run(operation, new_model_config, workspace)
 
-def method_run(method, new_img_num_list, new_model_config:Config.NewModel, operation: Config.Operation, workspace: WorkSpace):
+def method_run(method, budget_list, new_model_config:Config.NewModel, operation: Config.Operation, workspace: WorkSpace):
     if method != 'rs':
         workspace.set_detector(operation.detection)
-        set_anchor_dstr = True if 'pd' in method else False
-        workspace.set_validation(operation.stream, new_model_config.batch_size, new_model_config.new_batch_size, set_anchor_dstr)
+        # set_anchor_dstr = True if 'pd' in method else False
+        # workspace.set_validation(operation.stream, new_model_config.batch_size, new_model_config.new_batch_size, set_anchor_dstr)
+        workspace.set_validation(new_model_config.new_batch_size)
+        if 'pd' in method:
+            workspace.set_anchor_dstr(operation.stream)
     
     else:
         workspace.validation_loader = workspace.data_split.loader['val_shift']
         logger.info('Keep val_shift for validation_loader') # Align with inference on the test set
 
-    operation.acquisition.method = method
-    operation.acquisition = Config.AcquisitionFactory(operation.acquisition)
-    data_run(new_img_num_list, operation, new_model_config, workspace)
+    budget_run(budget_list, operation, new_model_config, workspace)
 
-def epoch_run(parse_args, method, n_data_list, dataset:dict, epo, operation: Config.Operation):
+def epoch_run(parse_args, method, budget_list, dataset:dict, epo, operation: Config.Operation):
 
     model_dir, device_config, base_type, pure, new_model_setter, config, filter_market = parse_args
     batch_size = config['hparams']['batch_size']
@@ -43,18 +44,9 @@ def epoch_run(parse_args, method, n_data_list, dataset:dict, epo, operation: Con
         known_labels = config['data']['labels']['cover']['target']
         workspace.set_market(operation.detection.vit, known_labels)
    
-    method_run(method, n_data_list, new_model_config, operation, workspace)
+    method_run(method, budget_list, new_model_config, operation, workspace)
 
-def bound_run(parse_args, epochs, ds_list, method_list, bound, n_new_data_list, operation: Config.Operation):
-
-    operation.acquisition.bound = bound
-
-    for epo in range(epochs):
-        logger.info('In epoch {}'.format(epo))
-        dataset = ds_list[epo]
-        epoch_run(parse_args, method_list, n_new_data_list, dataset, epo, operation)
-
-def main(epochs, acquisition_method, device, detector_name, model_dir, base_type, probab_bound, filter_market=False):
+def main(epochs, acquisition_method, device, detector_name, model_dir, base_type, filter_market=False):
 
     fh = logging.FileHandler('log/{}/{}.log'.format(model_dir, acquisition_method),mode='w')
     fh.setLevel(logging.DEBUG)
@@ -62,36 +54,34 @@ def main(epochs, acquisition_method, device, detector_name, model_dir, base_type
 
     pure, new_model_setter = True, 'retrain'
 
-    if acquisition_method == 'rs':
-        probab_bound = 0
-
-    # if  dev_name == 'refine':
-    #     acquisition_method, new_model_setter, pure, probab_bound = 'dv', 'refine', False, 0
-
     logger.info('Filter Market: {}'.format(filter_market))
 
-    config, device_config, ds_list, normalize_stat,dataset_name, option = set_up(epochs, model_dir, device)
+    config, device_config, ds_list, normalize_stat, dataset_name, option = set_up(epochs, model_dir, device)
     
     clip_processor = Detector.load_clip(device_config, normalize_stat['mean'], normalize_stat['std'])
-    stream_instruction = Config.ProbabStream(bound=probab_bound, pdf='kde', name='probab')
+    ensemble_instruction = Config.Ensemble()
     detect_instruction = Config.Detection(detector_name, clip_processor)
-    acquire_instruction = Config.Acquisition(seq_config=config['data']['seq']) if 'seq' in config['data'] else Config.Acquisition()
-    operation = Config.Operation(acquire_instruction, stream_instruction, detect_instruction)
+    acquire_instruction = Config.AcquisitionFactory(acquisition_method=acquisition_method, data_config=config['data'])
+
+    operation = Config.Operation(acquire_instruction, ensemble_instruction, detect_instruction)
 
     parse_args = (model_dir, device_config, base_type, pure, new_model_setter, config, filter_market)
-    bound_run(parse_args, epochs, ds_list, acquisition_method, None, config['data']['n_new_data'], operation)
+
+    for epo in range(epochs):
+        logger.info('In epoch {}'.format(epo))
+        dataset = ds_list[epo]
+        epoch_run(parse_args, acquisition_method, config['data']['budget'], dataset, epo, operation)
 
 import argparse
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='Process some integers.')
     parser.add_argument('-e','--epochs',type=int,default=1)
-    parser.add_argument('-md','--model_dir',type=str,default='', help="(dataset name) _ task _ (other info)")
+    parser.add_argument('-md','--model_dir',type=str,default='', help="(dataset name)_task_(other info)")
     parser.add_argument('-d','--device',type=int,default=0)
-    parser.add_argument('-pd','--probab_bound',type=float,default=0.5, help='A bound of the probability from Cw to assign test set and create corresponding val set for model training.')
-    parser.add_argument('-dn','--detector_name',type=str,default='svm', help="svm, logistic regression")
+    parser.add_argument('-dn','--detector_name',type=str,default='svm', help="svm, regression; (regression: logistic regression)")
     parser.add_argument('-am','--acquisition_method',type=str, default='dv', help="Acquisition Strategy; dv: u-wfs, rs: random, conf: confiden-score, seq: sequential u-wfs, pd: u-wfsd, seq_pd: sequential u-wfsd")
     parser.add_argument('-bt','--base_type',type=str,default='cnn', help="Source/Base Model Type: cnn, svm; structure of cnn is indicated in the arch_type field in config.yaml")
 
     args = parser.parse_args()
-    main(args.epochs, model_dir=args.model_dir, device=args.device, detector_name=args.detector_name, acquisition_method=args.acquisition_method, base_type=args.base_type, probab_bound=args.probab_bound)
+    main(args.epochs, model_dir=args.model_dir, device=args.device, detector_name=args.detector_name, acquisition_method=args.acquisition_method, base_type=args.base_type)
