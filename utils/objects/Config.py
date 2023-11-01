@@ -1,19 +1,20 @@
 import os
 from abc import abstractmethod
 
-class Stream():
-    def __init__(self, bound, name) -> None:
+class Ensemble():
+    def __init__(self, criterion=None, name=None, pdf=None) -> None:
         self.name = name
-        self.bound = bound
+        self.criterion = criterion
+        self.pdf =pdf # probability density function
 
-class ProbabStream(Stream):
-    def __init__(self, bound, name, pdf) -> None:
-        super().__init__(bound, name)
-        self.pdf = pdf
+# class WTAEnsemble(Ensemble):
+#     def __init__(self, criterion, name, pdf) -> None:
+#         super().__init__(criterion, name)
+#         self.pdf = pdf
 
-class DVStream(Stream):
-    def __init__(self, bound, name) -> None:
-        super().__init__(bound, name)
+# class DVEnsemble(Ensemble):
+#     def __init__(self, criterion, name) -> None:
+#         super().__init__(criterion, name)
 
 class Detection():
     def __init__(self, name, vit_mounted) -> None:
@@ -21,10 +22,10 @@ class Detection():
         self.vit = vit_mounted
 
 class Acquisition():
-    def __init__(self, method='', n_ndata=0, bound=None, seq_config=None) -> None:
+    def __init__(self, method='', budget=0, threshold=-1, seq_config=None) -> None:
         self.method = method
-        self.n_ndata = n_ndata
-        self.bound = bound
+        self.budget = budget
+        self.threshold = None if threshold == -1 else threshold
         self.seq_config = seq_config
 
     @abstractmethod
@@ -36,53 +37,53 @@ class Acquisition():
         pass
     
 class NonSeqAcquisition(Acquisition):
-    def __init__(self, method='', n_ndata=0, bound=None, seq_config=None) -> None:
-        super().__init__(method, n_ndata, bound, seq_config)
+    def __init__(self, method='', budget=0, threshold=None, seq_config=None) -> None:
+        super().__init__(method, budget, threshold, seq_config)
 
     def get_new_data_size(self, class_number):
-        return class_number*self.n_ndata
+        return class_number*self.budget
     
     def get_info(self):
-        return 'acquisition method: {}, n_data_per_class:{}'.format(self.method, self.n_ndata)
+        return 'acquisition method: {}, n_data_per_class:{}'.format(self.method, self.budget)
 
 class SequentialAc(Acquisition):
-    def __init__(self, method='', n_ndata=0, bound=None, seq_config=None) -> None:
-        super().__init__(method, n_ndata, bound, seq_config)
+    def __init__(self, method='', budget=0, threshold=None, seq_config=None) -> None:
+        super().__init__(method, budget, threshold, seq_config)
 
     def set_up(self):
         self.round_acquire_method = 'pd' if 'pd' in self.method else 'dv'
-        if self.seq_config['n_new_data'] != None:
-            self.n_ndata_round = self.seq_config['n_new_data']
-            self.n_rounds = self.n_ndata // self.n_ndata_round
-            self.seq_mode = 'n_data'
+        if self.seq_config['budget'] != None:
+            self.budget_round = self.seq_config['budget']
+            self.n_rounds = self.budget // self.budget_round
+            self.seq_mode = 'by_budget'
         else:
             self.n_rounds = self.seq_config['n_rounds']
             self.current_round = 0
-            self.n_data_non_last_round = self.n_ndata  // self.n_rounds
-            n_data_acquired = self.n_data_non_last_round * (self.n_rounds - 1)
-            self.n_data_last_round = self.n_ndata - n_data_acquired
-            self.seq_mode = 'n_round'
+            self.budget_non_last_round = self.budget  // self.n_rounds
+            consumed_budget = self.budget_non_last_round * (self.n_rounds - 1)
+            self.budget_last_round = self.budget - consumed_budget
+            self.seq_mode = 'by_round'
         
     def get_new_data_size(self, class_number):
-        return class_number * self.n_data_last_round + class_number * self.n_data_non_last_round * (self.n_rounds-1)
+        return class_number * self.budget_last_round + class_number * self.budget_non_last_round * (self.n_rounds-1)
     
     def get_info(self):
         return 'acquisition method: {}, n_data_per_class:({},{}) in round {}'.format(
-            self.method, self.n_data_non_last_round, self.n_data_last_round, self.current_round)
+            self.method, self.budget_non_last_round, self.budget_last_round, self.current_round)
 
-def AcquisitionFactory(acquisition:Acquisition):
-    if 'seq' in acquisition.method:
-        return SequentialAc(acquisition.method, acquisition.n_ndata, acquisition.bound, acquisition.seq_config)
+def AcquisitionFactory(acquisition_method, data_config, utility_threshold=None):
+    if 'seq' in acquisition_method:
+        return SequentialAc(method=acquisition_method, threshold=utility_threshold, seq_config=data_config['seq'])
     else:
-        return NonSeqAcquisition(acquisition.method, acquisition.n_ndata, acquisition.bound)
+        return NonSeqAcquisition(method=acquisition_method, threshold=utility_threshold)
     
 class Operation():
     '''
-    Acquire + Stream + Detection 
+    Acquire + Ensemble + Detection 
     '''
-    def __init__(self, acquisition: Acquisition, stream: Stream, detection: Detection) -> None:
+    def __init__(self, acquisition: Acquisition, ensemble: Ensemble, detection: Detection) -> None:
         self.acquisition = acquisition
-        self.stream = stream
+        self.ensemble = ensemble
         self.detection = detection
 
 def check_dir(dir):
@@ -115,7 +116,7 @@ class NewModel(Model):
         self.set_root(model_cnt)
         # root_detector = None
 
-    def detector2root(self, acquisition_method, detector_name, stream_bound=None):
+    def detector2root(self, acquisition_method, detector_name):
         # Make Conf and sampling-based method Root agnostic to detector
         if acquisition_method in ['conf', 'rs']:
             temp_root = os.path.join(self.root, 'no-detector')
@@ -130,9 +131,9 @@ class NewModel(Model):
         #     root = self.set_seq_root(self.root, acquisition_config)
         # else:
         #     root = self.root
-        self.root_detector = self.detector2root(operation.acquisition.method, operation.detection.name, operation.stream.bound)
-        bound_name = '_{}'.format(operation.acquisition.bound) if operation.acquisition.bound != None else ''
-        self.path = os.path.join(self.root_detector, '{}_{}{}.pt'.format(operation.acquisition.method, operation.acquisition.n_ndata, bound_name))
+        self.root_detector = self.detector2root(operation.acquisition.method, operation.detection.name)
+        threshold_name = '_{}%'.format(int(operation.acquisition.threshold*100)) if operation.acquisition.threshold != None else ''
+        self.path = os.path.join(self.root_detector, '{}_{}{}.pt'.format(operation.acquisition.method, operation.acquisition.budget, threshold_name))
     
     def set_root(self, model_cnt):
         pure_name = 'pure' if self.pure else 'non-pure'
@@ -143,15 +144,9 @@ class NewModel(Model):
         check_dir(self.root)
 
     def set_seq_root(self,root, acquisition_config:SequentialAc):
-        # root = os.path.join(root,'{}_rounds'.format(acquisition_config.sequential_rounds_info[acquisition_config.n_ndata]))
+        # root = os.path.join(root,'{}_rounds'.format(acquisition_config.sequential_rounds_info[acquisition_config.budget]))
         check_dir(root)
         return root
-    
-    def check_rs(self, acquisition_method, stream_bound):
-        if acquisition_method == 'rs' and stream_bound == 0:
-            return True
-        else:
-            return False
 
 def str2bool(value):
     if isinstance(value,bool):
