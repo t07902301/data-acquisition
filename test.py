@@ -64,9 +64,9 @@ def main(epochs, acquisition_method, device, detector_name, model_dir, ensemble_
         results.append(result_epoch)
         threshold_stat_list.append(threshold_stat)
 
-    result = np.array(result)
+    results = np.array(results)
     logger.info(acquisition_method)
-    logger.info('avg:{}'.format(np.round(np.mean(result, axis=0), decimals=3).tolist()))
+    logger.info('avg:{}'.format(np.round(np.mean(results, axis=0), decimals=3).tolist()))
 
 import argparse
 if __name__ == '__main__':
