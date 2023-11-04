@@ -186,6 +186,9 @@ class NonSeqStrategy(Strategy):
 
         new_data_info = self.get_new_data_info(operation, workspace)
 
+        # new_data_loader = torch.utils.data.DataLoader(new_data_info['data'], new_model_config.new_batch_size)
+        # logger.info(100 - workspace.base_model.acc(new_data_loader))
+
         self.update_dataset(new_model_config, workspace, operation.acquisition, new_data_info['data'])
 
         new_model_config.set_path(operation)
@@ -195,7 +198,7 @@ class NonSeqStrategy(Strategy):
 
         workspace.base_model.save(new_model_config.path)
 
-        self.export_indices(new_model_config, operation.acquisition, new_data_info['data'], operation.stream)
+        self.export_indices(new_model_config, operation.acquisition, new_data_info['data'], operation.ensemble)
         
 class Greedy(NonSeqStrategy):
     def __init__(self) -> None:
@@ -362,7 +365,7 @@ class SeqCLF(Strategy):
         workspace.base_model.save(new_model_config.path)
 
         self.export_detector(new_model_config, operation.acquisition, workspace.detector)
-        self.export_indices(new_model_config, operation.acquisition, new_data_total_set, operation.stream)
+        self.export_indices(new_model_config, operation.acquisition, new_data_total_set, operation.ensemble)
 
     def error_stat(self, model: Model.Prototype, data, batch_size):
         dataloader = torch.utils.data.DataLoader(data, batch_size)
