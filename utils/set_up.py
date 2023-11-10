@@ -63,6 +63,7 @@ def save_dataset_shift(epochs, model_dir, config):
     split_dir = 'init_data/{}_{}'.format(dataset_name, task)
     shift_dir = 'data/{}'.format(model_dir)
     normalized_stat = load_stat(split_dir)
+    Config.check_dir(shift_dir)
 
     for idx in range(epochs):
         split_path = os.path.join(split_dir, '{}.pt'.format(idx))
