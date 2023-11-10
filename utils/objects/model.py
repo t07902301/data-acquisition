@@ -11,9 +11,8 @@ import utils.objects.dataloader as dataloader_utils
 from utils.logging import logger
 
 class Prototype():
-    def __init__(self, config) -> None:
+    def __init__(self) -> None:
         self.model = None
-        self.config = config
 
     @abstractmethod
     def eval(self, dataloader):
@@ -38,13 +37,13 @@ class Prototype():
         return (gts==preds).mean()*100
 
 class CNN(Prototype):
-    def __init__(self, config, use_pretrained=False) -> None:
-        super().__init__(config)
+    def __init__(self, hparam_config) -> None:
+        super().__init__()
         model_env()
-        build_fn = model_utils.BUILD_FUNCTIONS[self.config['hparams']['arch_type']] # init model factory
-        self.model = build_fn(self.config['hparams']['arch'], self.config['hparams']['superclass'], use_pretrained)
+        build_fn = model_utils.BUILD_FUNCTIONS[hparam_config['arch_type']] # init model factory
+        self.model = build_fn(hparam_config['arch'], hparam_config['superclass'])
         self.model = self.model.cuda() # attach to current cuda
-        self.bce = (self.config['hparams']['superclass']==1)
+        self.bce = (hparam_config['superclass']==1)
 
     def load(self, path, device):
         out = torch.load(path, map_location=device)
@@ -91,17 +90,17 @@ class CNN(Prototype):
                     probabs = torch.cat(probabs).numpy()
         return gts, preds, probabs            
 
-    def train(self, train_loader, val_loader, log_model=False, model_save_path='', data_weights=None):
+    def train(self, train_loader, val_loader, hparam_config, log_model=False, model_save_path='', data_weights=None):
         '''return the best checkpoint'''
         best_val_loss = np.inf
         best_model_chkpnt = None
 
-        training_args=self.config['hparams']['training']
+        training_args=hparam_config['training']
         # add args
-        training_args['optimizer'] = self.config['hparams']['optimizer']
+        training_args['optimizer'] = hparam_config['optimizer']
         training_args['iters_per_epoch'] = len(train_loader)
-
-        trainer = trainer_utils.LightWeightTrainer(training_args=self.config['hparams']['training'],
+        # logger.info(training_args)
+        trainer = trainer_utils.LightWeightTrainer(training_args = training_args,
                                                         exp_name=model_save_path, enable_logging=log_model,
                                                         bce=self.bce, set_device=True, loss_upweight_vec=data_weights)
         best_model_chkpnt, val_loss_check_pnt = trainer.fit(self.model, train_loader, val_loader)
@@ -111,18 +110,19 @@ class CNN(Prototype):
         #     for lr in learning_rates:
         #         training_args['epochs'] = epoch
         #         training_args['lr'] = lr
-        #         trainer = trainer_utils.LightWeightTrainer(training_args=self.config['hparams']['training'],
+        #         trainer = trainer_utils.LightWeightTrainer(training_args=hparam_config['training'],
         #                                                         exp_name=model_save_path, enable_logging=log_model,
         #                                                         bce=self.bce, set_device=True, loss_upweight_vec=data_weights)
         #         model_check_pnt, val_loss_check_pnt = trainer.fit(self.model, train_loader, val_loader)
         #         if val_loss_check_pnt < best_val_loss:
         #             best_model_chkpnt = model_check_pnt
+
         self.model = best_model_chkpnt
 
-    def tune(self,train_loader,val_loader, weights=None,log_model=False,model_save_path=''):
+    def tune(self,train_loader,val_loader, hparam_config, weights=None,log_model=False,model_save_path=''):
         '''return the best checkpoint'''
-        training_args=self.config['hparams']['tuning']
-        training_args['optimizer'] = self.config['hparams']['optimizer']
+        training_args=hparam_config['tuning']
+        training_args['optimizer'] = hparam_config['optimizer']
         training_args['iters_per_epoch'] = len(train_loader)
         trainer = trainer_utils.LightWeightTrainer(training_args=training_args,
                                                         exp_name=model_save_path, enable_logging=log_model,
@@ -137,18 +137,19 @@ class CNN(Prototype):
         }, path)
         logger.info('model saved to {}'.format(path))
     
-    def update(self, new_model_setter, train_loader, val_loader):
+    def update(self, new_model_setter, train_loader, val_loader, hparam_config):
         if new_model_setter == 'refine':
-            self.tune(train_loader,val_loader) # tune
+            self.tune(train_loader,val_loader, hparam_config) # tune
         else:
-            self.train(train_loader,val_loader) # retrain 
+            self.train(train_loader,val_loader, hparam_config) # retrain 
+
 
 class svm(Prototype):
-    def __init__(self, config, clip_processor:wrappers.CLIPProcessor, split_and_search=True, transform='clip') -> None:
-        super().__init__(config)
+    def __init__(self, hyparams_config, clip_processor:wrappers.CLIPProcessor, split_and_search=True, transform='clip') -> None:
+        super().__init__()
         self.transform = transform
         self.clip_processor = clip_processor
-        self.model = wrappers.SVM(args=self.config['detector_args'], cv=self.config['detector_args']['k-fold'], split_and_search = split_and_search, do_normalize=False, do_standardize=True)
+        self.model = wrappers.SVM(args=hyparams_config, cv=hyparams_config['k-fold'], split_and_search = split_and_search, do_normalize=False, do_standardize=True)
 
     def eval(self, dataloader):
         latent, gts = dataloader_utils.get_latent(dataloader, self.clip_processor, self.transform)
@@ -169,17 +170,17 @@ class svm(Prototype):
         self.model.import_model(path)
         logger.info('model load from {}'.format(path))
     
-    def update(self, new_model_config, train_loader):
+    def update(self, train_loader):
         logger.info('Updating model has train loader of size: {}'.format(dataloader_utils.get_size(train_loader)))
 
         self.train(train_loader)
 
 class LogReg(Prototype):
-    def __init__(self, config, clip_processor:wrappers.CLIPProcessor, split_and_search=True, transform='clip') -> None:
-        super().__init__(config)
+    def __init__(self, hyparams_config, clip_processor:wrappers.CLIPProcessor, split_and_search=True, transform='clip') -> None:
+        super().__init__()
         self.transform = transform
         self.clip_processor = clip_processor
-        self.model = wrappers.LogRegressor(cv=self.config['detector_args']['k-fold'], split_and_search = split_and_search, do_normalize=True, do_standardize=False)
+        self.model = wrappers.LogRegressor(cv=hyparams_config['k-fold'], split_and_search = split_and_search, do_normalize=True, do_standardize=False)
 
     def eval(self, dataloader):
         latent, gts = dataloader_utils.get_latent(dataloader, self.clip_processor, self.transform)
@@ -200,17 +201,14 @@ class LogReg(Prototype):
         self.model.import_model(path)
         logger.info('model load from {}'.format(path))
     
-    def update(self, new_model_config, train_loader):
+    def update(self, train_loader):
         self.train(train_loader)
 
 def factory(base_type, config, clip_processor=None):
-    assert clip_processor != None
     if base_type == 'svm':
-        return svm(config, clip_processor)
-    elif base_type == 'logreg':
-        return LogReg(config, clip_processor)
+        return svm(config['detector_args'], clip_processor)
     else:
-        return CNN(config)
+        return CNN(config['hparams']['source'])
     
 import numpy as np
 class ensembler(Prototype):

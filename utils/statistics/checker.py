@@ -317,8 +317,8 @@ def factory(name, new_model_config, general_config):
 def get_configs(epoch, parse_args, dataset):
     model_dir, device_config, base_type, pure, new_model_setter, general_config = parse_args
 
-    batch_size = general_config['hparams']['batch_size']
-    superclass_num = general_config['hparams']['superclass']
+    batch_size = general_config['hparams']['source']['batch_size']
+    superclass_num = general_config['hparams']['source']['superclass']
 
     old_model_config = Config.OldModel(batch_size['base'], superclass_num, model_dir, device_config, epoch, base_type=base_type)
     # new_model_dir = model_dir[:2] if dev_name == 'sm' else model_dir

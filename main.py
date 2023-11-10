@@ -28,8 +28,8 @@ def method_run(budget_list, new_model_config:Config.NewModel, operation: Config.
 def epoch_run(parse_args, budget_list, dataset:dict, epo, operation: Config.Operation):
 
     model_dir, device_config, base_type, pure, new_model_setter, config, filter_market = parse_args
-    batch_size = config['hparams']['batch_size']
-    superclass_num = config['hparams']['superclass']
+    batch_size = config['hparams']['source']['batch_size']
+    superclass_num = config['hparams']['source']['superclass']
 
     old_model_config = Config.OldModel(batch_size['base'], superclass_num, model_dir, device_config, epo, base_type)
     new_model_config = Config.NewModel(batch_size['base'], superclass_num, model_dir, device_config, epo, pure, new_model_setter, batch_size['new'], base_type)

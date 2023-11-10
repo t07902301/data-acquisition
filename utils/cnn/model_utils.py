@@ -24,11 +24,10 @@ def load_model(path, build_fn):
     out = torch.load(path)
     model = build_fn(**out['build_params'])
     model.load_state_dict(out['state_dict'])
-    # print(out['run_metadata'])
     return model
 
 
-def get_cifar_resnet(arch, num_classes,use_pretrained=False):
+def get_cifar_resnet(arch, num_classes):
     cls = {
             'resnet50': cifar_resnet.ResNet50,
             'resnet18': cifar_resnet.ResNet18,
@@ -42,47 +41,30 @@ def get_cifar_resnet(arch, num_classes,use_pretrained=False):
     model._build_params = {'arch': arch, 'num_classes': num_classes}
     return model
 
-def get_resnet(arch, num_classes, use_pretrained=False):
-    resnet_classes = {
-        'resnet18': models.resnet18(weights=models.ResNet18_Weights.DEFAULT) if use_pretrained else models.resnet18(weights=None),
-        'resnet50': models.resnet50,
-    }
-    assert arch in resnet_classes
-    model = resnet_classes[arch]
-    if use_pretrained:
-        for param in model.parameters():
-            param.requires_grad = False
-    model.fc = nn.Linear(model.fc.in_features, num_classes)
-    # print(model)
+def get_pretrained(arch, num_classes):
+    model = torch.hub.load("chenyaofo/pytorch-cifar-models", arch, pretrained=True)
+    # Freeze Feature Extractor
+    for param in model.parameters():
+        param.requires_grad = False
+
+    if 'resnet' in arch:
+        model.fc = nn.Linear(model.fc.in_features, num_classes)
+    else:
+        model.classifier = nn.Sequential(nn.Dropout(p=0.2, inplace=False),
+                        nn.Linear(in_features=model.classifier[1].in_features, out_features=num_classes, bias=True))
     model._build_params = {'arch': arch, 'num_classes': num_classes}
-
-    # print("Params to learn:")
-    # for name,param in model.named_parameters():
-    #     if param.requires_grad == True:
-    #         print("\t",name)
-    # ends
-
     return model
-
-def get_pretrained_resnet(arch, num_classes):
-    return get_resnet(arch, num_classes, pretrained=True)
 
 from utils.cnn.squeezenet import SqueezeNet
 
-def get_other(arch, num_classes, pretrain=False):
-
-    if arch == 'alexnet':
-        return torch.hub.load('pytorch/vision:v0.10.0','alexnet',pretrained=False)
-    # elif arch == 'vgg16':
-    #     return other_archs.vgg16
-    elif arch == 'squeezenet':
+def get_raw_model(arch, num_classes):
+    if 'resnet' in arch:
+        return get_cifar_resnet(arch, num_classes)
+    else:
         return SqueezeNet(num_classes)
-    return None
 
 BUILD_FUNCTIONS = {
-    'cifar_resnet': get_cifar_resnet,
-    'resnet': get_resnet,
-    'pretrained_resnet': get_pretrained_resnet,
-    'other': get_other,
+    'raw': get_raw_model,
+    'pretrained': get_pretrained,
 }
 

@@ -37,7 +37,7 @@ def get_optimizer_and_lr_scheduler(training_params, model):
     elif scheduler_type == 'step':
         # scheduler = lr_scheduler.StepLR(opt, step_size=60, 
         #                                 gamma=0.2)
-        scheduler = lr_scheduler.MultiStepLR(opt, milestones=[60, 60, 40, 40], gamma=0.2)
+        scheduler = lr_scheduler.MultiStepLR(opt, milestones=lr_scheduler_args['milestones'], gamma=lr_scheduler_args['gamma'])
     elif scheduler_type == 'exp':
         scheduler = lr_scheduler.ExponentialLR(opt, gamma=0.9)
     else:

@@ -156,9 +156,9 @@ class Strategy():
         Update model after training set in worksapce is refreshed
         '''
         if new_model_config.base_type == 'cnn':
-            workspace.base_model.update(new_model_config, workspace.data_split.loader['train'], workspace.validation_loader)
+            workspace.base_model.update(new_model_config.setter, workspace.data_split.loader['train'], workspace.validation_loader, workspace.general_config['hparams']['source'])
         else:
-            workspace.base_model.update(new_model_config, workspace.data_split.loader['train_non_cnn'])
+            workspace.base_model.update(workspace.data_split.loader['train_non_cnn'])
 
     def update_dataset(self, new_model_config: Config.NewModel, workspace: WorkSpace, acquisition:Config.Acquisition, new_data):
         if new_model_config.base_type == 'cnn':
@@ -167,10 +167,9 @@ class Strategy():
             workspace.data_split.use_new_data(new_data, new_model_config, acquisition, target_name='train_non_cnn')
 
     def export_indices(self, model_config:Config.NewModel, acquire_instruction: Config.Acquisition, dataset, ensemble: Config.Ensemble):
-        if acquire_instruction.method != 'rs':
-            raw_indices = [dataset[idx][-1] for idx in range(len(dataset))]
-            log = Log(model_config, 'indices')
-            log.export(acquire_instruction, data=raw_indices)
+        raw_indices = [dataset[idx][-1] for idx in range(len(dataset))]
+        log = Log(model_config, 'indices')
+        log.export(acquire_instruction, data=raw_indices)
 
 class NonSeqStrategy(Strategy):
     def __init__(self) -> None:
@@ -186,13 +185,11 @@ class NonSeqStrategy(Strategy):
 
         new_data_info = self.get_new_data_info(operation, workspace)
 
-        # new_data_loader = torch.utils.data.DataLoader(new_data_info['data'], new_model_config.new_batch_size)
-        # logger.info(100 - workspace.base_model.acc(new_data_loader))
+        # logger.info(len(new_data_info['data']))
 
         self.update_dataset(new_model_config, workspace, operation.acquisition, new_data_info['data'])
 
         new_model_config.set_path(operation)
-        logger.info(new_model_config.path)
 
         self.update_model(new_model_config, workspace)
 
@@ -215,7 +212,6 @@ class Greedy(NonSeqStrategy):
         if threshold == None:
             top_data_indices = acquistion.get_top_values_indices(utility_score, budget)
         else:
-            # top_data_indices = acquistion.get_top_indices_threshold(utility_score, budget, threshold)
             top_data_indices = acquistion.get_threshold_indices(utility_score, threshold)
         return top_data_indices
 
@@ -357,6 +353,8 @@ class SeqCLF(Strategy):
 
         workspace.set_data(new_model_config.new_batch_size) # recover validation & (aug)market
         workspace.set_validation(new_model_config.new_batch_size)
+
+        # logger.info(len(new_data_total_set))
 
         self.update_dataset(new_model_config, workspace, operation.acquisition, new_data_total_set)
 
