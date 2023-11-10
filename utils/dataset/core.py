@@ -24,8 +24,8 @@ class Core(data.Dataset):
     """
 
     def __init__(self, meta_data:dict,
-                 transform=None, label_transform=None):
-        self.transform = transform
+                 img_transform=None, label_transform=None):
+        self.img_transform = img_transform
         self.label_transform = label_transform
         
         # now load the picked numpy arrays
@@ -38,8 +38,8 @@ class Core(data.Dataset):
         # to return a PIL Image
         img = Image.fromarray(img)
 
-        if self.transform is not None:
-            img = self.transform(img)
+        if self.img_transform is not None:
+            img = self.img_transform(img)
 
         if self.label_transform is not None:
             category = self.label_transform[category]

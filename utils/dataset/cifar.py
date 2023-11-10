@@ -31,10 +31,10 @@ class CIFAR100(data.Dataset):
     ]
 
     def __init__(self, root, train=True,
-                 transform=None,
+                 img_transform=None,
                  download=False, coarse_label_transform=None):
         self.root = os.path.expanduser(root)
-        self.transform = transform
+        self.img_transform = img_transform
         self.coarse_label_transform = coarse_label_transform
         self.train = train  # training set or test set
 
@@ -93,8 +93,8 @@ class CIFAR100(data.Dataset):
         # to return a PIL Image
         img = Image.fromarray(img)
 
-        if self.transform is not None:
-            img = self.transform(img)
+        if self.img_transform is not None:
+            img = self.img_transform(img)
 
         if self.coarse_label_transform is not None:
             if coarse_target in self.coarse_label_transform:
@@ -173,7 +173,7 @@ class Novelty(data.Dataset):
 #         img, coarse_label, fine_label = self.dataset[self.indices[idx]]
 #         if (self.dataset.augment is not None) and (self.augment is not None) :
 #             img = Image.fromarray(img)
-#             img = self.transform(img)         
+#             img = self.img_transform(img)         
 #         if self.coarse_label_transform is not None:
 #             coarse_label = self.coarse_label_transform[coarse_label]
 #         return img, coarse_label, fine_label
@@ -182,5 +182,5 @@ class Novelty(data.Dataset):
 #         return len(self.indices)
 
     # def set_transform(self, new_transform):
-    #     self.transform = new_transform
+    #     self.img_transform = new_transform
 
