@@ -4,25 +4,75 @@ import utils.statistics.checker as Checker
 import utils.statistics.distribution as Distribution
 from typing import List
 from utils.logging import *
+import utils.dataset.wrappers as Dataset
 
+class ModelConf():
+    def __init__(self) -> None:
+        pass
+    
+    def budegt_run(self, budget_list, operation:Config.Operation,new_model_config:Config.NewModel, dataset_splits, config, weakness):
+        results = []
+        for budget in budget_list:
+            operation.acquisition.set_budget(budget)
+            new_model_config.set_path(operation)
+            model = Model.factory(new_model_config.base_type, config)
+            model.load(new_model_config.path, new_model_config.device)
+            gts, preds, decision_scores = model.eval(dataset_splits.loader['val_shift'])
+            targets = (gts!=preds) if weakness else (gts==preds)
+            results.append(np.mean(acquistion.get_gt_probab(gts[targets], decision_scores[targets])))
+        return results
+
+    def run(self, epochs, parse_args, budget_list, operation:Config.Operation, dataset_list: List[dict], weakness):
+        results = []
+        model_dir, device_config, base_type, pure, new_model_setter, config = parse_args
+        batch_size = config['hparams']['source']['batch_size']
+        superclass_num = config['hparams']['source']['superclass']
+        for epo in range(epochs):
+            new_model_config = Config.NewModel(batch_size['base'], superclass_num, model_dir, device_config, epo, pure, new_model_setter, batch_size['new'], base_type)
+            logger.info('in epoch {}'.format(epo))
+            dataset_splits = Dataset.DataSplits(dataset_list[epo], new_model_config.new_batch_size)
+            budget_result = self.budegt_run(budget_list, operation, new_model_config, dataset_splits, config, weakness)
+            results.append(budget_result)
+        return results 
+
+class BaseConf():
+    def __init__(self) -> None:
+        pass
+    def run(self, epochs, parse_args, dataset_list, weakness): 
+        results = []
+        model_dir, device_config, base_type, pure, new_model_setter, config = parse_args
+        batch_size = config['hparams']['source']['batch_size']
+        superclass_num = config['hparams']['source']['superclass']
+        for epo in range(epochs):
+            old_model_config = Config.OldModel(batch_size['base'], superclass_num, model_dir, device_config, epo, base_type)
+            logger.info('in epoch {}'.format(epo))
+            dataset_splits = Dataset.DataSplits(dataset_list[epo], old_model_config.batch_size)
+            model = Model.factory(old_model_config.base_type, config)
+            model.load(old_model_config.path, old_model_config.device)
+            gts, preds, decision_scores = model.eval(dataset_splits.loader['val_shift'])
+            targets = (gts!=preds) if weakness else (gts==preds)
+            results.append(np.mean(acquistion.get_gt_probab(gts[targets], decision_scores[targets])))
+        return results
+    
 class TestData():
     def __init__(self) -> None:
         pass
    
     def error_stat(self, checker:Checker.Probability):
+        # return dataloader_utils.get_size(checker.test_loader['new_model'])
         if len(checker.test_loader['new_model']) == 0:
             new_error_stat = 0
             logger.info('No data in New Model Test')
         else:
             new_error_stat = 100 - checker.base_model.acc(checker.test_loader['new_model'])
             
-        if len(checker.test_loader['old_model']) == 0:
-            old_error_stat = 0
-            logger.info('No data in Old Model Test')
-        else:
-            old_error_stat = 100 - checker.base_model.acc(checker.test_loader['old_model'])
+        # if len(checker.test_loader['old_model']) == 0:
+        #     old_error_stat = 0
+        #     logger.info('No data in Old Model Test')
+        # else:
+        #     old_error_stat = 100 - checker.base_model.acc(checker.test_loader['old_model'])
 
-        return [new_error_stat, old_error_stat]
+        return new_error_stat
     
     def seq_run(self, operation:Config.Operation, budget_list, checker:Checker.Probability):
         seq_error_stat = []
@@ -32,9 +82,9 @@ class TestData():
             logger.info('Seq Running:')
             detector_log = Log(checker.new_model_config, 'detector')
             checker.detector = detector_log.import_log(operation, checker.general_config)
-            anchor_dstr = checker.set_up_dstr(checker.anchor_loader, operation.stream.pdf)
-            checker.test_loader, _ = checker.get_subset_loader(anchor_dstr, operation.stream)
-            seq_error_stat.append(self.error_stat(checker)[0]) # only fetch error in mew model test set
+            anchor_dstr = checker.set_up_dstr(checker.anchor_loader, operation.ensemble.pdf)
+            checker.test_loader, _ = checker.get_subset_loader(anchor_dstr, operation.ensemble)
+            seq_error_stat.append(self.error_stat(checker)) # only fetch error in new model test set
         return seq_error_stat
         
     def run(self, epochs, parse_args, budget_list, operation:Config.Operation, dataset_list: List[dict], plot):
@@ -46,12 +96,13 @@ class TestData():
                 seq_error_stat = self.seq_run(operation, budget_list, checker)   # update checker's detector by logs
                 results.append(seq_error_stat)
         else:
-            epo = 0
-            checker = Checker.instantiate(epo, parse_args, dataset_list[epo], operation)
-            results.append(self.error_stat(checker)[0])
+            for epo in range(epochs):
+                logger.info('in epoch {}'.format(epo))
+                checker = Checker.instantiate(epo, parse_args, dataset_list[epo], operation)
+                results.append(self.error_stat(checker))
 
         if plot:
-            self.plot(checker, dataset_list[epo], operation.stream.pdf)
+            self.plot(checker, dataset_list[epo], operation.ensemble.pdf)
 
         return results
     
@@ -117,7 +168,7 @@ class TrainData():
         for epo in range(epochs):
             logger.info('in epoch {}'.format(epo))
             checker = Checker.instantiate(epo, parse_args, dataset_list[epo], operation)
-            data_split = dataset_utils.DataSplits(dataset_list[epo], checker.general_config['hparams']['batch_size']['new'])
+            data_split = dataset_utils.DataSplits(dataset_list[epo], checker.general_config['hparams']['source']['batch_size']['new'])
             result_epoch = self.epoch_run(operation, budget_list, checker, data_split, pdf_method)
             results.append(result_epoch)
         return results
@@ -158,8 +209,8 @@ class TrainData():
         new_data = torch.utils.data.Subset(self.data, new_data_indices)
 
         # return self.get_dataset_size(new_data)
-        # return self.utility_range(new_data, model_config.new_batch_size, checker.detector)
-        return self.misclassifications(new_data, model_config.new_batch_size, checker.base_model) * len(new_data) / 100
+        return self.utility_range(new_data, model_config.new_batch_size, checker.detector)
+        # return self.misclassifications(new_data, model_config.new_batch_size, checker.base_model) * len(new_data) / 100
         # return self.misclassifications(new_data, model_config.new_batch_size, checker.base_model)
     
         # cor_dv, incor_dv = Distribution.get_dv_dstr(checker.base_model, new_data_loader, checker.detector)
@@ -183,12 +234,13 @@ class TrainData():
         return prec
 
     def budget_run(self, operation:Config.Operation, checker: Checker.Prototype, data_split:dataset_utils.DataSplits, pdf_method):
-        # check_result = self.check_indices(operation, data_split, checker, pdf_method, None)
-        check_result = self.check_clf(operation, data_split, checker)
+        check_result = self.check_indices(operation, data_split, checker, pdf_method, None)
+        # check_result = self.check_clf(operation, data_split, checker)
         return check_result
    
-def main(epochs, new_model_setter='retrain', model_dir ='', device=0, base_type='', detector_name = '', stat_data='train', acquisition_method= 'dv', ensemble_name=None, ensemble_criterion=None, utility_threshold=None, pdf='kde'):
+def main(epochs, new_model_setter='retrain', model_dir ='', device=0, base_type='', detector_name = '', stat_data='train', acquisition_method= 'dv', ensemble_name=None, ensemble_criterion=None, pdf='kde', weakness=0):
     pure = True
+    weakness = True if weakness == 1 else False
     fh = logging.FileHandler('log/{}/stat_{}_{}.log'.format(model_dir, acquisition_method, stat_data), mode='w')
     fh.setLevel(logging.INFO)
     logger.addHandler(fh)
@@ -213,11 +265,20 @@ def main(epochs, new_model_setter='retrain', model_dir ='', device=0, base_type=
         results = np.array(results)
         logger.info('Train Data stat: {}'.format(np.round(np.mean(results, axis=0), decimals=3).tolist()))
         logger.info('all: {}'.format(results.tolist()))
+    elif stat_data == 'conf':
+        stat_checker = ModelConf()
+        results = stat_checker.run(epochs, parse_args, config['data']['budget'], operation, ds_list, weakness=weakness)
+        logger.info('Model Confidence stat:{}'.format(np.round(np.mean(results, axis=0), decimals=3).tolist()))
+    elif stat_data == 'bc':
+        stat_checker = BaseConf()
+        results = stat_checker.run(epochs, parse_args, ds_list, weakness=weakness)
+        logger.info('Base Model Confidence stat:{}'.format(np.round(np.mean(results), decimals=3)))
+        # logger.info('all: {}'.format(np.round(results, decimals=3).tolist()))
     else:
         stat_checker = TestData()
         results = stat_checker.run(epochs, parse_args, config['data']['budget'], operation, ds_list, plot=False)
         logger.info('Test Data error stat:{}'.format(np.round(np.mean(results), decimals=3)))
-        logger.info('all: {}'.format(results))
+        # logger.info('all: {}'.format(results))
 
 import argparse
 if __name__ == '__main__':
@@ -230,9 +291,9 @@ if __name__ == '__main__':
     parser.add_argument('-am','--acquisition_method',type=str, default='dv', help="Acquisition Strategy; dv: u-wfs, rs: random, conf: confiden-score, seq: sequential u-wfs, pd: u-wfsd, seq_pd: sequential u-wfsd")
     parser.add_argument('-bt','--base_type',type=str,default='cnn', help="Source/Base Model Type: cnn, svm; structure of cnn is indicated in the arch_type field in config.yaml")
     parser.add_argument('-stat','--stat',type=str, default='train', help="test, train: check statistics (e.g. misclassification percentage, final detector recall) of train or test data")
-    parser.add_argument('-ut','--utility_threshold',type=float,default=-1, help='Utility threshold: probability from real Cw distribution in u-wfsd or prediction probability of Cw in u-wfs with Logistic Regression.')
     parser.add_argument('-ec','--ensemble_criterion',type=float,default=0.5, help='A threshold of the probability from Cw to assign test set and create corresponding val set for model training.')
     parser.add_argument('-em','--ensemble',type=str, default='ae', help="Ensemble Method")
+    parser.add_argument('-w','--weakness',type=int, default=0, help="check weakness or not")
 
     args = parser.parse_args()
-    main(args.epochs, model_dir=args.model_dir, device=args.device, base_type=args.base_type, detector_name=args.detector_name, acquisition_method=args.acquisition_method, stat_data=args.stat, ensemble_criterion=args.ensemble_criterion, utility_threshold=args.utility_threshold, ensemble_name=args.ensemble)
+    main(args.epochs, model_dir=args.model_dir, device=args.device, base_type=args.base_type, detector_name=args.detector_name, acquisition_method=args.acquisition_method, stat_data=args.stat, ensemble_criterion=args.ensemble_criterion, ensemble_name=args.ensemble, weakness = args.weakness)
