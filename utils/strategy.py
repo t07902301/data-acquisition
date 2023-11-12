@@ -60,7 +60,7 @@ class WorkSpace():
         correct_dstr = distribution_utils.CorrectnessDisrtibution(self.base_model, self.detector, self.data_split.loader['val_shift'], pdf, correctness=True)
         incorrect_dstr = distribution_utils.CorrectnessDisrtibution(self.base_model, self.detector, self.data_split.loader['val_shift'], pdf, correctness=False)
         self.anchor_dstr = {'correct': correct_dstr, 'incorrect': incorrect_dstr}
-        logger.info('Set up anchor dstr')
+        logger.info('Set up anchor dstr in workspace')
 
     # def set_validation(self, stream_instruction:Config.ProbabEnsemble, old_batch_size, new_batch_size, set_anchor_dstr=False):
     #     '''
@@ -204,15 +204,15 @@ class Greedy(NonSeqStrategy):
     def get_new_data_indices(self, operation:Config.Operation, workspacce:WorkSpace):
         dataset_splits = workspacce.data_split
         acquistion_budget = operation.acquisition.budget
-        new_data_indices = self.run(acquistion_budget, dataset_splits.loader['market'], workspacce.detector, operation.acquisition.threshold)
+        new_data_indices = self.run(acquistion_budget, dataset_splits.loader['market'], workspacce.detector, operation.acquisition.threshold, operation.acquisition.anchor_threshold)
         return new_data_indices  
     
-    def run(self, budget, dataloader, detector: Detector.Prototype, threshold):
+    def run(self, budget, dataloader, detector: Detector.Prototype, threshold=None, anchor_thrshold=None):
         utility_score, _ = detector.predict(dataloader)
         if threshold == None:
             top_data_indices = acquistion.get_top_values_indices(utility_score, budget)
         else:
-            top_data_indices = acquistion.get_threshold_indices(utility_score, threshold)
+            top_data_indices = acquistion.get_threshold_indices(utility_score, threshold, anchor_thrshold)
         return top_data_indices
 
 class ProbabGreedy(NonSeqStrategy):
@@ -230,17 +230,16 @@ class ProbabGreedy(NonSeqStrategy):
     def get_new_data_indices(self, operation:Config.Operation, workspacce:WorkSpace):
         dataset_splits = workspacce.data_split
         acquistion_budget = operation.acquisition.budget
-        new_data_indices = self.run(acquistion_budget, dataset_splits.loader['market'], workspacce.detector, workspacce.anchor_dstr, operation.acquisition.threshold)
+        new_data_indices = self.run(acquistion_budget, dataset_splits.loader['market'], workspacce.detector, workspacce.anchor_dstr, operation.acquisition.threshold, operation.acquisition.anchor_threshold)
         return new_data_indices  
     
-    def run(self, budget, dataloader, detector: Detector.Prototype, anchor_dstr, threshold=None):
+    def run(self, budget, dataloader, detector: Detector.Prototype, anchor_dstr, threshold=None, anchor_thrshold=None):
         feature_score, _ = detector.predict(dataloader)
         utility_score = self.probability_utility({'target': anchor_dstr['incorrect'], 'other': anchor_dstr['correct']}, feature_score)
         if threshold == None:
             top_data_indices = acquistion.get_top_values_indices(utility_score, budget)
         else:
-            # top_data_indices = acquistion.get_top_indices_threshold(utility_score, budget, threshold)
-            top_data_indices = acquistion.get_threshold_indices(utility_score, threshold)
+            top_data_indices = acquistion.get_threshold_indices(utility_score, threshold, anchor_thrshold)
 
         # select_utility_score = market_utility_score[new_data_indices]
         # select_probab_utility_score = utility_score[new_data_indices]

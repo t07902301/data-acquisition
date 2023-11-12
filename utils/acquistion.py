@@ -43,7 +43,7 @@ def get_top_values_indices(values, K=0, order='descend'):
     top_val_indices = sorting_idx[:K]
     return top_val_indices
 
-def get_threshold_indices(values, threshold, anchor_threshold=0.7):
+def get_threshold_indices(values, threshold, anchor_threshold):
     threshold_mask = (values >= threshold)
     value_indices = np.arange(len(values))
     threshold_value_indicies = value_indices[threshold_mask]
@@ -65,15 +65,15 @@ def get_threshold_range(values, lower_t):
     # upper_value = lower_value[upper_value_indices]
 
 
-def get_top_indices_threshold(values, K, threshold, order='descend'):
+def get_threshold_indices_budget(values, budget, threshold, order='descend'):
     '''
-    return indices by indicated threshold
+    return indices by indicated threshold and budget
     '''
     threshold_mask = (values >= threshold)
     threshold_value = values[threshold_mask]
     value_indices = np.arange(len(values))
     threshold_value_indicies = value_indices[threshold_mask]
-    top_indicies = get_top_values_indices(threshold_value, K, order)
+    top_indicies = get_top_values_indices(threshold_value, budget, order)
     return threshold_value_indicies[top_indicies]
 
 def get_gt_probab(gts, probab):

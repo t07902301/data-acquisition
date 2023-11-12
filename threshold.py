@@ -16,7 +16,7 @@ class Train():
             self.epoch_run(parse_args, dataset, epo, operation)
 
     def epoch_run(self, parse_args, dataset:dict, epo, operation: Config.Operation):
-        model_dir, device_config, base_type, pure, new_model_setter, config, filter_market = parse_args
+        model_dir, device_config, base_type, pure, new_model_setter, config = parse_args
         batch_size = config['hparams']['source']['batch_size']
         superclass_num = config['hparams']['source']['superclass']
 
@@ -28,10 +28,6 @@ class Train():
         
         workspace.set_up(new_model_config.new_batch_size, operation.detection.vit)
 
-        if filter_market:
-            known_labels = config['data']['labels']['cover']['target']
-            workspace.set_market(operation.detection.vit, known_labels)
-    
         self.method_run(new_model_config, operation, workspace)
 
     def method_run(self, new_model_config:Config.NewModel, operation: Config.Operation, workspace: WorkSpace):
@@ -40,7 +36,7 @@ class Train():
             workspace.set_detector(operation.detection)
             workspace.set_validation(new_model_config.new_batch_size)
             if 'pd' in method:
-                workspace.set_anchor_dstr(operation.stream.pdf)
+                workspace.set_anchor_dstr(operation.ensemble.pdf)
         
         else:
             workspace.validation_loader = workspace.data_split.loader['val_shift']
@@ -49,6 +45,7 @@ class Train():
         self.threshold_run(operation, new_model_config, workspace)
 
     def threshold_run(self, operation: Config.Operation, new_model_config:Config.NewModel, workspace: WorkSpace):
+        operation.acquisition.set_anchor_threshold(np.max(self.threshold_list))
         for threshold in self.threshold_list:
             operation.acquisition.set_threshold(threshold)
             self.train(operation, new_model_config, workspace)
@@ -172,16 +169,15 @@ class ModelConf():
 
         logger.info('Model Confidence stat:{}'.format(results))
 
-def main(epochs, acquisition_method, device, detector_name, model_dir, base_type, mode, filter_market=False):
-    threshold_list = [0.5, 0.7]
+def main(epochs, acquisition_method, device, detector_name, model_dir, base_type, mode):
+    threshold_list = [0.4, 0.8]
+    # threshold_list = [0.5, 0.6, 0.7]
 
     fh = logging.FileHandler('log/{}/threshold_{}.log'.format(model_dir, acquisition_method),mode='w')
     fh.setLevel(logging.DEBUG)
     logger.addHandler(fh)
 
     pure, new_model_setter = True, 'retrain'
-
-    logger.info('Filter Market: {}'.format(filter_market))
 
     config, device_config, ds_list, normalize_stat,dataset_name, option = set_up(epochs, model_dir, device)
     
@@ -193,7 +189,7 @@ def main(epochs, acquisition_method, device, detector_name, model_dir, base_type
     operation = Config.Operation(acquire_instruction, ensemble_instruction, detect_instruction)
    
     if mode == 'train':
-        parse_args = (model_dir, device_config, base_type, pure, new_model_setter, config, filter_market)
+        parse_args = (model_dir, device_config, base_type, pure, new_model_setter, config)
         Train(threshold_list).run(epochs, ds_list, parse_args, operation)
 
     elif mode == 'stat':

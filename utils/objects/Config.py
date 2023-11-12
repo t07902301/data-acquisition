@@ -27,6 +27,7 @@ class Acquisition():
         self.budget = budget
         self.threshold = None if threshold == -1 else threshold
         self.seq_config = seq_config
+        self.anchor_threshold = None
 
     @abstractmethod
     def get_new_data_size(self):
@@ -45,6 +46,9 @@ class Acquisition():
     def set_method(self, method):
         self.method = method
     
+    def set_anchor_threshold(self, anchor_threshold):
+        self.anchor_threshold = anchor_threshold
+
 class NonSeqAcquisition(Acquisition):
     def __init__(self, method='', budget=0, threshold=None, seq_config=None) -> None:
         super().__init__(method, budget, threshold, seq_config)
