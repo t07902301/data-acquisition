@@ -17,16 +17,20 @@ class TestData():
             weights.append(posterior)
         return np.concatenate(weights)
     
-    def plot(self, data_valuation, feature_scores, probab, fig_name, n_data, color):
+    def plot(self, data_valuation, feature_scores, probab, n_data, color=None, file_name=None, fig_name=None):
         new_data_indices = acquistion.get_top_values_indices(data_valuation, n_data)
-        select_feature_score = feature_scores[new_data_indices]
-        select_probab_feature_score = probab[new_data_indices]    
+        selected_feature_score = feature_scores[new_data_indices]
+        selected_probab_feature_score = probab[new_data_indices]
+        with open(file_name, 'wb') as f:
+            pkl.dump({'score': selected_feature_score, 'probab': selected_probab_feature_score}, f)
+            f.close()
+        logger.info('{} saved'.format(file_name))
         n_data = [ i for i in range(n_data)]    
         plt.subplot(211)
-        plt.plot(n_data, select_feature_score, label='feature score', color=color)
+        plt.plot(n_data, selected_feature_score, label='feature score', color=color)
         plt.legend(fontsize=12)
         plt.subplot(212)
-        plt.plot(n_data, select_probab_feature_score, label='probability', color=color)
+        plt.plot(n_data, selected_probab_feature_score, label='probability', color=color)
         plt.legend(fontsize=12)
         plt.xlabel('the Number of Selected Data', fontsize=12)
         plt.savefig(fig_name)
@@ -39,17 +43,18 @@ class TestData():
         '''
         logger.info('in epoch {}'.format(epoch))
         checker = Checker.instantiate(epoch, parse_args, dataset_list[epoch], operation)
-        anchor_dstr = checker.set_up_dstr(checker.anchor_loader, operation.stream.pdf)
+        anchor_dstr = checker.set_up_dstr(checker.anchor_loader, operation.ensemble.pdf)
         datasplits = dataset_utils.DataSplits(dataset_list[epoch], checker.new_model_config.new_batch_size)
-
-        feature_scores, _ = checker.detector.predict(datasplits.loader['test_shift'])
+        feature_scores, _ = checker.detector.predict(datasplits.loader['market'])
         new_weight = self.probab2weight({'target': anchor_dstr['incorrect'], 'other': anchor_dstr['correct']}, feature_scores)
         
-        data_valuation, fig_name = feature_scores, 'figure/u-wfs.png'
-        self.plot(data_valuation, feature_scores, new_weight, fig_name, 100, 'purple')
+        model_dir, device_config, base_type, pure, new_model_setter, config = parse_args
+        
+        data_valuation, file_name = feature_scores, 'log/{}/top_score.pkl'.format(model_dir)
+        self.plot(data_valuation, feature_scores, new_weight, 100, file_name=file_name)
 
-        data_valuation, fig_name = new_weight, 'figure/u-wfsd.png' 
-        self.plot(data_valuation, feature_scores, new_weight, fig_name, 100, 'blue')
+        # data_valuation, fig_name = new_weight, 'log/{}/top_probab.png'.format(model_dir)
+        # self.plot(data_valuation, feature_scores, new_weight, 100, color='blue', fig_name=fig_name)
 
 def main(epochs, new_model_setter='retrain', model_dir ='', device=0, probab_bound = 0.5, base_type='', detector_name = ''):
     pure = True
@@ -63,7 +68,7 @@ def main(epochs, new_model_setter='retrain', model_dir ='', device=0, probab_bou
     config, device_config, ds_list, normalize_stat, dataset_name, option = set_up(epochs, model_dir, device)
 
     clip_processor = Detector.load_clip(device_config, normalize_stat['mean'], normalize_stat['std'])
-    ensemble_instruction = Config.Ensemble()
+    ensemble_instruction = Config.Ensemble(name='ae', pdf='kde')
     detect_instruction = Config.Detection(detector_name, clip_processor)
     acquire_instruction = Config.AcquisitionFactory(acquisition_method='', data_config=config['data'])
     operation = Config.Operation(acquire_instruction, ensemble_instruction, detect_instruction)
