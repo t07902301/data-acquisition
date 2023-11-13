@@ -2,7 +2,7 @@ import os
 from abc import abstractmethod
 
 class Ensemble():
-    def __init__(self, criterion=None, name=None, pdf=None) -> None:
+    def __init__(self, criterion=None, name='ae', pdf='kde') -> None:
         self.name = name
         self.criterion = criterion
         self.pdf =pdf # probability density function

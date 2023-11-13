@@ -68,7 +68,7 @@ def main(epochs, new_model_setter='retrain', model_dir ='', device=0, probab_bou
     config, device_config, ds_list, normalize_stat, dataset_name, option = set_up(epochs, model_dir, device)
 
     clip_processor = Detector.load_clip(device_config, normalize_stat['mean'], normalize_stat['std'])
-    ensemble_instruction = Config.Ensemble(name='ae', pdf='kde')
+    ensemble_instruction = Config.Ensemble()
     detect_instruction = Config.Detection(detector_name, clip_processor)
     acquire_instruction = Config.AcquisitionFactory(acquisition_method='', data_config=config['data'])
     operation = Config.Operation(acquire_instruction, ensemble_instruction, detect_instruction)
