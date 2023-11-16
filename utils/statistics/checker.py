@@ -491,6 +491,9 @@ def factory(name, new_model_config, general_config, use_posterior=True):
         checker = DataValuation(new_model_config, general_config)
     elif name == 'total':
         checker = Total(new_model_config, general_config)
+    else:
+        logger.info('Unimplemented Checker.')
+        exit()
     return checker
 
 def get_configs(epoch, parse_args, dataset):

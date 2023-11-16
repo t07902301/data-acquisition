@@ -71,6 +71,9 @@ def factory(estimator_name, detector: Detector.Prototype, validation_loader, pdf
         estimator = U_WFSD()
         estimator.set_up(detector, validation_loader, pdf, base_model)
         logger.info('U-WFSD')
+    else:
+        logger.info('Unimplemented Utility Estimator.')
+        exit()
 
     return estimator
     

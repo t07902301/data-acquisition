@@ -171,7 +171,7 @@ class NonSeqStrategy(Strategy):
         workspace.base_model.save(new_model_config.path)
 
         self.export_indices(new_model_config, operation.acquisition, new_data_info['data'], operation.ensemble)
-        
+
 class Greedy(NonSeqStrategy):
     def __init__(self) -> None:
         super().__init__()
@@ -308,7 +308,7 @@ class Seq(Strategy):
         # log = Log(new_model_config, 'indices')
         # log_data = log.import_log(operation, workspace.general_config)
         # logger.info((np.array(raw_indices) == np.array(log_data)).sum())
-
+    
     def round_operate(self, round_id, operation: Config.Operation, workspace:WorkSpace):
         '''
         Get new data, update (aug)market and val_shift, new detector from updated val_shift
@@ -359,3 +359,6 @@ def StrategyFactory(strategy):
         return Mix()
     elif strategy == 'seq':
         return Seq()
+    else:
+        logger.info('Unimplemented Acquisition Strategy.')
+        exit()
