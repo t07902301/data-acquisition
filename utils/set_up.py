@@ -8,7 +8,8 @@ import pickle as pkl
 from utils.env import data_env
 import numpy as np
 from utils.logging import *
-
+def str2bool(input):
+    return True if input=='1' else False
 def save_dataset_split(epochs, model_dir, config):
     '''
     Generate indices of train, test. validation, and data pool
