@@ -76,7 +76,7 @@ def get_correctness(data_loader, model:Model.Prototype, loader_gts):
     gts, preds, _ = model.eval(data_loader)
     assert (gts != loader_gts).sum() == 0, 'Train Loader Shuffles!: {}'.format((gts != loader_gts).sum())
     correctness_mask = (gts == preds)
-    logger.info('Model Acc: {}'.format(correctness_mask.mean()))
+    logger.info('Model Acc in Detector Traning Data: {}'.format(correctness_mask.mean()))
     data_loader_size = dataloader_utils.get_size(data_loader)
     correctness = np.zeros(data_loader_size, dtype = int)
     correctness[correctness_mask] = 1
