@@ -2,7 +2,7 @@ import os
 from abc import abstractmethod
 
 class Ensemble():
-    def __init__(self, criterion=None, name=None, pdf=None) -> None:
+    def __init__(self, criterion=None, name='ae', pdf='kde') -> None:
         self.name = name
         self.criterion = criterion
         self.pdf =pdf # probability density function
@@ -22,11 +22,13 @@ class Detection():
         self.vit = vit_mounted
 
 class Acquisition():
-    def __init__(self, method='', budget=0, threshold=-1, seq_config=None) -> None:
+    def __init__(self, method='', budget=0, threshold=-1, seq_config=None, utility_estimation='') -> None:
         self.method = method
         self.budget = budget
         self.threshold = None if threshold == -1 else threshold
         self.seq_config = seq_config
+        self.anchor_threshold = None
+        self.utility_estimation = utility_estimation
 
     @abstractmethod
     def get_new_data_size(self):
@@ -45,9 +47,13 @@ class Acquisition():
     def set_method(self, method):
         self.method = method
     
+    def set_anchor_threshold(self, anchor_threshold):
+        self.anchor_threshold = anchor_threshold
+
 class NonSeqAcquisition(Acquisition):
-    def __init__(self, method='', budget=0, threshold=None, seq_config=None) -> None:
-        super().__init__(method, budget, threshold, seq_config)
+
+    def __init__(self, method='', budget=0, threshold=-1, seq_config=None, utility_estimation='') -> None:
+        super().__init__(method, budget, threshold, seq_config, utility_estimation)
 
     def get_new_data_size(self, class_number):
         return class_number*self.budget
@@ -56,11 +62,12 @@ class NonSeqAcquisition(Acquisition):
         return 'acquisition method: {}, n_data_per_class:{}'.format(self.method, self.budget)
 
 class SequentialAc(Acquisition):
-    def __init__(self, method='', budget=0, threshold=None, seq_config=None) -> None:
-        super().__init__(method, budget, threshold, seq_config)
+    def __init__(self, method='', budget=0, threshold=-1, seq_config=None, utility_estimation='') -> None:
+        super().__init__(method, budget, threshold, seq_config, utility_estimation)
 
     def set_up(self):
-        self.round_acquire_method = 'pd' if 'pd' in self.method else 'dv'
+        # self.round_acquire_method = 'pd' if 'pd' in self.method else 'dv'
+        self.round_acquire_method = 'one-shot'
         if self.seq_config['budget'] != None:
             self.budget_round = self.seq_config['budget']
             self.n_rounds = self.budget // self.budget_round
@@ -80,11 +87,11 @@ class SequentialAc(Acquisition):
         return 'acquisition method: {}, n_data_per_class:({},{}) in round {}'.format(
             self.method, self.budget_non_last_round, self.budget_last_round, self.current_round)
 
-def AcquisitionFactory(acquisition_method, data_config):
+def AcquisitionFactory(acquisition_method, data_config, utility_estimator):
     if 'seq' in acquisition_method:
-        return SequentialAc(method=acquisition_method, seq_config=data_config['seq'])
+        return SequentialAc(method=acquisition_method, seq_config=data_config['seq'], utility_estimation=utility_estimator)
     else:
-        return NonSeqAcquisition(method=acquisition_method)
+        return NonSeqAcquisition(method=acquisition_method, utility_estimation=utility_estimator)
     
 class Operation():
     '''
@@ -110,6 +117,14 @@ class Model():
         self.base_type = base_type
         self.path = None
             
+class OptModel(Model):
+    def __init__(self, batch_size, class_number, model_dir, device, model_cnt, base_type) -> None:
+        super().__init__(batch_size, class_number, model_dir, device, base_type)
+        self.model_cnt = model_cnt # can be redundant if dv_stat_test not epoch-wised
+        self.root = os.path.join(self.root, 'opt')
+        check_dir(self.root)
+        self.path = os.path.join(self.root,'{}.pt'.format(model_cnt))
+
 class OldModel(Model):
     def __init__(self, batch_size, class_number, model_dir, device, model_cnt, base_type) -> None:
         super().__init__(batch_size, class_number, model_dir, device, base_type)

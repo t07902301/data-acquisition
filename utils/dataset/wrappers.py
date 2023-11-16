@@ -492,9 +492,9 @@ class Cifar(Dataset):
         #     base_transform
         # ])
 
-        train_market = cifar.CIFAR100(dataset_root, train=True,transform=base_transform, coarse_label_transform=label_map)
-        # aug_train_market = cifar.CIFAR100(dataset_root, train=True,transform=augment_transform, coarse_label_transform=label_map)
-        test_val = cifar.CIFAR100(dataset_root, train=False,transform=base_transform, coarse_label_transform=label_map)
+        train_market = cifar.CIFAR100(dataset_root, train=True,img_transform=base_transform, coarse_label_transform=label_map)
+        # aug_train_market = cifar.CIFAR100(dataset_root, train=True,img_transform=augment_transform, coarse_label_transform=label_map)
+        test_val = cifar.CIFAR100(dataset_root, train=False,img_transform=base_transform, coarse_label_transform=label_map)
 
         return {
             'train_market': train_market,
@@ -543,7 +543,7 @@ class Cifar(Dataset):
         r, g, b = [], [], []
         train_size = len(train_ds)
         for idx in range(train_size):
-            raw_img = train_ds[idx][0] # img + labels
+            raw_img = train_ds[idx][0]
             img = transforms.ToTensor()(raw_img)
             r.append(img[0])
             g.append(img[1])

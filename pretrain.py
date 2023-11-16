@@ -8,13 +8,13 @@ def run(dataset, model_config:Config.OldModel, train_flag:bool, detect_instructi
     if train_flag:
         ds = dataset_utils.DataSplits(dataset, model_config.batch_size, dataset_name)
         if model_config.base_type == 'cnn':
-            base_model = Model.CNN(config)
+            base_model = Model.CNN(config['hparams']['source'])
             base_model.train(ds.loader['train'], ds.loader['val'])
         else:
-            base_model = Model.svm(config, detect_instruction.vit)
+            base_model = Model.svm(config['detector_args'], detect_instruction.vit)
             base_model.train(ds.loader['train_non_cnn'])
     else:
-        ds = dataset_utils.DataSplits(dataset, config['hparams']['batch_size']['new'], dataset_name)
+        ds = dataset_utils.DataSplits(dataset, config['hparams']['source']['batch_size']['new'], dataset_name)
         base_model = Model.factory(model_config.base_type, config, detect_instruction.vit)
         base_model.load(model_config.path, model_config.device)
 
@@ -27,7 +27,7 @@ def run(dataset, model_config:Config.OldModel, train_flag:bool, detect_instructi
     detector = Detector.factory(detect_instruction.name, config, clip_processor = detect_instruction.vit, split_and_search=True, data_transform='clip')
     detector.fit(base_model, ds.loader['val_shift'], ds.dataset['val_shift'], model_config.batch_size)
     
-    _, detect_prec = detector.predict(ds.loader['test_shift'], metrics='precision', base_model=base_model)
+    _, detect_prec = detector.predict(ds.loader['test_shift'], metrics='recall', base_model=base_model)
     logger.info('In testing Detector: {}'.format(detect_prec))
 
     if train_flag:
@@ -50,10 +50,10 @@ def main(epochs,  model_dir, train_flag, device_id, base_type, detector_name):
     detect_instrution = Config.Detection(detector_name, clip_processor)
     for epo in range(epochs):
         logger.info('in epoch {}'.format(epo))
-        old_model_config = Config.OldModel(config['hparams']['batch_size']['base'], config['hparams']['superclass'], model_dir, device_config, epo, base_type)
+        old_model_config = Config.OldModel(config['hparams']['source']['batch_size']['base'], config['hparams']['source']['superclass'], model_dir, device_config, epo, base_type)
         ds = ds_list[epo]
-        prec, acc_shift, detect_prec, shift_score, val_shift = run(ds, old_model_config, train_flag, detect_instrution, parse_args)
-        acc_list.append(prec)
+        acc, acc_shift, detect_prec, shift_score, val_shift = run(ds, old_model_config, train_flag, detect_instrution, parse_args)
+        acc_list.append(acc)
         acc_shift_list.append(acc_shift)
         detect_prec_list.append(detect_prec)
         shift_list.append(shift_score)
