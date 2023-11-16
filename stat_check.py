@@ -4,7 +4,8 @@ import utils.statistics.checker as Checker
 import utils.statistics.distribution as Distribution
 from typing import List
 from utils.logging import *
-import utils.dataset.wrappers as Dataset
+import utils.statistics.data as DataStat
+import utils.statistics.distribution as distribution_utils
 
 class ModelConf():
     def __init__(self) -> None:
@@ -30,7 +31,7 @@ class ModelConf():
         for epo in range(epochs):
             new_model_config = Config.NewModel(batch_size['base'], superclass_num, model_dir, device_config, epo, pure, new_model_setter, batch_size['new'], base_type)
             logger.info('in epoch {}'.format(epo))
-            dataset_splits = Dataset.DataSplits(dataset_list[epo], new_model_config.new_batch_size)
+            dataset_splits = dataset_utils.DataSplits(dataset_list[epo], new_model_config.new_batch_size)
             budget_result = self.budegt_run(budget_list, operation, new_model_config, dataset_splits, config, weakness)
             results.append(budget_result)
         return results 
@@ -46,7 +47,7 @@ class BaseConf():
         for epo in range(epochs):
             old_model_config = Config.OldModel(batch_size['base'], superclass_num, model_dir, device_config, epo, base_type)
             logger.info('in epoch {}'.format(epo))
-            dataset_splits = Dataset.DataSplits(dataset_list[epo], old_model_config.batch_size)
+            dataset_splits = dataset_utils.DataSplits(dataset_list[epo], old_model_config.batch_size)
             model = Model.factory(old_model_config.base_type, config)
             model.load(old_model_config.path, old_model_config.device)
             gts, preds, decision_scores = model.eval(dataset_splits.loader['val_shift'])
@@ -57,56 +58,32 @@ class BaseConf():
 class TestData():
     def __init__(self) -> None:
         pass
-   
-    def error_stat(self, checker:Checker.Probability):
-        # return dataloader_utils.get_size(checker.test_loader['new_model'])
-        if len(checker.test_loader['new_model']) == 0:
-            new_error_stat = 0
-            logger.info('No data in New Model Test')
-        else:
-            new_error_stat = 100 - checker.base_model.acc(checker.test_loader['new_model'])
-            
-        # if len(checker.test_loader['old_model']) == 0:
-        #     old_error_stat = 0
-        #     logger.info('No data in Old Model Test')
-        # else:
-        #     old_error_stat = 100 - checker.base_model.acc(checker.test_loader['old_model'])
-
-        return new_error_stat
     
-    def seq_run(self, operation:Config.Operation, budget_list, checker:Checker.Probability):
-        seq_error_stat = []
-        for budget in budget_list:
-            operation.acquisition.set_budget(budget)
-            checker.new_model_config.set_path(operation)
-            logger.info('Seq Running:')
-            detector_log = Log(checker.new_model_config, 'detector')
-            checker.detector = detector_log.import_log(operation, checker.general_config)
-            anchor_dstr = checker.set_up_dstr(checker.anchor_loader, operation.ensemble.pdf)
-            checker.test_loader, _ = checker.get_subset_loader(anchor_dstr, operation.ensemble)
-            seq_error_stat.append(self.error_stat(checker)) # only fetch error in new model test set
-        return seq_error_stat
-        
-    def run(self, epochs, parse_args, budget_list, operation:Config.Operation, dataset_list: List[dict], plot):
+    def run(self, epochs, parse_args, budget_list, operation:Config.Operation, dataset_list: List[dict], normalize_stat, dataset_name, use_posterior, plot):
         results = []
-        if 'seq' in operation.acquisition.method:
-            for epo in range(epochs):
-                logger.info('in epoch {}'.format(epo))
-                checker = Checker.instantiate(epo, parse_args, dataset_list[epo], operation)
-                seq_error_stat = self.seq_run(operation, budget_list, checker)   # update checker's detector by logs
-                results.append(seq_error_stat)
-        else:
-            for epo in range(epochs):
-                logger.info('in epoch {}'.format(epo))
-                checker = Checker.instantiate(epo, parse_args, dataset_list[epo], operation)
-                results.append(self.error_stat(checker))
+        for epo in range(epochs):
+            logger.info('in epoch {}'.format(epo))
+            checker = Checker.instantiate(epo, parse_args, dataset_list[epo], operation, normalize_stat, dataset_name, use_posterior) #probab / ensemble
+            stat = self.method_run(budget_list, operation, checker)
+            results.append(stat)
 
         if plot:
             self.plot(checker, dataset_list[epo], operation.ensemble.pdf)
-
         return results
     
-    def plot(self, checker: Checker.Probability, dataset, pdf):
+    def method_run(self, budget_list, operation:Config.Operation, checker: Checker.Partition):
+        stat_list = []
+        for budget in budget_list:
+            operation.acquisition.set_budget(budget)
+            acc_change = self.budget_run(operation, checker)
+            stat_list.append(acc_change)
+        return stat_list
+
+    def budget_run(self, operation:Config.Operation, checker: Checker.Partition):
+        check_result = checker.stat_run(operation)
+        return check_result
+    
+    def plot(self, checker: Checker.Partition, dataset, pdf):
         datasplits = dataset_utils.DataSplits(dataset, checker.new_model_config.new_batch_size)
         # fig_name = 'figure/test/val_dv.png'
         # self.naive_plot(datasplits.loader['val_shift'], fig_name, checker.detector)
@@ -154,7 +131,13 @@ class TrainData():
         else:
             sampled_meta = dataset_utils.MetaData(data_config['root'])
             self.data = dataset_utils.Core().get_raw_dataset(sampled_meta, normalize_stat, data_config['labels']['map'])
-        
+   
+    def set_utility_estimator(self, detector_instruction: Config.Detection, estimator_name, pdf, general_config, data_split, base_model):
+        detector = Detector.factory(detector_instruction.name, general_config, detector_instruction.vit)
+        detector.fit(base_model,data_split.loader['val_shift'])
+        self.utility_estimator = ue.factory(estimator_name, detector,data_split.loader['val_shift'], pdf, base_model)
+        logger.info('Set up utility estimator.')
+
     def dv_dstr_plot(self, cor_dv, incor_dv, budget, pdf_method=None, range=None):
         pdf_name = '' if pdf_method == None else '_{}'.format(pdf_method)
         Distribution.base_plot(cor_dv, 'correct', 'orange', pdf_method, range)
@@ -163,44 +146,43 @@ class TrainData():
         Distribution.plt.close()
         logger.info('Save fig to figure/train/dv{}_{}.png'.format(pdf_name, budget))
 
-    def run(self, epochs, parse_args, budget_list, operation:Config.Operation, dataset_list: List[dict], pdf_method):
+    def run(self, epochs, parse_args, budget_list, operation:Config.Operation, dataset_list: List[dict]):
         results = []
         for epo in range(epochs):
             logger.info('in epoch {}'.format(epo))
             checker = Checker.instantiate(epo, parse_args, dataset_list[epo], operation)
             data_split = dataset_utils.DataSplits(dataset_list[epo], checker.general_config['hparams']['source']['batch_size']['new'])
-            result_epoch = self.epoch_run(operation, budget_list, checker, data_split, pdf_method)
+            self.set_utility_estimator(operation.detection, operation.acquisition.utility_estimation, operation.ensemble.pdf, checker.general_config, data_split, checker.base_model)
+            result_epoch = self.epoch_run(operation, budget_list, checker, data_split, operation)
             results.append(result_epoch)
         return results
 
-    def epoch_run(self, operation:Config.Operation, budget_list, checker:Checker.Prototype, data_split:dataset_utils.DataSplits, pdf_method):
-        return self.method_run(budget_list, operation, checker, data_split, pdf_method)
+    def epoch_run(self, operation:Config.Operation, budget_list, checker:Checker.Prototype, data_split:dataset_utils.DataSplits):
+        return self.method_run(budget_list, operation, checker, data_split)
 
-    def method_run(self, budget_list, operation:Config.Operation, checker: Checker.Prototype, data_split:dataset_utils.DataSplits, pdf_method):
+    def method_run(self, budget_list, operation:Config.Operation, checker: Checker.Prototype, data_split:dataset_utils.DataSplits):
         acc_change_list = []
         for budget in budget_list:
             operation.acquisition.set_budget(budget)
-            acc_change = self.budget_run(operation, checker, data_split, pdf_method)
+            acc_change = self.budget_run(operation, checker, data_split)
             acc_change_list.append(acc_change)
         return acc_change_list
     
     def get_dataset_size(self, dataset):
         return len(dataset)
     
-    def utility_range(self, dataset, batch_size, detector: Detector.Prototype):
+    def utility_range(self, dataset, batch_size):
         new_data_loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size)
-
-        utility, _ = detector.predict(new_data_loader)
 
         # probab = distribution.pdf.accumulate(max(utility), min(utility))
 
-        return min(utility)
+        return min(self.utility_estimator.run(new_data_loader))
     
     def misclassifications(self, dataset, batch_size, base_model: Model.Prototype):
         new_data_loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size)
         return 100 - base_model.acc(new_data_loader)
     
-    def check_indices(self, operation:Config.Operation, data_split:dataset_utils.DataSplits, checker:Checker.Prototype, pdf_method, distribution: distribution_utils.Disrtibution):
+    def check_indices(self, operation:Config.Operation, data_split:dataset_utils.DataSplits, checker:Checker.Prototype, distribution: distribution_utils.Disrtibution):
         model_config = checker.new_model_config
         model_config.set_path(operation)
 
@@ -209,7 +191,8 @@ class TrainData():
         new_data = torch.utils.data.Subset(self.data, new_data_indices)
 
         # return self.get_dataset_size(new_data)
-        return self.utility_range(new_data, model_config.new_batch_size, checker.detector)
+        return self.utility_range(new_data, model_config.new_batch_size)
+    
         # return self.misclassifications(new_data, model_config.new_batch_size, checker.base_model) * len(new_data) / 100
         # return self.misclassifications(new_data, model_config.new_batch_size, checker.base_model)
     
@@ -233,27 +216,27 @@ class TrainData():
         _, prec = detector.predict(data_split.loader['test_shift'], checker.base_model, metrics='recall')
         return prec
 
-    def budget_run(self, operation:Config.Operation, checker: Checker.Prototype, data_split:dataset_utils.DataSplits, pdf_method):
-        check_result = self.check_indices(operation, data_split, checker, pdf_method, None)
+    def budget_run(self, operation:Config.Operation, checker: Checker.Prototype, data_split:dataset_utils.DataSplits):
+        check_result = self.check_indices(operation, data_split, checker, None)
         # check_result = self.check_clf(operation, data_split, checker)
         return check_result
    
-def main(epochs, new_model_setter='retrain', model_dir ='', device=0, base_type='', detector_name = '', stat_data='train', acquisition_method= 'dv', ensemble_name=None, ensemble_criterion=None, pdf='kde', weakness=0):
+def main(epochs, new_model_setter='retrain', model_dir ='', device=0, base_type='', detector_name = '', stat_data='train', acquisition_method= 'dv', ensemble_name=None, ensemble_criterion=None, pdf='kde', weakness=0, use_posterior=1, utility_estimator='u-wfs'):
     pure = True
     weakness = True if weakness == 1 else False
     fh = logging.FileHandler('log/{}/stat_{}_{}.log'.format(model_dir, acquisition_method, stat_data), mode='w')
     fh.setLevel(logging.INFO)
     logger.addHandler(fh)
-    logger.info('Detector: {}; Stream Criterion: {}'.format(detector_name, ensemble_criterion))
+    logger.info('Ensemble Name: {}, criterion:{}, use_posterior: {}, utility_estimator: {}'.format(ensemble_name, ensemble_criterion, use_posterior, utility_estimator))
 
     device_config = 'cuda:{}'.format(device)
     torch.cuda.set_device(device_config)
     config, device_config, ds_list, normalize_stat, dataset_name, option = set_up(epochs, model_dir, device)
 
     clip_processor = Detector.load_clip(device_config, normalize_stat['mean'], normalize_stat['std'])
-    ensemble_instruction = Config.Ensemble(ensemble_criterion, ensemble_name, pdf)
+    ensemble_instruction = Config.Ensemble(name=ensemble_name, criterion=ensemble_criterion)
     detect_instruction = Config.Detection(detector_name, clip_processor)
-    acquire_instruction = Config.AcquisitionFactory(acquisition_method=acquisition_method, data_config=config['data'])
+    acquire_instruction = Config.AcquisitionFactory(acquisition_method=acquisition_method, data_config=config['data'], utility_estimator=utility_estimator)
     
     operation = Config.Operation(acquire_instruction, ensemble_instruction, detect_instruction)
     
@@ -261,7 +244,7 @@ def main(epochs, new_model_setter='retrain', model_dir ='', device=0, base_type=
     
     if stat_data == 'train':
         stat_checker = TrainData(dataset_name, config['data'], normalize_stat)
-        results = stat_checker.run(epochs, parse_args, config['data']['budget'], operation, ds_list, ensemble_instruction.pdf)
+        results = stat_checker.run(epochs, parse_args, config['data']['budget'], operation, ds_list)
         results = np.array(results)
         logger.info('Train Data stat: {}'.format(np.round(np.mean(results, axis=0), decimals=3).tolist()))
         logger.info('all: {}'.format(results.tolist()))
@@ -276,8 +259,8 @@ def main(epochs, new_model_setter='retrain', model_dir ='', device=0, base_type=
         # logger.info('all: {}'.format(np.round(results, decimals=3).tolist()))
     else:
         stat_checker = TestData()
-        results = stat_checker.run(epochs, parse_args, config['data']['budget'], operation, ds_list, plot=False)
-        logger.info('Test Data error stat:{}'.format(np.round(np.mean(results), decimals=3)))
+        results = stat_checker.run(epochs, parse_args, config['data']['budget'], operation, ds_list, normalize_stat, dataset_name, use_posterior, plot=False)
+        logger.info('Test Data error stat:{}'.format(np.round(np.mean(results, axis=0), decimals=3).tolist()))
         # logger.info('all: {}'.format(results))
 
 import argparse
@@ -294,6 +277,8 @@ if __name__ == '__main__':
     parser.add_argument('-ec','--ensemble_criterion',type=float,default=0.5, help='A threshold of the probability from Cw to assign test set and create corresponding val set for model training.')
     parser.add_argument('-em','--ensemble',type=str, default='ae', help="Ensemble Method")
     parser.add_argument('-w','--weakness',type=int, default=0, help="check weakness or not")
+    parser.add_argument('-up','--use_posterior',type=str2bool, default=1, help="use posterior or not")
+    parser.add_argument('-ue','--utility_estimator',type=str, default='u-wfs', help="u-wfs, u-wfsd")
 
     args = parser.parse_args()
-    main(args.epochs, model_dir=args.model_dir, device=args.device, base_type=args.base_type, detector_name=args.detector_name, acquisition_method=args.acquisition_method, stat_data=args.stat, ensemble_criterion=args.ensemble_criterion, ensemble_name=args.ensemble, weakness = args.weakness)
+    main(args.epochs, model_dir=args.model_dir, device=args.device, base_type=args.base_type, detector_name=args.detector_name, acquisition_method=args.acquisition_method, stat_data=args.stat, ensemble_criterion=args.ensemble_criterion, ensemble_name=args.ensemble, weakness = args.weakness, use_posterior=args.use_posterior, utility_estimator=args.utility_estimator)

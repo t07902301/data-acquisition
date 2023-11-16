@@ -33,11 +33,8 @@ class Train():
     def method_run(self, new_model_config:Config.NewModel, operation: Config.Operation, workspace: WorkSpace):
         method = operation.acquisition.method
         if method != 'rs':
-            workspace.set_detector(operation.detection)
             workspace.set_validation(new_model_config.new_batch_size)
-            if 'pd' in method:
-                workspace.set_anchor_dstr(operation.ensemble.pdf)
-        
+            workspace.set_utility_estimator(operation.detection, operation.ensemble.name, operation.ensemble.pdf)
         else:
             workspace.validation_loader = workspace.data_split.loader['val_shift']
             logger.info('Keep val_shift for validation_loader') # Align with inference on the test set
@@ -64,6 +61,7 @@ class Test():
             operation.acquisition.threshold = threshold
             acc_change = checker.run(operation)
             acc_change_list.append(acc_change)
+            # logger.info(acc_change)
         return acc_change_list
 
     def epoch_run(self, operation: Config.Operation, checker: Checker.Prototype):
@@ -71,14 +69,14 @@ class Test():
         acc_change = self.threshold_run(operation, checker)
         return acc_change
 
-    def run(self, epochs, parse_args, dataset_list, operation: Config.Operation):
+    def run(self, epochs, parse_args, dataset_list, operation: Config.Operation, normalize_stat, dataset_name, use_posterior):
         results = []
         for epo in range(epochs):
             logger.info('in epoch {}'.format(epo))
-            checker = Checker.instantiate(epo, parse_args, dataset_list[epo], operation) #probab / ensemble
+            checker = Checker.instantiate(epo, parse_args, dataset_list[epo], operation, normalize_stat, dataset_name, use_posterior) #probab / ensemble
             result_epoch = self.epoch_run( operation, checker)
             results.append(result_epoch)
-        # logger.info('avg:{}'.format(np.round(np.mean(results, axis=0), decimals=3)))
+        logger.info('avg:{}'.format(np.round(np.mean(results, axis=0), decimals=3)))
 
 class Stat():
     def __init__(self, threshold_list) -> None:
@@ -169,9 +167,8 @@ class ModelConf():
 
         logger.info('Model Confidence stat:{}'.format(results))
 
-def main(epochs, acquisition_method, device, detector_name, model_dir, base_type, mode):
-    threshold_list = [0.4, 0.8]
-    # threshold_list = [0.5, 0.6, 0.7]
+def main(epochs, acquisition_method, device, detector_name, model_dir, base_type, mode, ensemble_name, utility_estimator, use_posterior):
+    threshold_list = [0.5, 0.6, 0.7]
 
     fh = logging.FileHandler('log/{}/threshold_{}.log'.format(model_dir, acquisition_method),mode='w')
     fh.setLevel(logging.DEBUG)
@@ -182,9 +179,9 @@ def main(epochs, acquisition_method, device, detector_name, model_dir, base_type
     config, device_config, ds_list, normalize_stat,dataset_name, option = set_up(epochs, model_dir, device)
     
     clip_processor = Detector.load_clip(device_config, normalize_stat['mean'], normalize_stat['std'])
-    ensemble_instruction = Config.Ensemble()
+    ensemble_instruction = Config.Ensemble(name=ensemble_name)
     detect_instruction = Config.Detection(detector_name, clip_processor)
-    acquire_instruction = Config.AcquisitionFactory(acquisition_method=acquisition_method, data_config=config['data'])
+    acquire_instruction = Config.AcquisitionFactory(acquisition_method=acquisition_method, data_config=config['data'], utility_estimator=utility_estimator)
 
     operation = Config.Operation(acquire_instruction, ensemble_instruction, detect_instruction)
    
@@ -202,7 +199,7 @@ def main(epochs, acquisition_method, device, detector_name, model_dir, base_type
 
     else:
         parse_args = (model_dir, device_config, base_type, pure, new_model_setter, config)
-        Test(threshold_list).run(epochs, parse_args, ds_list, operation)
+        Test(threshold_list).run(epochs, parse_args, ds_list, operation, normalize_stat, dataset_name, use_posterior)
 
 import argparse
 if __name__ == '__main__':
@@ -215,6 +212,9 @@ if __name__ == '__main__':
     parser.add_argument('-am','--acquisition_method',type=str, default='dv', help="Acquisition Strategy; dv: u-wfs, rs: random, conf: confiden-score, seq: sequential u-wfs, pd: u-wfsd, seq_pd: sequential u-wfsd")
     parser.add_argument('-bt','--base_type',type=str,default='cnn', help="Source/Base Model Type: cnn, svm; structure of cnn is indicated in the arch_type field in config.yaml")
     parser.add_argument('-mode','--mode',type=str,default='test', help="train or test models from utility thresholds")
+    parser.add_argument('-ue','--utility_estimator',type=str, default='u_wfs', help="u_wfs, u_wfsd")
+    parser.add_argument('-up','--use_posterior',type=str2bool, default=1, help="use posterior or not")
+    parser.add_argument('-em','--ensemble',type=str, default='ae', help="Ensemble Method")
 
     args = parser.parse_args()
-    main(args.epochs, model_dir=args.model_dir, device=args.device, detector_name=args.detector_name, acquisition_method=args.acquisition_method, base_type=args.base_type, mode=args.mode)
+    main(args.epochs, model_dir=args.model_dir, device=args.device, detector_name=args.detector_name, acquisition_method=args.acquisition_method, base_type=args.base_type, mode=args.mode, ensemble_name=args.ensemble, utility_estimator=args.utility_estimator, use_posterior=args.use_posterior)
