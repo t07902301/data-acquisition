@@ -251,7 +251,7 @@ class Mix(Sample):
         new_data_indices = self.run(acquistion_budget, workspace.base_model, dataset_splits.loader['market'])
         return new_data_indices 
 
-class SeqCLF(Strategy):
+class Seq(Strategy):
     '''
     Detector and Validation Shift are updated after each operation. 
     '''
@@ -358,4 +358,4 @@ def StrategyFactory(strategy):
     elif strategy == 'mix':
         return Mix()
     elif strategy == 'seq':
-        return SeqCLF()
+        return Seq()
