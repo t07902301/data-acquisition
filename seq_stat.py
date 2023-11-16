@@ -2,29 +2,29 @@ from utils.strategy import *
 from utils.set_up import *
 from utils.logging import *
 
-def run(operation: Config.Operation, new_model_config:Config.NewModel, workspace: WorkSpace):
+def run(operation: Config.Operation, new_model_config:Config.NewModel, workspace: WorkSpace, stat_mode):
     strategy = StrategyFactory(operation.acquisition.method)
-    strategy.stat_mode = True
+    strategy.stat_mode = stat_mode
     stat = strategy.operate(operation, new_model_config, workspace)
     return stat
 
-def budget_run(budget_list, operation: Config.Operation, new_model_config:Config.NewModel, workspace: WorkSpace):
+def budget_run(budget_list, operation: Config.Operation, new_model_config:Config.NewModel, workspace: WorkSpace, stat_mode):
     budget_stat = []
     for budget in budget_list:
         operation.acquisition.budget = budget
-        stat = run(operation, new_model_config, workspace)
+        stat = run(operation, new_model_config, workspace, stat_mode)
         budget_stat.append(stat)
     return budget_stat
 
-def method_run(budget_list, new_model_config:Config.NewModel, operation: Config.Operation, workspace: WorkSpace):
+def method_run(budget_list, new_model_config:Config.NewModel, operation: Config.Operation, workspace: WorkSpace, stat_mode):
     workspace.set_detector(operation.detection)
     workspace.set_validation(new_model_config.new_batch_size)
 
-    budget_stat = budget_run(budget_list, operation, new_model_config, workspace)
+    budget_stat = budget_run(budget_list, operation, new_model_config, workspace, stat_mode)
 
     return budget_stat
 
-def epoch_run(parse_args, budget_list, dataset:dict, epo, operation: Config.Operation):
+def epoch_run(parse_args, budget_list, dataset:dict, epo, operation: Config.Operation, stat_mode):
 
     model_dir, device_config, base_type, pure, new_model_setter, config, filter_market = parse_args
     batch_size = config['hparams']['source']['batch_size']
@@ -42,10 +42,10 @@ def epoch_run(parse_args, budget_list, dataset:dict, epo, operation: Config.Oper
         known_labels = config['data']['labels']['cover']['target']
         workspace.set_market(operation.detection.vit, known_labels)
    
-    stat = method_run(budget_list, new_model_config, operation, workspace)
+    stat = method_run(budget_list, new_model_config, operation, workspace, stat_mode)
     return stat
 
-def main(epochs, device, detector_name, model_dir, base_type, ensemble_criterion, ensemble_name, filter_market=False):
+def main(epochs, device, detector_name, model_dir, base_type, stat_mode, filter_market=False):
 
     fh = logging.FileHandler('log/{}/seq_stat.log'.format(model_dir),mode='w')
     fh.setLevel(logging.DEBUG)
@@ -59,7 +59,7 @@ def main(epochs, device, detector_name, model_dir, base_type, ensemble_criterion
     config, device_config, ds_list, normalize_stat, dataset_name, option = set_up(epochs, model_dir, device)
     
     clip_processor = Detector.load_clip(device_config, normalize_stat['mean'], normalize_stat['std'])
-    ensemble_instruction = Config.Ensemble(ensemble_criterion, ensemble_name, pdf='kde')
+    ensemble_instruction = Config.Ensemble()
     detect_instruction = Config.Detection(detector_name, clip_processor)
     acquire_instruction = Config.AcquisitionFactory(acquisition_method=acquisition_method, data_config=config['data'])
     operation = Config.Operation(acquire_instruction, ensemble_instruction, detect_instruction)
@@ -72,7 +72,7 @@ def main(epochs, device, detector_name, model_dir, base_type, ensemble_criterion
     for epo in range(epochs):
         logger.info('In epoch {}'.format(epo))
         dataset = ds_list[epo]
-        stat = epoch_run(parse_args, budget_list, dataset, epo, operation)
+        stat = epoch_run(parse_args, budget_list, dataset, epo, operation, stat_mode)
         stat_list.append(stat)
     stat_list = np.array(stat_list)
 
@@ -87,10 +87,11 @@ if __name__ == '__main__':
     parser.add_argument('-e','--epochs',type=int,default=1)
     parser.add_argument('-md','--model_dir',type=str,default='', help="(dataset name)_task_(other info)")
     parser.add_argument('-d','--device',type=int,default=0)
-    parser.add_argument('-dn','--detector_name',type=str,default='svm', help="svm, logistic regression")
+    parser.add_argument('-dn','--detector_name',type=str,default='svm', help="svm, regression; (regression: logistic regression)")
+    parser.add_argument('-ue','--utility_estimator',type=str, default='u-wfs', help="u-wfs, u-wfsd")
+    parser.add_argument('-am','--acquisition_method',type=str, default='dv', help="Acquisition Strategy; one-shot, rs: random, conf: confiden-score, seq: sequential")
     parser.add_argument('-bt','--base_type',type=str,default='cnn', help="Source/Base Model Type: cnn, svm; structure of cnn is indicated in the arch_type field in config.yaml")
-    parser.add_argument('-ec','--criterion',type=float,default=0.5, help='Criterion in WTA ensemble')
-    parser.add_argument('-em','--ensemble',type=str, default='ae', help="Ensemble Method")
+    parser.add_argument('-m','--mode',type=str,default='wede_acc', help="plug-in stat for sequential acquisition")
 
     args = parser.parse_args()
     main(args.epochs, model_dir=args.model_dir, device=args.device, detector_name=args.detector_name, base_type=args.base_type, ensemble_criterion=args.ensemble_criterion,ensemble_name=args.ensemble)
