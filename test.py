@@ -69,7 +69,7 @@ if __name__ == '__main__':
     parser.add_argument('-dn','--detector_name',type=str,default='svm', help="svm, regression; (regression: logistic regression)")
     parser.add_argument('-ec','--criterion',type=float,default=0.5, help='Criterion in WTA ensemble')
     parser.add_argument('-am','--acquisition_method',type=str, default='dv', help="Acquisition Strategy; dv:one-shot, rs: random, conf: confiden-score, seq: sequential u-wfs")
-    parser.add_argument('-em','--ensemble',type=str, default='ae', help="Ensemble Method")
+    parser.add_argument('-em','--ensemble',type=str, default='total', help="Ensemble Method")
     parser.add_argument('-bt','--base_type',type=str,default='cnn', help="Source/Base Model Type: cnn, svm; structure of cnn is indicated in the arch_type field in config.yaml")
     parser.add_argument('-ue','--utility_estimator',type=str, default='u-wfs', help="u-wfs, u-wfsd")
     parser.add_argument('-up','--use_posterior',type=str2bool, default=1, help="use posterior or not")

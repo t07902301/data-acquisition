@@ -288,7 +288,7 @@ class Seq(Strategy):
             if self.seq_stat_mode != '':
                 stat_results.append(self.stat(self.seq_stat_mode, workspace, new_data_round_info, new_model_config)) 
         
-        if self.seq_stat_mode:
+        if self.seq_stat_mode != '':
             return stat_results
         
         new_model_config.set_path(operation)
