@@ -153,7 +153,7 @@ class TrainData():
             checker = Checker.instantiate(epo, parse_args, dataset_list[epo], operation)
             data_split = dataset_utils.DataSplits(dataset_list[epo], checker.general_config['hparams']['source']['batch_size']['new'])
             self.set_utility_estimator(operation.detection, operation.acquisition.utility_estimation, operation.ensemble.pdf, checker.general_config, data_split, checker.base_model)
-            result_epoch = self.epoch_run(operation, budget_list, checker, data_split, operation)
+            result_epoch = self.epoch_run(operation, budget_list, checker, data_split)
             results.append(result_epoch)
         return results
 
@@ -182,6 +182,20 @@ class TrainData():
         new_data_loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size)
         return 100 - base_model.acc(new_data_loader)
     
+    def check_overfit(self, operation:Config.Operation, checker:Checker.Prototype):
+        model_config = checker.new_model_config
+        model_config.set_path(operation)
+        log = Log(model_config, 'detector')
+        detector = log.import_log(operation, checker.general_config)
+
+        log = Log(model_config, 'indices')
+        new_data_indices = log.import_log(operation, checker.general_config)
+        new_data = torch.utils.data.Subset(self.data, new_data_indices)
+
+        new_loader = torch.utils.data.DataLoader(new_data, batch_size=checker.new_model_config.new_batch_size)
+        _, recall = detector.predict(new_loader, checker.base_model, 'recall')
+        return recall
+
     def check_indices(self, operation:Config.Operation, data_split:dataset_utils.DataSplits, checker:Checker.Prototype, distribution: distribution_utils.Disrtibution):
         model_config = checker.new_model_config
         model_config.set_path(operation)
@@ -217,8 +231,9 @@ class TrainData():
         return prec
 
     def budget_run(self, operation:Config.Operation, checker: Checker.Prototype, data_split:dataset_utils.DataSplits):
-        check_result = self.check_indices(operation, data_split, checker, None)
+        # check_result = self.check_indices(operation, data_split, checker, None)
         # check_result = self.check_clf(operation, data_split, checker)
+        check_result = self.check_overfit(operation, checker)
         return check_result
    
 def main(epochs, new_model_setter='retrain', model_dir ='', device=0, base_type='', detector_name = '', stat_data='train', acquisition_method= 'dv', ensemble_name=None, ensemble_criterion=None, pdf='kde', weakness=0, use_posterior=1, utility_estimator='u-wfs'):
@@ -275,7 +290,7 @@ if __name__ == '__main__':
     parser.add_argument('-bt','--base_type',type=str,default='cnn', help="Source/Base Model Type: cnn, svm; structure of cnn is indicated in the arch_type field in config.yaml")
     parser.add_argument('-stat','--stat',type=str, default='train', help="test, train: check statistics (e.g. misclassification percentage, final detector recall) of train or test data")
     parser.add_argument('-ec','--ensemble_criterion',type=float,default=0.5, help='A threshold of the probability from Cw to assign test set and create corresponding val set for model training.')
-    parser.add_argument('-em','--ensemble',type=str, default='ae', help="Ensemble Method")
+    parser.add_argument('-em','--ensemble',type=str, default='total', help="Ensemble Method")
     parser.add_argument('-w','--weakness',type=int, default=0, help="check weakness or not")
     parser.add_argument('-up','--use_posterior',type=str2bool, default=1, help="use posterior or not")
     parser.add_argument('-ue','--utility_estimator',type=str, default='u-wfs', help="u-wfs, u-wfsd")
