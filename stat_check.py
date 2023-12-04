@@ -60,6 +60,9 @@ class TestData():
         pass
     
     def run(self, epochs, parse_args, budget_list, operation:Config.Operation, dataset_list: List[dict], normalize_stat, dataset_name, use_posterior, plot):
+        '''
+        plot: visualize weakness score distribution of validation set?\n
+        '''
         results = []
         for epo in range(epochs):
             logger.info('in epoch {}'.format(epo))
@@ -73,6 +76,8 @@ class TestData():
     
     def method_run(self, budget_list, operation:Config.Operation, checker: Checker.Partition):
         stat_list = []
+        if operation.acquisition.method != 'seq':
+            budget_list = [600]
         for budget in budget_list:
             operation.acquisition.set_budget(budget)
             acc_change = self.budget_run(operation, checker)
@@ -92,8 +97,8 @@ class TestData():
         fig_name = 'figure/test/anchor_dv.png'
         incor_dv = DataStat.get_correctness_dv(checker.base_model, datasplits.loader['val_shift'], checker.detector, correctness=False)
         cor_dv = DataStat.get_correctness_dv(checker.base_model, datasplits.loader['val_shift'], checker.detector, correctness=True)
-        logger.info('Incorrection DSTR - max: {}, min:{}'.format(max(incor_dv), min(incor_dv)))
-        logger.info('Correction DSTR - max: {}, min:{}'.format(max(cor_dv), min(cor_dv)))
+        # logger.info('Incorrection DSTR - max: {}, min:{}'.format(max(incor_dv), min(incor_dv)))
+        # logger.info('Correction DSTR - max: {}, min:{}'.format(max(cor_dv), min(cor_dv)))
         self.correctness_dstr_plot(cor_dv, incor_dv, fig_name, pdf)
         # fig_name = 'figure/test/test_dv.png'
         # incor_dv = DataStat.get_correctness_dv(checker.base_model, datasplits.loader['test_shift'], checker.detector, correctness=False)
@@ -103,7 +108,7 @@ class TestData():
     def correctness_dstr_plot(self, cor_dv, incor_dv, fig_name, pdf_method=None):
         distribution_utils.base_plot(cor_dv, 'C_w\'', 'white', pdf_method, hatch_style='/')
         distribution_utils.base_plot(incor_dv, 'C_w', 'white', pdf_method, hatch_style='.', line_style=':', alpha=0.5)
-        distribution_utils.plt.xlabel('Weakness Feature Score', fontsize=15)
+        distribution_utils.plt.xlabel('Weakness Score', fontsize=15)
         distribution_utils.plt.ylabel('Probability Density', fontsize=15)
         distribution_utils.plt.xticks(fontsize=15)
         distribution_utils.plt.yticks(fontsize=15)
