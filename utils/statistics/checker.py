@@ -95,7 +95,7 @@ class Partition(Prototype):
     def set_up(self, old_model_config:Config.OldModel, datasplits:dataset_utils.DataSplits, operation:Config.Operation):
         super().set_up(old_model_config, datasplits, operation)
         self.test_info = DataStat.build_info(datasplits, 'test_shift', self.detector, self.new_model_config.batch_size, self.new_model_config.new_batch_size)
-    
+
     @abstractmethod
     def seq_set_up(self, operation:Config.Operation):
         '''
@@ -222,9 +222,6 @@ class FeatureScore(Partition):
     def set_up(self, old_model_config:Config.OldModel, datasplits:dataset_utils.DataSplits, operation:Config.Operation):
         super().set_up(old_model_config, datasplits, operation)
         self.test_loader, _ = self.get_subset_loader(operation.ensemble)
-
-        # fig_name = 'figure/test/probab_dstr.png'
-        # self.probab_dstr_plot(posteriors, fig_name)
      
     def get_subset_loader(self, ensemble_instruction:Config.Ensemble):
         loader, probabs = Partitioner.ProbabFeatureScore().run(self.test_info, self.detector, ensemble_instruction)
@@ -258,10 +255,10 @@ class Posterior(Partition):
     def set_up(self, old_model_config:Config.OldModel, datasplits:dataset_utils.DataSplits, operation:Config.Operation):
         super().set_up(old_model_config, datasplits, operation)
         self.anchor_loader = datasplits.loader['val_shift'] # keep for Seq
-        anchor_dstr = self.set_up_anchor(self.anchor_loader, operation.ensemble.pdf)
-        self.test_loader, _ = self.get_subset_loader(anchor_dstr, operation.ensemble)
+        weakness_score_dstr = self.set_up_anchor(self.anchor_loader, operation.ensemble.pdf)
+        self.test_loader, posteriors = self.get_subset_loader(weakness_score_dstr, operation.ensemble)
 
-        # fig_name = 'figure/test/probab_dstr.png'
+        # fig_name = 'figure/test/probab_dstr.png' # w_p distribution between c_w and c_w'
         # self.probab_dstr_plot(posteriors, fig_name)
      
     def set_up_anchor(self, set_up_loader, pdf_type):
@@ -269,16 +266,16 @@ class Posterior(Partition):
         incorrect_dstr = distribution_utils.CorrectnessDisrtibution(self.base_model, self.detector, set_up_loader, pdf_type, correctness=False)
         return {'correct': correct_dstr, 'incorrect': incorrect_dstr}
 
-    def get_subset_loader(self, anchor_dstr:Dict[str, distribution_utils.CorrectnessDisrtibution], ensemble_instruction:Config.Ensemble):
-        loader, posteriors = Partitioner.Posterior().run(self.test_info, {'target': anchor_dstr['incorrect'], 'other': anchor_dstr['correct']}, ensemble_instruction)
+    def get_subset_loader(self, weakness_score_dstr:Dict[str, distribution_utils.CorrectnessDisrtibution], ensemble_instruction:Config.Ensemble):
+        loader, posteriors = Partitioner.Posterior().run(self.test_info, {'target': weakness_score_dstr['incorrect'], 'other': weakness_score_dstr['correct']}, ensemble_instruction)
         return loader, posteriors
    
     def seq_set_up(self, operation:Config.Operation):
         logger.info('Seq Running:')
         detector_log = Log(self.new_model_config, 'detector')
         self.detector = detector_log.import_log(operation, self.general_config)
-        anchor_dstr = self.set_up_anchor(self.anchor_loader, operation.ensemble.pdf)
-        self.test_loader, _ = self.get_subset_loader(anchor_dstr, operation.ensemble)
+        weakness_score_dstr = self.set_up_anchor(self.anchor_loader, operation.ensemble.pdf)
+        self.test_loader, _ = self.get_subset_loader(weakness_score_dstr, operation.ensemble)
 
     def run(self, operation:Config.Operation):
         '''
@@ -395,7 +392,7 @@ class PosteriorEnsemble(Ensemble):
         super().set_up(old_model_config, datasplits, operation)
         self.probab_partitioner = Partitioner.Posterior()
         self.anchor_loader = datasplits.loader['val_shift'] # keep for Seq
-        self.anchor_dstr = self.set_up_anchor(self.anchor_loader, operation.ensemble.pdf)
+        self.weakness_score_dstr = self.set_up_anchor(self.anchor_loader, operation.ensemble.pdf)
 
     def set_up_anchor(self, set_up_loader, pdf_type):
         correct_dstr = distribution_utils.CorrectnessDisrtibution(self.base_model, self.detector, set_up_loader, pdf_type, correctness=True)
@@ -404,7 +401,7 @@ class PosteriorEnsemble(Ensemble):
     
     def seq_set_up(self, operation: Config.Operation):
         super().seq_set_up(operation)
-        self.anchor_dstr = self.set_up_anchor(self.anchor_loader, operation.ensemble.pdf)
+        self.weakness_score_dstr = self.set_up_anchor(self.anchor_loader, operation.ensemble.pdf)
 
     def run(self, operation:Config.Operation):
         new_model = self.get_new_model(operation)
@@ -422,8 +419,8 @@ class PosteriorEnsemble(Ensemble):
     
     def get_weight(self, dataloader):
         feature_score, _ = self.detector.predict(dataloader)  
-        new_weight = self.probab2weight({'target': self.anchor_dstr['incorrect'], 'other': self.anchor_dstr['correct']}, feature_score)
-        # old_weight = self.probab2weight({'target': self.anchor_dstr['correct'], 'other': self.anchor_dstr['incorrect']}, feature_score)
+        new_weight = self.probab2weight({'target': self.weakness_score_dstr['incorrect'], 'other': self.weakness_score_dstr['correct']}, feature_score)
+        # old_weight = self.probab2weight({'target': self.weakness_score_dstr['correct'], 'other': self.weakness_score_dstr['incorrect']}, feature_score)
         old_weight = 1 - new_weight
         return {
             'new': new_weight,
@@ -473,7 +470,7 @@ class AverageEnsemble(Ensemble):
 def factory(name, new_model_config, general_config, use_posterior=True):
     if name == 'subset':
         checker = Partition(new_model_config, general_config)
-    elif name == 'ae-c-wd':
+    elif name == 'ae-c-wp':
         if use_posterior:
             checker = Posterior(new_model_config, general_config)
         else:
@@ -492,7 +489,7 @@ def factory(name, new_model_config, general_config, use_posterior=True):
     elif name == 'total':
         checker = Total(new_model_config, general_config)
     else:
-        logger.info('Unimplemented Checker.')
+        logger.info('Checker is not Implemented.')
         exit()
     return checker
 

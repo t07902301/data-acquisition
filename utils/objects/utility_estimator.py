@@ -119,14 +119,14 @@ class Entropy(Base):
         return self.get_entropy(probabs)
       
 def factory(estimator_name, detector: Detector.Prototype, validation_loader, pdf, base_model):
-    if estimator_name == 'u-wfs':
+    if estimator_name == 'u-ws':
         estimator = U_WFS()
         estimator.set_up(detector)
-        logger.info('U-WFS')
-    elif estimator_name == 'u-wfsd':
+        logger.info('U-WS')
+    elif estimator_name == 'u-wsd':
         estimator = U_WFSD()
         estimator.set_up(detector, validation_loader, pdf, base_model)
-        logger.info('U-WFSD')
+        logger.info('U-WSD')
     else:
         logger.info('Utility Estimator is not Implemented.')
         exit()
