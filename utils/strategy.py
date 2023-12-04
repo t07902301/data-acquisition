@@ -140,11 +140,19 @@ class Strategy():
         else:
             workspace.data_split.use_new_data(new_data, new_model_config, acquisition, target_name='train_non_cnn')
 
-    def export_indices(self, model_config:Config.NewModel, acquire_instruction: Config.Acquisition, dataset, ensemble: Config.Ensemble):
+    def export_indices(self, model_config:Config.NewModel, acquire_instruction: Config.Acquisition, dataset):
         raw_indices = [dataset[idx][-1] for idx in range(len(dataset))]
         log = Log(model_config, 'indices')
         log.export(acquire_instruction, data=raw_indices)
-        # return raw_indices
+
+    def import_indices(self, model_config:Config.NewModel, dataset, operation: Config.Operation, general_config):
+        '''
+        Unit Test: compare current implementation result with log indices
+        '''
+        raw_indices = [dataset[idx][-1] for idx in range(len(dataset))]
+        log = Log(model_config, 'indices')
+        log_indices = log.import_log(operation, general_config)
+        assert (np.array(raw_indices) == np.array(log_indices)).sum() == len(raw_indices)
 
 class NonSeqStrategy(Strategy):
     def __init__(self) -> None:
@@ -160,8 +168,6 @@ class NonSeqStrategy(Strategy):
 
         new_data_info = self.get_new_data_info(operation, workspace)
 
-        # logger.info(len(new_data_info['data']))
-
         self.update_dataset(new_model_config, workspace, operation.acquisition, new_data_info['data'])
 
         new_model_config.set_path(operation)
@@ -170,7 +176,8 @@ class NonSeqStrategy(Strategy):
 
         workspace.base_model.save(new_model_config.path)
 
-        self.export_indices(new_model_config, operation.acquisition, new_data_info['data'], operation.ensemble)
+        self.export_indices(new_model_config, operation.acquisition, new_data_info['data'])
+        # self.import_indices(new_model_config, new_data_info['data'], operation, workspace.general_config)
 
 class Greedy(NonSeqStrategy):
     def __init__(self) -> None:
@@ -215,26 +222,30 @@ class Confidence(NonSeqStrategy):
         dataset_splits = workspace.data_split
         acquistion_budget = operation.acquisition.budget
         new_data_indices = self.run(acquistion_budget, dataset_splits.loader['market'], workspace.base_model, workspace.base_model_config)
-        return new_data_indices      
-
-    def get_confidence_score(self,  base_model_config: Config.OldModel, base_model:Model.Prototype,market_loader):
-
-        market_gts, _, market_score = base_model.eval(market_loader)
-
-        if base_model_config.base_type == 'svm':
-            confs = acquistion.get_gt_distance(market_gts, market_score)
-        else:
-            confs = acquistion.get_gt_probab(market_gts, market_score)
-        return confs
+        return new_data_indices    
 
     def run(self, budget, dataloader,  base_model:Model.Prototype, base_model_config: Config.OldModel):
+        utility_score = ue.Confidence().run(base_model_config, base_model, dataloader)
 
-        confs = self.get_confidence_score(base_model_config, base_model, dataloader)
-
-        top_data_indices = acquistion.get_top_values_indices(confs, budget, order='ascend')
+        top_data_indices = acquistion.get_top_values_indices(utility_score, budget, order='ascend')
 
         return top_data_indices
 
+class Entropy(NonSeqStrategy):
+    def __init__(self) -> None:
+        super().__init__()
+
+    def get_new_data_indices(self, operation:Config.Operation, workspace:WorkSpace):
+        dataset_splits = workspace.data_split
+        acquistion_budget = operation.acquisition.budget
+        new_data_indices = self.run(acquistion_budget, dataset_splits.loader['market'], workspace.base_model)
+        return new_data_indices     
+    
+    def run(self, budget, dataloader,  base_model:Model.Prototype):
+        utility_score = ue.Entropy().run(base_model, dataloader)
+        top_data_indices = acquistion.get_top_values_indices(utility_score, budget)
+        return top_data_indices
+    
 class Mix(Sample):
     def __init__(self) -> None:
         super().__init__()
@@ -359,6 +370,8 @@ def StrategyFactory(strategy):
         return Mix()
     elif strategy == 'seq':
         return Seq()
+    elif strategy == 'etp':
+        return Entropy()
     else:
-        logger.info('Unimplemented Acquisition Strategy.')
+        logger.info('Acquisition Strategy is not Implemented.')
         exit()
