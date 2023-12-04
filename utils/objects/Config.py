@@ -142,7 +142,7 @@ class NewModel(Model):
 
     def detector2root(self, acquisition_method, detector_name):
         # Make Conf and sampling-based method Root agnostic to detector
-        if acquisition_method in ['conf', 'rs']:
+        if acquisition_method in ['conf', 'rs', 'mix', 'etp']:
             temp_root = os.path.join(self.root, 'no-detector')
         else:
             temp_root = os.path.join(self.root, detector_name)
