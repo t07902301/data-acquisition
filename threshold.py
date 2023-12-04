@@ -167,19 +167,21 @@ class ModelConf():
 
         logger.info('Model Confidence stat:{}'.format(results))
 
-def main(epochs, acquisition_method, device, detector_name, model_dir, base_type, mode, ensemble_name, utility_estimator, use_posterior):
+def main(epochs, acquisition_method, device, detector_name, model_dir, base_type, mode, ensemble_name, utility_estimator, use_posterior, ensemble_criterion):
     threshold_list = [0.5, 0.6, 0.7]
 
     fh = logging.FileHandler('log/{}/threshold_{}.log'.format(model_dir, acquisition_method),mode='w')
     fh.setLevel(logging.DEBUG)
     logger.addHandler(fh)
 
+    logger.info('Ensemble Name: {}, criterion:{}, use_posterior: {}, utility_estimator: {}'.format(ensemble_name, ensemble_criterion, use_posterior, utility_estimator))
+
     pure, new_model_setter = True, 'retrain'
 
     config, device_config, ds_list, normalize_stat,dataset_name, option = set_up(epochs, model_dir, device)
     
     clip_processor = Detector.load_clip(device_config, normalize_stat['mean'], normalize_stat['std'])
-    ensemble_instruction = Config.Ensemble(name=ensemble_name)
+    ensemble_instruction = Config.Ensemble(name=ensemble_name, criterion=ensemble_criterion)
     detect_instruction = Config.Detection(detector_name, clip_processor)
     acquire_instruction = Config.AcquisitionFactory(acquisition_method=acquisition_method, data_config=config['data'], utility_estimator=utility_estimator)
 
@@ -215,6 +217,7 @@ if __name__ == '__main__':
     parser.add_argument('-ue','--utility_estimator',type=str, default='u_wfs', help="u_wfs, u_wfsd")
     parser.add_argument('-up','--use_posterior',type=str2bool, default=1, help="use posterior or not")
     parser.add_argument('-em','--ensemble',type=str, default='ae', help="Ensemble Method")
+    parser.add_argument('-ec','--ensemble_criterion',type=float,default=0.5, help='A threshold of the probability from Cw to assign test set and create corresponding val set for model training.')
 
     args = parser.parse_args()
-    main(args.epochs, model_dir=args.model_dir, device=args.device, detector_name=args.detector_name, acquisition_method=args.acquisition_method, base_type=args.base_type, mode=args.mode, ensemble_name=args.ensemble, utility_estimator=args.utility_estimator, use_posterior=args.use_posterior)
+    main(args.epochs, model_dir=args.model_dir, device=args.device, detector_name=args.detector_name, acquisition_method=args.acquisition_method, base_type=args.base_type, mode=args.mode, ensemble_name=args.ensemble, utility_estimator=args.utility_estimator, use_posterior=args.use_posterior, ensemble_criterion=args.ensemble_criterion)
