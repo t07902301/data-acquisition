@@ -82,12 +82,12 @@ class logreg(Prototype):
     
     def predict(self, clf: LogisticRegression, latents, gts=None, metrics=None):
         dataset_size = len(latents)
-        out_mask, out_decision = np.zeros(dataset_size), np.zeros(dataset_size)
+        out_decision = np.zeros(dataset_size), np.zeros(dataset_size)
         out_decision = clf.predict_proba(latents)[:, 0]
         metric = None
         if metrics != None:
             metric = self.compute_metrics(clf, latents, gts, metrics)
-        return out_mask, out_decision, metric
+        return out_decision, metric
     
 class svm(Prototype):
     def __init__(self) -> None:
@@ -108,9 +108,9 @@ class svm(Prototype):
     
     def predict(self, clf, latents, gts=None, metrics=None):
         dataset_size = len(latents)
-        out_mask, out_decision = np.zeros(dataset_size), np.zeros(dataset_size)
+        out_decision = np.zeros(dataset_size), np.zeros(dataset_size)
         out_decision = -clf.decision_function(latents)
         metric = None
         if metrics != None:
             metric = self.compute_metrics(clf, latents, gts, metrics)
-        return out_mask, out_decision, metric
+        return out_decision, metric

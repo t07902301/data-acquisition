@@ -26,9 +26,9 @@ class Prototype():
         latent, latent_gts = dataloader_utils.get_latent(data_loader, self.clip_processor, self.transform)
         if metrics != None:
             correctness = get_correctness(data_loader, base_model, latent_gts)
-            _, feature_score, metric = self.model.predict(latent, correctness, metrics)
+            feature_score, metric = self.model.predict(latent, correctness, metrics)
         else:
-            _, feature_score, _ = self.model.predict(latent)
+            feature_score, _ = self.model.predict(latent)
             metric = None
         return feature_score, metric 
 
