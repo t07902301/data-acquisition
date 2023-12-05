@@ -65,8 +65,6 @@ class TestData():
         '''
         results = []
         for epo in range(epochs):
-            if epo != 9:
-                continue
             logger.info('in epoch {}'.format(epo))
             checker = Checker.instantiate(epo, parse_args, dataset_list[epo], operation, normalize_stat, dataset_name, use_posterior) #probab / ensemble
             stat = self.method_run(budget_list, operation, checker)
