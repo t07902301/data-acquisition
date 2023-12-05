@@ -26,11 +26,11 @@ class Prototype():
         latent, latent_gts = dataloader_utils.get_latent(data_loader, self.clip_processor, self.transform)
         if metrics != None:
             correctness = get_correctness(data_loader, base_model, latent_gts)
-            feature_score, metric = self.model.predict(latent, correctness, metrics)
+            weakness_score, metric = self.model.predict(latent, correctness, metrics)
         else:
-            feature_score, _ = self.model.predict(latent)
+            weakness_score, _ = self.model.predict(latent)
             metric = None
-        return feature_score, metric 
+        return weakness_score, metric 
 
     def save(self, path):
         self.model.export(path)
