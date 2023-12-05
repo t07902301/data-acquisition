@@ -19,20 +19,20 @@ class TestData():
             weights.append(posterior)
         return np.concatenate(weights)
     
-    def plot(self, data_valuation, feature_scores, probab, n_data, color=None, file_name=None, fig_name=None):
+    def plot(self, data_valuation, weakness_score, probab, n_data, color=None, file_name=None, fig_name=None):
         new_data_indices = acquistion.get_top_values_indices(data_valuation, n_data)
-        selected_feature_score = feature_scores[new_data_indices]
-        selected_probab_feature_score = probab[new_data_indices]
+        selected_weakness_score = weakness_score[new_data_indices]
+        selected_probab_weakness_score = probab[new_data_indices]
         with open(file_name, 'wb') as f:
-            pkl.dump({'score': selected_feature_score, 'probab': selected_probab_feature_score}, f)
+            pkl.dump({'score': selected_weakness_score, 'probab': selected_probab_weakness_score}, f)
             f.close()
         logger.info('{} saved'.format(file_name))
         n_data = [ i for i in range(n_data)]    
         plt.subplot(211)
-        plt.plot(n_data, selected_feature_score, label='feature score', color=color)
+        plt.plot(n_data, selected_weakness_score, label='weakness score', color=color)
         plt.legend(fontsize=12)
         plt.subplot(212)
-        plt.plot(n_data, selected_probab_feature_score, label='probability', color=color)
+        plt.plot(n_data, selected_probab_weakness_score, label='probability', color=color)
         plt.legend(fontsize=12)
         plt.xlabel('the Number of Selected Data', fontsize=12)
         plt.savefig(fig_name)
@@ -47,16 +47,16 @@ class TestData():
         checker = Checker.instantiate(epoch, parse_args, dataset_list[epoch], operation)
         anchor_dstr = checker.set_up_dstr(checker.anchor_loader, operation.ensemble.pdf)
         datasplits = dataset_utils.DataSplits(dataset_list[epoch], checker.new_model_config.new_batch_size)
-        feature_scores, _ = checker.detector.predict(datasplits.loader['market'])
-        new_weight = self.probab2weight({'target': anchor_dstr['incorrect'], 'other': anchor_dstr['correct']}, feature_scores)
+        weakness_score, _ = checker.detector.predict(datasplits.loader['market'])
+        new_weight = self.probab2weight({'target': anchor_dstr['incorrect'], 'other': anchor_dstr['correct']}, weakness_score)
         
         model_dir, device_config, base_type, pure, new_model_setter, config = parse_args
         
-        data_valuation, file_name = feature_scores, 'log/{}/top_score.pkl'.format(model_dir)
-        self.plot(data_valuation, feature_scores, new_weight, 100, file_name=file_name)
+        data_valuation, file_name = weakness_score, 'log/{}/top_score.pkl'.format(model_dir)
+        self.plot(data_valuation, weakness_score, new_weight, 100, file_name=file_name)
 
         # data_valuation, fig_name = new_weight, 'log/{}/top_probab.png'.format(model_dir)
-        # self.plot(data_valuation, feature_scores, new_weight, 100, color='blue', fig_name=fig_name)
+        # self.plot(data_valuation, weakness_score, new_weight, 100, color='blue', fig_name=fig_name)
 
 def main(epochs, new_model_setter='retrain', model_dir ='', device=0, probab_bound = 0.5, base_type='', detector_name = ''):
     pure = True
