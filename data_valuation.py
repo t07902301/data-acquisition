@@ -4,14 +4,16 @@ import utils.statistics.checker as Checker
 from typing import List
 from utils.logging import *
 import matplotlib.pyplot as plt
+import utils.statistics.distribution as distribution_utils
+import utils.statistics.partitioner as Partitioner
 
 class TestData():
     def __init__(self) -> None:
         pass
    
-    def probab2weight(self, dstr_dict: Dict[str, distribution_utils.CorrectnessDisrtibution], observations):
+    def probab2weight(self, dstr_dict: Partitioner.Dict[str, distribution_utils.CorrectnessDisrtibution], observations):
         weights = []
-        probab_partitioner = Partitioner.Probability()
+        probab_partitioner = Partitioner.Posterior()
         for value in observations:
             posterior = probab_partitioner.get_posterior(value, dstr_dict)
             weights.append(posterior)

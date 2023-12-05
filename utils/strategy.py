@@ -360,7 +360,7 @@ class Seq(Strategy):
         pass
 
 def StrategyFactory(strategy):
-    if strategy=='one-shot':
+    if strategy=='dv': # the legacy name of one-shot
         return Greedy()
     elif strategy =='rs':
         return Sample()

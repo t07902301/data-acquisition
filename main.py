@@ -80,9 +80,9 @@ if __name__ == '__main__':
     parser.add_argument('-d','--device',type=int,default=0)
     parser.add_argument('-dn','--detector_name',type=str,default='svm', help="svm, regression; (regression: logistic regression)")
 
-    parser.add_argument('-ue','--utility_estimator',type=str, default='u-wfs', help="u-wfs, u-wfsd")
+    parser.add_argument('-ue','--utility_estimator',type=str, default='u-ws', help="u-ws, u-wsd")
 
-    parser.add_argument('-am','--acquisition_method',type=str, default='dv', help="Acquisition Strategy; one-shot, rs: random, conf: confiden-score, seq: sequential")
+    parser.add_argument('-am','--acquisition_method',type=str, default='dv', help="Acquisition Strategy; dv:one-shot, rs: random, conf: confiden-score, seq: sequential")
     parser.add_argument('-bt','--base_type',type=str,default='cnn', help="Source/Base Model Type: cnn, svm; structure of cnn is indicated in the arch_type field in config.yaml")
 
     args = parser.parse_args()

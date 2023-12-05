@@ -65,6 +65,8 @@ class TestData():
         '''
         results = []
         for epo in range(epochs):
+            if epo != 9:
+                continue
             logger.info('in epoch {}'.format(epo))
             checker = Checker.instantiate(epo, parse_args, dataset_list[epo], operation, normalize_stat, dataset_name, use_posterior) #probab / ensemble
             stat = self.method_run(budget_list, operation, checker)
@@ -119,9 +121,9 @@ class TestData():
         logger.info('Save fig to {}'.format(fig_name))
 
     def naive_plot(self, dataloader, fig_name, detector: Detector.Prototype):
-        dv, _ = detector.predict(dataloader)
-        logger.info('max: {}, min:{}'.format(max(dv), min(dv)))
-        distribution_utils.base_plot(dv, 'all data', 'orange', pdf_method='kde')
+        weakness_score, _ = detector.predict(dataloader)
+        logger.info('max: {}, min:{}'.format(max(weakness_score), min(weakness_score)))
+        distribution_utils.base_plot(weakness_score, 'all data', 'orange', pdf_method='kde')
         distribution_utils.plt.xlabel('Feature Score')
         distribution_utils.plt.ylabel('Density')
         distribution_utils.plt.title('Old Model Performance Feature Score Distribution')
@@ -147,9 +149,9 @@ class TrainData():
         pdf_name = '' if pdf_method == None else '_{}'.format(pdf_method)
         Distribution.base_plot(cor_dv, 'correct', 'orange', pdf_method, range)
         Distribution.base_plot(incor_dv, 'incorrect', 'blue', pdf_method, range)
-        Distribution.plt.savefig('figure/train/dv{}_{}.png'.format(pdf_name, budget))
+        Distribution.plt.savefig('figure/train/weakness_score{}_{}.png'.format(pdf_name, budget))
         Distribution.plt.close()
-        logger.info('Save fig to figure/train/dv{}_{}.png'.format(pdf_name, budget))
+        logger.info('Save fig to figure/train/weakness_score{}_{}.png'.format(pdf_name, budget))
 
     def run(self, epochs, parse_args, budget_list, operation:Config.Operation, dataset_list: List[dict]):
         results = []
@@ -241,7 +243,7 @@ class TrainData():
         check_result = self.check_overfit(operation, checker)
         return check_result
    
-def main(epochs, new_model_setter='retrain', model_dir ='', device=0, base_type='', detector_name = '', stat_data='train', acquisition_method= 'dv', ensemble_name=None, ensemble_criterion=None, pdf='kde', weakness=0, use_posterior=1, utility_estimator='u-wfs'):
+def main(epochs, new_model_setter='retrain', model_dir ='', device=0, base_type='', detector_name = '', stat_data='train', acquisition_method= 'weakness_score', ensemble_name=None, ensemble_criterion=None, pdf='kde', weakness=0, use_posterior=1, utility_estimator='u-ws'):
     pure = True
     weakness = True if weakness == 1 else False
     fh = logging.FileHandler('log/{}/stat_{}_{}.log'.format(model_dir, acquisition_method, stat_data), mode='w')
@@ -279,7 +281,7 @@ def main(epochs, new_model_setter='retrain', model_dir ='', device=0, base_type=
         # logger.info('all: {}'.format(np.round(results, decimals=3).tolist()))
     else:
         stat_checker = TestData()
-        results = stat_checker.run(epochs, parse_args, config['data']['budget'], operation, ds_list, normalize_stat, dataset_name, use_posterior, plot=False)
+        results = stat_checker.run(epochs, parse_args, config['data']['budget'], operation, ds_list, normalize_stat, dataset_name, use_posterior, plot=True)
         logger.info('Test Data error stat:{}'.format(np.round(np.mean(results, axis=0), decimals=3).tolist()))
         # logger.info('all: {}'.format(results))
 
@@ -291,14 +293,14 @@ if __name__ == '__main__':
     parser.add_argument('-md','--model_dir',type=str,default='', help="(dataset name)_task_(other info)")
     parser.add_argument('-d','--device',type=int,default=0)
     parser.add_argument('-dn','--detector_name',type=str,default='svm', help="svm, regression; (regression: logistic regression)")
-    parser.add_argument('-am','--acquisition_method',type=str, default='dv', help="Acquisition Strategy; dv: u-wfs, rs: random, conf: confiden-score, seq: sequential u-wfs, pd: u-wfsd, seq_pd: sequential u-wfsd")
+    parser.add_argument('-am','--acquisition_method',type=str, default='dv', help="Acquisition Strategy; dv: one-shot, rs: random, conf: confiden-score, seq: sequential u-ws, pd: u-wsd, seq_pd: sequential u-wsd")
     parser.add_argument('-bt','--base_type',type=str,default='cnn', help="Source/Base Model Type: cnn, svm; structure of cnn is indicated in the arch_type field in config.yaml")
     parser.add_argument('-stat','--stat',type=str, default='train', help="test, train: check statistics (e.g. misclassification percentage, final detector recall) of train or test data")
     parser.add_argument('-ec','--ensemble_criterion',type=float,default=0.5, help='A threshold of the probability from Cw to assign test set and create corresponding val set for model training.')
     parser.add_argument('-em','--ensemble',type=str, default='total', help="Ensemble Method")
     parser.add_argument('-w','--weakness',type=int, default=0, help="check weakness or not")
     parser.add_argument('-up','--use_posterior',type=str2bool, default=1, help="use posterior or not")
-    parser.add_argument('-ue','--utility_estimator',type=str, default='u-wfs', help="u-wfs, u-wfsd")
+    parser.add_argument('-ue','--utility_estimator',type=str, default='u-ws', help="u-ws, u-wsd")
 
     args = parser.parse_args()
     main(args.epochs, model_dir=args.model_dir, device=args.device, base_type=args.base_type, detector_name=args.detector_name, acquisition_method=args.acquisition_method, stat_data=args.stat, ensemble_criterion=args.ensemble_criterion, ensemble_name=args.ensemble, weakness = args.weakness, use_posterior=args.use_posterior, utility_estimator=args.utility_estimator)
