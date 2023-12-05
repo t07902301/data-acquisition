@@ -50,7 +50,7 @@ class Core():
             check_labels_cnt, _ = self.option_label_stat(dataset, checked_labels, option)
             return check_labels_cnt
 
-def get_new_data_max_dv(clf:Detector.SVM , acquisition_config:Config.Acquisition, model_config:Config.NewModel, data_splits:Dataset.DataSplits):
+def get_new_data_max_weakness_score(clf:Detector.SVM , acquisition_config:Config.Acquisition, model_config:Config.NewModel, data_splits:Dataset.DataSplits):
     if 'seq' in acquisition_config.method: 
         log = Log(model_config, 'clf')
         clf = log.import_log(acquisition_config)    
@@ -59,8 +59,8 @@ def get_new_data_max_dv(clf:Detector.SVM , acquisition_config:Config.Acquisition
     new_data = torch.utils.data.Subset(data_splits.dataset['market'], new_data_indices)    
     train_data_loader = torch.utils.data.DataLoader(new_data, batch_size=model_config.batch_size, 
                             num_workers= Dataset.n_workers)
-    train_dv, _ = clf.predict(train_data_loader)
-    return np.max(train_dv)
+    train_weakness_score, _ = clf.predict(train_data_loader)
+    return np.max(train_weakness_score)
 
 def error_label_stat(split_name, data_split:Dataset.DataSplits, model:Model.Prototype, remove_config, option):
     '''
@@ -108,22 +108,22 @@ def evaluation_metric(dataloader, old_model:Model.Prototype, ensemble_decision=N
 def build_info(dataset_splits: Dataset.DataSplits, name, clf:Detector.Prototype, old_batch_size, new_batch_size):
     data_info = {}
     assert name != 'train', 'Avoid dataloader shuffles!'
-    dv, _ = clf.predict(dataset_splits.loader[name])        
-    data_info['dv'] = dv
+    weakness_score, _ = clf.predict(dataset_splits.loader[name])        
+    data_info['weakness_score'] = weakness_score
     data_info['old_batch_size'] = old_batch_size
     data_info['new_batch_size'] = new_batch_size
     data_info['dataset'] = dataset_splits.dataset[name]
     return data_info
     
-def get_correctness_dv(model: Model.Prototype, dataloader, clf:Detector.Prototype, correctness):
+def get_correctness_weakness_score(model: Model.Prototype, dataloader, clf:Detector.Prototype, correctness):
     '''
-    DV of data wrt the correctness of a given model
+    weakness score of data w.r.t. the correctness of a given model
     '''
     dataset_gts, dataset_preds, _ = model.eval(dataloader)
-    dv, _ = clf.predict(dataloader)
+    weakness_score, _ = clf.predict(dataloader)
     if correctness:
         mask = (dataset_gts == dataset_preds)
     else:
         mask = (dataset_gts != dataset_preds)
-    return dv[mask]
+    return weakness_score[mask]
 

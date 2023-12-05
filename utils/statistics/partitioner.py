@@ -15,7 +15,7 @@ class Prototype():
     @abstractmethod
     def run(self, data_info):
         '''
-        data_info: dict of data, gt and pred labels, batch_size, and dv(if needed)
+        data_info: dict of data, gt and pred labels, batch_size, and weakness_score(if needed)
         '''
         pass
 
@@ -38,7 +38,7 @@ class Posterior(Prototype):
         dataset_indices = np.arange(len(data_info['dataset']))
         posterior_list = []
         for idx in dataset_indices:
-            target_posterior = self.get_posterior(data_info['dv'][idx], dstr_dict)
+            target_posterior = self.get_posterior(data_info['weakness_score'][idx], dstr_dict)
             posterior_list.append(target_posterior)
         posterior_list = np.array(posterior_list).reshape((len(dataset_indices),))
         selected_mask = (posterior_list >= ensemble_instruction.criterion)
@@ -50,9 +50,9 @@ class Posterior(Prototype):
             'new_model':selected_test_loader,
             'old_model': remained_test_loader
         }   
-        # logger.info('selected test images: {}%'.format(np.round(len(test_selected)/len(data_info['dv']), decimals=3)*100))
+        # logger.info('selected test images: {}%'.format(np.round(len(test_selected)/len(data_info['weakness_score']), decimals=3)*100))
         # logger.info('new cls percent:', new_label_stat(test_selected))
-        # logger.info('the max dv:', np.max(data_info['dv'][dataset_indices[selected_mask]]))
+        # logger.info('the max weakness_score:', np.max(data_info['weakness_score'][dataset_indices[selected_mask]]))
         return test_loader, posterior_list
 
 class ProbabFeatureScore(Prototype):
