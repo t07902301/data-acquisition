@@ -52,8 +52,8 @@ class Disrtibution():
     Get decision value distribution of a dataloader against a given model
     '''
     def __init__(self, detector:DetecorPrototye, dataloader, pdf_type) -> None:
-        target_dv, _ = detector.predict(dataloader)
-        self.pdf = PDF(pdf_type, target_dv)
+        target_weakness_score, _ = detector.predict(dataloader)
+        self.pdf = PDF(pdf_type, target_weakness_score)
         self.type = pdf_type
 
 class CorrectnessDisrtibution():
@@ -61,10 +61,10 @@ class CorrectnessDisrtibution():
     Prior probability; \n Probability densiity function; \n Correct Predictions or not
     '''
     def __init__(self, model: ModelPrototye, detector:DetecorPrototye, dataloader, pdf_type, correctness: bool) -> None:
-        target_dv =  DataStat.get_correctness_dv(model, dataloader, detector, correctness=correctness)
+        target_weakness_score =  DataStat.get_correctness_weakness_score(model, dataloader, detector, correctness=correctness)
         dataloader_size = dataloader_utils.get_size(dataloader)
-        self.prior = (len(target_dv)) / dataloader_size
-        self.pdf = PDF(pdf_type, target_dv)
+        self.prior = (len(target_weakness_score)) / dataloader_size
+        self.pdf = PDF(pdf_type, target_weakness_score)
         self.correctness = correctness
 
 def get_pdf(value, method):

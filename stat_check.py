@@ -95,14 +95,14 @@ class TestData():
         # fig_name = 'figure/test/market_dv.png'
         # self.naive_plot(datasplits.loader['market'], fig_name, checker.detector)
         fig_name = 'figure/test/anchor_dv.png'
-        incor_dv = DataStat.get_correctness_dv(checker.base_model, datasplits.loader['val_shift'], checker.detector, correctness=False)
-        cor_dv = DataStat.get_correctness_dv(checker.base_model, datasplits.loader['val_shift'], checker.detector, correctness=True)
+        incor_dv = DataStat.get_correctness_weakness_score(checker.base_model, datasplits.loader['val_shift'], checker.detector, correctness=False)
+        cor_dv = DataStat.get_correctness_weakness_score(checker.base_model, datasplits.loader['val_shift'], checker.detector, correctness=True)
         # logger.info('Incorrection DSTR - max: {}, min:{}'.format(max(incor_dv), min(incor_dv)))
         # logger.info('Correction DSTR - max: {}, min:{}'.format(max(cor_dv), min(cor_dv)))
         self.correctness_dstr_plot(cor_dv, incor_dv, fig_name, pdf)
         # fig_name = 'figure/test/test_dv.png'
-        # incor_dv = DataStat.get_correctness_dv(checker.base_model, datasplits.loader['test_shift'], checker.detector, correctness=False)
-        # cor_dv = DataStat.get_correctness_dv(checker.base_model, datasplits.loader['test_shift'], checker.detector, correctness=True)
+        # incor_dv = DataStat.get_correctness_weakness_score(checker.base_model, datasplits.loader['test_shift'], checker.detector, correctness=False)
+        # cor_dv = DataStat.get_correctness_weakness_score(checker.base_model, datasplits.loader['test_shift'], checker.detector, correctness=True)
         # self.correctness_dstr_plot(cor_dv, incor_dv, fig_name, pdf)
 
     def correctness_dstr_plot(self, cor_dv, incor_dv, fig_name, pdf_method=None):
@@ -279,7 +279,7 @@ def main(epochs, new_model_setter='retrain', model_dir ='', device=0, base_type=
         # logger.info('all: {}'.format(np.round(results, decimals=3).tolist()))
     else:
         stat_checker = TestData()
-        results = stat_checker.run(epochs, parse_args, config['data']['budget'], operation, ds_list, normalize_stat, dataset_name, use_posterior, plot=True)
+        results = stat_checker.run(epochs, parse_args, config['data']['budget'], operation, ds_list, normalize_stat, dataset_name, use_posterior, plot=False)
         logger.info('Test Data error stat:{}'.format(np.round(np.mean(results, axis=0), decimals=3).tolist()))
         # logger.info('all: {}'.format(results))
 
