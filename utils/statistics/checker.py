@@ -300,7 +300,7 @@ class Posterior(Partition):
         distribution_utils.base_plot(probab[correct_mask], 'C_w\'', 'white', pdf_method, hatch_style='/')        
         incorrect_mask = ~correct_mask
         distribution_utils.base_plot(probab[incorrect_mask], 'C_w', 'white', pdf_method, hatch_style='.', alpha=0.5)  
-        distribution_utils.plt.xlabel('W_p in Prediction Ensemble', fontsize=12)
+        distribution_utils.plt.xlabel('Weakness Probability f(x)', fontsize=12)
         distribution_utils.plt.ylabel('Probability Density', fontsize=12)
         distribution_utils.plt.xticks(fontsize=15)
         distribution_utils.plt.yticks(fontsize=15)
