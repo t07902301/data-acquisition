@@ -30,9 +30,6 @@ def main(epochs, acquisition_method, device, detector_name, model_dir, ensemble_
     new_model_setter = 'retrain'
     pure = True
     
-    if acquisition_method == 'rs':
-        ensemble_name = 'total'
-
     if use_posterior is False:
         assert detector_name == 'logregs'
 
