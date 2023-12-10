@@ -81,8 +81,6 @@ class logreg(Prototype):
         return clf, average_cv_scores
     
     def predict(self, clf: LogisticRegression, latents, gts=None, metrics=None):
-        dataset_size = len(latents)
-        out_decision = np.zeros(dataset_size), np.zeros(dataset_size)
         out_decision = clf.predict_proba(latents)[:, 0]
         metric = None
         if metrics != None:
@@ -107,8 +105,6 @@ class svm(Prototype):
         return clf, average_cv_scores
     
     def predict(self, clf, latents, gts=None, metrics=None):
-        dataset_size = len(latents)
-        out_decision = np.zeros(dataset_size), np.zeros(dataset_size)
         out_decision = -clf.decision_function(latents)
         metric = None
         if metrics != None:
