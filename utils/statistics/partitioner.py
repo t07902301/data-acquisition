@@ -55,7 +55,7 @@ class Posterior(Prototype):
         # logger.info('the max weakness_score:', np.max(data_info['weakness_score'][dataset_indices[selected_mask]]))
         return test_loader, posterior_list
 
-class ProbabFeatureScore(Prototype):
+class ProbabWeaknessScore(Prototype):
     def __init__(self) -> None:
         super().__init__()
     def run(self, data_info, detector: Detector.Prototype, ensemble_instruction:Config.Ensemble):

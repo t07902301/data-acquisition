@@ -212,7 +212,7 @@ class DataValuation(Partition):
         new_data_loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size)
         return min(self.utility_estimator.run(new_data_loader))
     
-class FeatureScore(Partition):
+class WeaknessScore(Partition):
     '''
     Feature Score as Distribution Probability
     '''
@@ -224,7 +224,7 @@ class FeatureScore(Partition):
         self.test_loader, _ = self.get_subset_loader(operation.ensemble)
      
     def get_subset_loader(self, ensemble_instruction:Config.Ensemble):
-        loader, probabs = Partitioner.ProbabFeatureScore().run(self.test_info, self.detector, ensemble_instruction)
+        loader, probabs = Partitioner.ProbabWeaknessScore().run(self.test_info, self.detector, ensemble_instruction)
         return loader, probabs
 
     def seq_set_up(self, operation:Config.Operation):
@@ -359,7 +359,7 @@ class Ensemble(Prototype):
         
         return final_acc - self.base_acc  
 
-class FeatureScoreEnsemble(Ensemble):
+class WeaknessScoreEnsemble(Ensemble):
     '''
     Feature Score as Distribution Probability
     '''
@@ -474,12 +474,12 @@ def factory(name, new_model_config, general_config, use_posterior=True):
         if use_posterior:
             checker = Posterior(new_model_config, general_config)
         else:
-            checker = FeatureScore(new_model_config, general_config)
+            checker = WeaknessScore(new_model_config, general_config)
     elif name == 'ae-w':
         if use_posterior:
             checker = PosteriorEnsemble(new_model_config, general_config)
         else:
-            checker = FeatureScoreEnsemble(new_model_config, general_config)
+            checker = WeaknessScoreEnsemble(new_model_config, general_config)
     elif name == 'meec':
         checker = AverageEnsemble(new_model_config, general_config)
     # elif name == 'ada':
