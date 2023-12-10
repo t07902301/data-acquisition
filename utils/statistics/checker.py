@@ -255,13 +255,13 @@ class Posterior(Partition):
     def set_up(self, old_model_config:Config.OldModel, datasplits:dataset_utils.DataSplits, operation:Config.Operation):
         super().set_up(old_model_config, datasplits, operation)
         self.anchor_loader = datasplits.loader['val_shift'] # keep for Seq
-        weakness_score_dstr = self.set_up_anchor(self.anchor_loader, operation.ensemble.pdf)
+        weakness_score_dstr = self.set_up_dstr(self.anchor_loader, operation.ensemble.pdf)
         self.test_loader, posteriors = self.get_subset_loader(weakness_score_dstr, operation.ensemble)
 
         # fig_name = 'figure/test/probab_dstr.png' # w_p distribution between c_w and c_w'
         # self.probab_dstr_plot(posteriors, fig_name)
      
-    def set_up_anchor(self, set_up_loader, pdf_type):
+    def set_up_dstr(self, set_up_loader, pdf_type):
         correct_dstr = distribution_utils.CorrectnessDisrtibution(self.base_model, self.detector, set_up_loader, pdf_type, correctness=True)
         incorrect_dstr = distribution_utils.CorrectnessDisrtibution(self.base_model, self.detector, set_up_loader, pdf_type, correctness=False)
         return {'correct': correct_dstr, 'incorrect': incorrect_dstr}
@@ -274,7 +274,7 @@ class Posterior(Partition):
         logger.info('Seq Running:')
         detector_log = Log(self.new_model_config, 'detector')
         self.detector = detector_log.import_log(operation, self.general_config)
-        weakness_score_dstr = self.set_up_anchor(self.anchor_loader, operation.ensemble.pdf)
+        weakness_score_dstr = self.set_up_dstr(self.anchor_loader, operation.ensemble.pdf)
         self.test_loader, _ = self.get_subset_loader(weakness_score_dstr, operation.ensemble)
 
     def run(self, operation:Config.Operation):
@@ -392,16 +392,16 @@ class PosteriorEnsemble(Ensemble):
         super().set_up(old_model_config, datasplits, operation)
         self.probab_partitioner = Partitioner.Posterior()
         self.anchor_loader = datasplits.loader['val_shift'] # keep for Seq
-        self.weakness_score_dstr = self.set_up_anchor(self.anchor_loader, operation.ensemble.pdf)
+        self.weakness_score_dstr = self.set_up_dstr(self.anchor_loader, operation.ensemble.pdf)
 
-    def set_up_anchor(self, set_up_loader, pdf_type):
+    def set_up_dstr(self, set_up_loader, pdf_type):
         correct_dstr = distribution_utils.CorrectnessDisrtibution(self.base_model, self.detector, set_up_loader, pdf_type, correctness=True)
         incorrect_dstr = distribution_utils.CorrectnessDisrtibution(self.base_model, self.detector, set_up_loader, pdf_type, correctness=False)
         return {'correct': correct_dstr, 'incorrect': incorrect_dstr}
     
     def seq_set_up(self, operation: Config.Operation):
         super().seq_set_up(operation)
-        self.weakness_score_dstr = self.set_up_anchor(self.anchor_loader, operation.ensemble.pdf)
+        self.weakness_score_dstr = self.set_up_dstr(self.anchor_loader, operation.ensemble.pdf)
 
     def run(self, operation:Config.Operation):
         new_model = self.get_new_model(operation)
@@ -480,7 +480,7 @@ def factory(name, new_model_config, general_config, use_posterior=True):
             checker = PosteriorEnsemble(new_model_config, general_config)
         else:
             checker = WeaknessScoreEnsemble(new_model_config, general_config)
-    elif name == 'meec':
+    elif name == 'avg-em':
         checker = AverageEnsemble(new_model_config, general_config)
     # elif name == 'ada':
     #     checker = AdaBoostEnsemble(new_model_config, general_config)
