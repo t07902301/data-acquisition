@@ -154,7 +154,7 @@ class svm(Prototype):
     def eval(self, dataloader):
         latent, gts = dataloader_utils.get_latent(dataloader, self.clip_processor, self.transform)
         preds = self.model.raw_predict(latent)
-        _, distance, _ = self.model.predict(latent)
+        distance, _ = self.model.predict(latent)
         return gts, preds, distance
 
     def train(self, train_loader):
@@ -185,7 +185,7 @@ class LogReg(Prototype):
     def eval(self, dataloader):
         latent, gts = dataloader_utils.get_latent(dataloader, self.clip_processor, self.transform)
         preds = self.model.raw_predict(latent)
-        _, distance, _ = self.model.predict(latent)
+        distance, _ = self.model.predict(latent)
         return gts, preds, distance
 
     def train(self, train_loader):
