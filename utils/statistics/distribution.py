@@ -63,7 +63,7 @@ class CorrectnessDisrtibution():
     def __init__(self, model: ModelPrototye, detector:DetecorPrototye, dataloader, pdf_type, correctness: bool) -> None:
         target_weakness_score =  DataStat.get_correctness_weakness_score(model, dataloader, detector, correctness=correctness)
         dataloader_size = dataloader_utils.get_size(dataloader)
-        self.prior = (len(target_weakness_score)) / dataloader_size
+        self.prior = len(target_weakness_score) / dataloader_size
         self.pdf = PDF(pdf_type, target_weakness_score)
         self.correctness = correctness
 

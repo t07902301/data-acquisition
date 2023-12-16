@@ -50,6 +50,13 @@ class Core():
             check_labels_cnt, _ = self.option_label_stat(dataset, checked_labels, option)
             return check_labels_cnt
 
+class Info():
+    def __init__(self, dataset_splits: Dataset.DataSplits, name, new_batch_size) -> None:
+        assert name != 'train', 'Avoid dataloader shuffles!'
+        self.batch_size = new_batch_size
+        self.dataset = dataset_splits.dataset[name]
+        self.loader = dataset_splits.loader[name]
+
 def get_new_data_max_weakness_score(clf:Detector.SVM , acquisition_config:Config.Acquisition, model_config:Config.NewModel, data_splits:Dataset.DataSplits):
     if 'seq' in acquisition_config.method: 
         log = Log(model_config, 'clf')
@@ -105,15 +112,22 @@ def evaluation_metric(dataloader, old_model:Model.Prototype, ensemble_decision=N
     
     logger.info('ACC compare: {}, {}'.format(new_correct_mask.mean()*100, old_correct_mask.mean()*100))
 
-def build_info(dataset_splits: Dataset.DataSplits, name, clf:Detector.Prototype, old_batch_size, new_batch_size):
-    data_info = {}
-    assert name != 'train', 'Avoid dataloader shuffles!'
-    weakness_score, _ = clf.predict(dataset_splits.loader[name])        
-    data_info['weakness_score'] = weakness_score
-    data_info['old_batch_size'] = old_batch_size
-    data_info['new_batch_size'] = new_batch_size
-    data_info['dataset'] = dataset_splits.dataset[name]
-    return data_info
+# def build_info(dataset_splits: Dataset.DataSplits, name, clf:Detector.Prototype, old_batch_size, new_batch_size):
+#     data_info = {}
+#     assert name != 'train', 'Avoid dataloader shuffles!'
+#     weakness_score, _ = clf.predict(dataset_splits.loader[name])        
+#     data_info['weakness_score'] = weakness_score
+#     data_info['old_batch_size'] = old_batch_size
+#     data_info['new_batch_size'] = new_batch_size
+#     data_info['dataset'] = dataset_splits.dataset[name]
+#     data_info['loader'] = dataset_splits.loader[name]
+#     logger.info('Set Up Test Loader Info')
+#     return data_info
+
+# def update_info(data_info, clf:Detector.Prototype):
+#     weakness_score, _ = clf.predict(data_info['loader'])        
+#     data_info['weakness_score'] = weakness_score
+#     return data_info
     
 def get_correctness_weakness_score(model: Model.Prototype, dataloader, clf:Detector.Prototype, correctness):
     '''
