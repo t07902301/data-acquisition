@@ -50,14 +50,14 @@ class Prototype():
         self.detector = Detector.factory(operation.detection.name, self.general_config, clip_processor = self.vit)
         self.detector.fit(self.base_model, datasplits.loader['val_shift'])
 
-    def load_model(self, model_config: Config.Model):
-        model = Model.factory(model_config.base_type, self.general_config, self.vit)
+    def load_model(self, model_config: Config.Model, source=True):
+        model = Model.factory(model_config.base_type, self.general_config, self.vit, source=source)
         model.load(model_config.path, model_config.device)
         return model
     
     def get_new_model(self, operation:Config.Operation):
         self.new_model_config.set_path(operation)
-        new_model = self.load_model(self.new_model_config)
+        new_model = self.load_model(self.new_model_config, source=False)
         return new_model
 
 class Total(Prototype):
@@ -424,12 +424,10 @@ class AverageEnsemble(Ensemble):
     def __init__(self, model_config: Config.NewModel, general_config) -> None:
         super().__init__(model_config, general_config)
 
-    def get_weight(self, value):
-        size = len(value)
-        weight = np.repeat([0.5], size).reshape((size,1))
+    def get_weight(self, dataloader):
         return {
-            'new': weight,
-            'old': weight
+            'new': 1,
+            'old': 1
         }
     
     def run(self, operation:Config.Operation):
