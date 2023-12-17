@@ -16,7 +16,7 @@ class ModelConf():
         for budget in budget_list:
             operation.acquisition.set_budget(budget)
             new_model_config.set_path(operation)
-            model = Model.factory(new_model_config.base_type, config)
+            model = Model.factory(new_model_config.base_type, config, source=False)
             model.load(new_model_config.path, new_model_config.device)
             gts, preds, decision_scores = model.eval(dataset_splits.loader['val_shift'])
             targets = (gts!=preds) if weakness else (gts==preds)
@@ -198,8 +198,8 @@ class TrainData():
         new_data = torch.utils.data.Subset(self.data, new_data_indices)
 
         new_loader = torch.utils.data.DataLoader(new_data, batch_size=checker.new_model_config.new_batch_size)
-        _, recall = detector.predict(new_loader, checker.base_model, 'recall')
-        return recall
+        _, metrics = detector.predict(new_loader, checker.base_model, 'prec')
+        return metrics
 
     def check_indices(self, operation:Config.Operation, data_split:dataset_utils.DataSplits, checker:Checker.Prototype, distribution: distribution_utils.Disrtibution):
         model_config = checker.new_model_config
@@ -210,30 +210,18 @@ class TrainData():
         new_data = torch.utils.data.Subset(self.data, new_data_indices)
 
         # return self.get_dataset_size(new_data)
-        return self.utility_range(new_data, model_config.new_batch_size)
+        # return self.utility_range(new_data, model_config.new_batch_size)
     
         # return self.misclassifications(new_data, model_config.new_batch_size, checker.base_model) * len(new_data) / 100
-        # return self.misclassifications(new_data, model_config.new_batch_size, checker.base_model)
-    
-        # cor_dv, incor_dv = Distribution.get_dv_dstr(checker.base_model, new_data_loader, checker.detector)
-        # logger.info('Old model mistakes in acquired data: {}%'.format())
-        # plot_range = (-2.5, 0) # test_dv
-        # self.dv_dstr_plot(cor_dv, incor_dv, acquisition_config.budget, pdf_method, plot_range)
-
-        # market_dv, _ = checker.detector.predict(data_split.loader['market'])
-        # test_dv, _ = checker.detector.predict(data_split.loader['test_shift']l)
-        # new_data_dv = market_dv[indices]
-        # new_data_dv, _ = checker.detector.predict(new_data_loader)
-        # ks_result = Distribution.kstest(new_data_dv, test_dv)
-        # return ks_result.pvalue
+        return self.misclassifications(new_data, model_config.new_batch_size, checker.base_model)
         
     def check_clf(self, operation:Config.Operation, data_split:dataset_utils.DataSplits, checker:Checker.Prototype):
         model_config = checker.new_model_config
         model_config.set_path(operation)
         log = Log(model_config, 'detector')
         detector = log.import_log(operation, checker.general_config)
-        _, prec = detector.predict(data_split.loader['test_shift'], checker.base_model, metrics='recall')
-        return prec
+        _, metrics = detector.predict(data_split.loader['test_shift'], checker.base_model, metrics='prec')
+        return metrics
 
     def budget_run(self, operation:Config.Operation, checker: Checker.Prototype, data_split:dataset_utils.DataSplits):
         # check_result = self.check_indices(operation, data_split, checker, None)
@@ -241,10 +229,10 @@ class TrainData():
         check_result = self.check_overfit(operation, checker)
         return check_result
    
-def main(epochs, new_model_setter='retrain', model_dir ='', device=0, base_type='', detector_name = '', stat_data='train', acquisition_method= 'weakness_score', ensemble_name=None, ensemble_criterion=None, pdf='kde', weakness=0, use_posterior=1, utility_estimator='u-ws'):
+def main(epochs, new_model_setter='retrain', model_dir ='', device=0, base_type='', detector_name = '', mode='train', acquisition_method= 'weakness_score', ensemble_name=None, ensemble_criterion=None, pdf='kde', weakness=0, use_posterior=1, utility_estimator='u-ws'):
     pure = True
     weakness = True if weakness == 1 else False
-    fh = logging.FileHandler('log/{}/stat_{}_{}.log'.format(model_dir, acquisition_method, stat_data), mode='w')
+    fh = logging.FileHandler('log/{}/stat_{}_{}.log'.format(model_dir, acquisition_method, mode), mode='w')
     fh.setLevel(logging.INFO)
     logger.addHandler(fh)
     logger.info('Ensemble Name: {}, criterion:{}, use_posterior: {}, utility_estimator: {}'.format(ensemble_name, ensemble_criterion, use_posterior, utility_estimator))
@@ -262,17 +250,17 @@ def main(epochs, new_model_setter='retrain', model_dir ='', device=0, base_type=
     
     parse_args = (model_dir, device_config, base_type, pure, new_model_setter, config)
     
-    if stat_data == 'train':
+    if mode == 'train':
         stat_checker = TrainData(dataset_name, config['data'], normalize_stat)
         results = stat_checker.run(epochs, parse_args, config['data']['budget'], operation, ds_list)
         results = np.array(results)
         logger.info('Train Data stat: {}'.format(np.round(np.mean(results, axis=0), decimals=3).tolist()))
         logger.info('all: {}'.format(results.tolist()))
-    elif stat_data == 'conf':
+    elif mode == 'conf':
         stat_checker = ModelConf()
         results = stat_checker.run(epochs, parse_args, config['data']['budget'], operation, ds_list, weakness=weakness)
         logger.info('Model Confidence stat:{}'.format(np.round(np.mean(results, axis=0), decimals=3).tolist()))
-    elif stat_data == 'bc':
+    elif mode == 'bc':
         stat_checker = BaseConf()
         results = stat_checker.run(epochs, parse_args, ds_list, weakness=weakness)
         logger.info('Base Model Confidence stat:{}'.format(np.round(np.mean(results), decimals=3)))
@@ -291,9 +279,9 @@ if __name__ == '__main__':
     parser.add_argument('-md','--model_dir',type=str,default='', help="(dataset name)_task_(other info)")
     parser.add_argument('-d','--device',type=int,default=0)
     parser.add_argument('-dn','--detector_name',type=str,default='svm', help="svm, regression; (regression: logistic regression)")
-    parser.add_argument('-am','--acquisition_method',type=str, default='dv', help="Acquisition Strategy; dv: one-shot, rs: random, conf: confiden-score, seq: sequential u-ws, pd: u-wsd, seq_pd: sequential u-wsd")
+    parser.add_argument('-am','--acquisition_method',type=str, default='dv', help="Acquisition Strategy; dv:one-shot, rs: random, conf: Probability-at-Ground-Truth, mix: Random Weakness, seq: sequential, pd: one-shot + u-wsd, seq_pd: seq + u-wsd")
     parser.add_argument('-bt','--base_type',type=str,default='cnn', help="Source/Base Model Type: cnn, svm; structure of cnn is indicated in the arch_type field in config.yaml")
-    parser.add_argument('-stat','--stat',type=str, default='train', help="test, train: check statistics (e.g. misclassification percentage, final detector recall) of train or test data")
+    parser.add_argument('-mode','--mode',type=str, default='train', help="test, train: check statistics (e.g. misclassification percentage, final detector recall) of train or test data")
     parser.add_argument('-ec','--ensemble_criterion',type=float,default=0.5, help='A threshold of the probability from Cw to assign test set and create corresponding val set for model training.')
     parser.add_argument('-em','--ensemble',type=str, default='total', help="Ensemble Method")
     parser.add_argument('-w','--weakness',type=int, default=0, help="check weakness or not")
@@ -301,4 +289,4 @@ if __name__ == '__main__':
     parser.add_argument('-ue','--utility_estimator',type=str, default='u-ws', help="u-ws, u-wsd")
 
     args = parser.parse_args()
-    main(args.epochs, model_dir=args.model_dir, device=args.device, base_type=args.base_type, detector_name=args.detector_name, acquisition_method=args.acquisition_method, stat_data=args.stat, ensemble_criterion=args.ensemble_criterion, ensemble_name=args.ensemble, weakness = args.weakness, use_posterior=args.use_posterior, utility_estimator=args.utility_estimator)
+    main(args.epochs, model_dir=args.model_dir, device=args.device, base_type=args.base_type, detector_name=args.detector_name, acquisition_method=args.acquisition_method, mode=args.mode, ensemble_criterion=args.ensemble_criterion, ensemble_name=args.ensemble, weakness = args.weakness, use_posterior=args.use_posterior, utility_estimator=args.utility_estimator)
