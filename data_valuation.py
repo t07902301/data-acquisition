@@ -27,17 +27,17 @@ class TestData():
             pkl.dump({'score': selected_weakness_score, 'probab': selected_probab_weakness_score}, f)
             f.close()
         logger.info('{} saved'.format(file_name))
-        n_data = [ i for i in range(n_data)]    
-        plt.subplot(211)
-        plt.plot(n_data, selected_weakness_score, label='weakness score', color=color)
-        plt.legend(fontsize=12)
-        plt.subplot(212)
-        plt.plot(n_data, selected_probab_weakness_score, label='probability', color=color)
-        plt.legend(fontsize=12)
-        plt.xlabel('the Number of Selected Data', fontsize=12)
-        plt.savefig(fig_name)
-        logger.info(fig_name)
-        plt.clf()
+        # n_data = [ i for i in range(n_data)]    
+        # plt.subplot(211)
+        # plt.plot(n_data, selected_weakness_score, label='weakness score', color=color)
+        # plt.legend(fontsize=12)
+        # plt.subplot(212)
+        # plt.plot(n_data, selected_probab_weakness_score, label='probability', color=color)
+        # plt.legend(fontsize=12)
+        # plt.xlabel('the Number of Selected Data', fontsize=12)
+        # plt.savefig(fig_name)
+        # logger.info(fig_name)
+        # plt.clf()
 
     def run(self, epoch, parse_args, operation:Config.Operation, dataset_list: List[dict]):
         '''
@@ -70,9 +70,9 @@ def main(epochs, new_model_setter='retrain', model_dir ='', device=0, probab_bou
     config, device_config, ds_list, normalize_stat, dataset_name, option = set_up(epochs, model_dir, device)
 
     clip_processor = Detector.load_clip(device_config, normalize_stat['mean'], normalize_stat['std'])
-    ensemble_instruction = Config.Ensemble()
+    ensemble_instruction = Config.Ensemble(name='ae-w')
     detect_instruction = Config.Detection(detector_name, clip_processor)
-    acquire_instruction = Config.AcquisitionFactory(acquisition_method='', data_config=config['data'])
+    acquire_instruction = Config.AcquisitionFactory(acquisition_method='', data_config=config['data'], utility_estimator='u-ws')
     operation = Config.Operation(acquire_instruction, ensemble_instruction, detect_instruction)
     
     parse_args = (model_dir, device_config, base_type, pure, new_model_setter, config)

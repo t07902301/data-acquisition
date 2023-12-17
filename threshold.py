@@ -34,7 +34,7 @@ class Train():
         method = operation.acquisition.method
         if method != 'rs':
             workspace.set_validation(new_model_config.new_batch_size)
-            workspace.set_utility_estimator(operation.detection, operation.ensemble.name, operation.ensemble.pdf)
+            workspace.set_utility_estimator(operation.detection, operation.acquisition.utility_estimation, operation.ensemble.pdf)
         else:
             workspace.validation_loader = workspace.data_split.loader['val_shift']
             logger.info('Keep val_shift for validation_loader') # Align with inference on the test set
@@ -142,7 +142,7 @@ class ModelConf():
         for threshold in threshold_list:
             operation.acquisition.set_threshold(threshold)
             new_model_config.set_path(operation)
-            model = Model.factory(new_model_config.base_type, config)
+            model = Model.factory(new_model_config.base_type, config, source=False)
             model.load(new_model_config.path, new_model_config.device)
             gts, preds, decision_scores = model.eval(dataset_splits.loader['val_shift'])
             targets = (gts!=preds) if weakness else (gts==preds)
@@ -170,7 +170,7 @@ class ModelConf():
 def main(epochs, acquisition_method, device, detector_name, model_dir, base_type, mode, ensemble_name, utility_estimator, use_posterior, ensemble_criterion):
     threshold_list = [0.5, 0.6, 0.7]
 
-    fh = logging.FileHandler('log/{}/threshold_{}.log'.format(model_dir, acquisition_method),mode='w')
+    fh = logging.FileHandler('log/{}/threshold_{}.log'.format(model_dir, mode),mode='w')
     fh.setLevel(logging.DEBUG)
     logger.addHandler(fh)
 
@@ -211,12 +211,12 @@ if __name__ == '__main__':
     parser.add_argument('-md','--model_dir',type=str,default='', help="(dataset name)_task_(other info)")
     parser.add_argument('-d','--device',type=int,default=0)
     parser.add_argument('-dn','--detector_name',type=str,default='svm', help="svm, regression; (regression: logistic regression)")
-    parser.add_argument('-am','--acquisition_method',type=str, default='dv', help="Acquisition Strategy; dv: one-shot, rs: random, conf: confiden-score, seq: sequential u-ws, pd: u-wsd, seq_pd: sequential u-wsd")
+    parser.add_argument('-am','--acquisition_method',type=str, default='dv', help="Acquisition Strategy; dv:one-shot, rs: random, conf: Probability-at-Ground-Truth, mix: Random Weakness, seq: sequential, pd: one-shot + u-wsd, seq_pd: seq + u-wsd")
     parser.add_argument('-bt','--base_type',type=str,default='cnn', help="Source/Base Model Type: cnn, svm; structure of cnn is indicated in the arch_type field in config.yaml")
     parser.add_argument('-mode','--mode',type=str,default='test', help="train or test models from utility thresholds")
     parser.add_argument('-ue','--utility_estimator',type=str, default='u-ws', help="u-ws, u-wsd")
     parser.add_argument('-up','--use_posterior',type=str2bool, default=1, help="use posterior or not")
-    parser.add_argument('-em','--ensemble',type=str, default='ae', help="Ensemble Method")
+    parser.add_argument('-em','--ensemble',type=str, default='ae-w', help="Ensemble Method")
     parser.add_argument('-ec','--ensemble_criterion',type=float,default=0.5, help='A threshold of the probability from Cw to assign test set and create corresponding val set for model training.')
 
     args = parser.parse_args()
