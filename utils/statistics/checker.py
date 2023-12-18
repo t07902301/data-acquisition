@@ -456,8 +456,8 @@ class AverageEnsemble(Ensemble):
 #         return probab
     
 def factory(name, new_model_config, general_config, use_posterior=True):
-    if name == 'subset':
-        checker = Partition(new_model_config, general_config)
+    if name == 'total':
+        checker = Total(new_model_config, general_config)
     elif name == 'ae-c-wp':
         if use_posterior:
             checker = Posterior(new_model_config, general_config)
@@ -474,8 +474,6 @@ def factory(name, new_model_config, general_config, use_posterior=True):
     #     checker = AdaBoostEnsemble(new_model_config, general_config)
     elif name == 'ae-c-dv':
         checker = DataValuation(new_model_config, general_config)
-    elif name == 'total':
-        checker = Total(new_model_config, general_config)
     else:
         logger.info('Checker is not Implemented.')
         exit()
