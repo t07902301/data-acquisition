@@ -1,6 +1,6 @@
 import torchvision.transforms as transforms
 import torch
-from utils.env import generator, seed
+from utils.env import dataloader_env
 import utils.objects.Config as Config
 from abc import abstractmethod
 import utils.dataset.cifar as cifar
@@ -126,7 +126,7 @@ class DataSplits():
     def __init__(self, dataset, batch_size, name=None) -> None:
         self.dataset = dataset
         self.dataset_name = name
-        generator.manual_seed(seed)    
+        generator = dataloader_env()
         self.loader = {
             k: torch.utils.data.DataLoader(self.dataset[k], batch_size=batch_size, 
                                         shuffle=(k=='train'), drop_last=(k=='train'),
@@ -152,7 +152,7 @@ class DataSplits():
         self.update_dataloader(split_name) 
 
     def update_dataloader(self, split_name):
-        generator.manual_seed(seed)        
+        generator = dataloader_env()
         self.loader[split_name] = torch.utils.data.DataLoader(self.dataset[split_name], batch_size= self.batch_size, 
                                                               shuffle=(split_name=='train'), drop_last=(split_name=='train'),
                                                               num_workers=n_workers, generator=generator)
