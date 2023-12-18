@@ -5,7 +5,63 @@ import utils.statistics.checker as Checker
 import utils.dataset.wrappers as Dataset
 from typing import List
 
-class Train():
+class ModelBuilder():
+    def __init__(self, dataset_name, data_config, normalize_stat, threshold_list) -> None:
+        if dataset_name == 'cifar':
+            self.data = dataset_utils.Cifar().get_raw_dataset(data_config['root'], normalize_stat, data_config['labels']['map'])['train_market']
+        else:
+            sampled_meta = dataset_utils.MetaData(data_config['root'])
+            self.data = dataset_utils.Core().get_raw_dataset(sampled_meta, normalize_stat, data_config['labels']['map'])
+        self.threshold_list = threshold_list
+    
+    def get_config(self, parse_args, epoch):
+        model_dir, device_config, base_type, pure, new_model_setter, config = parse_args
+        batch_size = config['hparams']['source']['batch_size']
+        superclass_num = config['hparams']['source']['superclass']
+        new_model_config = Config.NewModel(batch_size['base'], superclass_num, model_dir, device_config, epoch, pure, new_model_setter, batch_size['new'], base_type)
+        return new_model_config, config
+    
+    def set_validation(self, new_batch_size, val_shift_data):
+        self.validation_loader = torch.utils.data.DataLoader(val_shift_data, batch_size=new_batch_size)
+        return
+    
+    def run(self, epochs, parse_args, operation:Config.Operation, dataset_list):
+        for epo in range(epochs):
+            logger.info('in epoch {}'.format(epo))
+            new_model_config, general_config = self.get_config(parse_args, epo)
+            self.set_validation(new_model_config.new_batch_size, dataset_list[epo]['val_shift'])
+            self.threshold_run(operation, new_model_config, general_config)
+    
+    def threshold_run(self, operation: Config.Operation, new_model_config:Config.NewModel, general_config):
+        operation.acquisition.set_anchor_threshold(np.max(self.threshold_list))
+        for threshold in self.threshold_list:
+            operation.acquisition.set_threshold(threshold)
+            self.build(operation, general_config, new_model_config)
+
+    def build(self, operation:Config.Operation, general_config, new_model_config:Config.NewModel):
+        train_loader = self.get_train_loader(operation, general_config, new_model_config)
+        self.build_padding(new_model_config, train_loader, self.validation_loader, general_config['hparams']['padding'])
+
+    def get_train_loader(self, operation:Config.Operation, general_config, new_model_config:Config.NewModel):
+        model_config = new_model_config
+        model_config.set_path(operation)
+
+        log = Log(model_config, 'indices')
+        new_data_indices = log.import_log(operation, general_config)
+        new_data = torch.utils.data.Subset(self.data, new_data_indices)   
+        return new_data
+    
+    def build_padding(self, new_model_config: Config.NewModel, train_data, val_loader, config):
+        '''
+        Update model after training set in workspace is refreshed
+        '''
+        padding = Model.CNN(config)
+        generator = dataloader_env()
+        train_loader = torch.utils.data.DataLoader(train_data, batch_size=new_model_config.new_batch_size, shuffle=True, drop_last=True, generator=generator)
+        padding.train(train_loader, val_loader, config)
+        padding.save(new_model_config.path)
+
+class DataCollector():
     def __init__(self, threshold_list) -> None:
         self.threshold_list = threshold_list
 
@@ -27,17 +83,18 @@ class Train():
         logger.info('Set up WorkSpace')
         
         workspace.set_up(new_model_config.new_batch_size, operation.detection.vit)
+        workspace.set_utility_estimator(operation.detection, operation.acquisition.utility_estimation, operation.ensemble.pdf)
 
         self.method_run(new_model_config, operation, workspace)
 
     def method_run(self, new_model_config:Config.NewModel, operation: Config.Operation, workspace: WorkSpace):
-        method = operation.acquisition.method
-        if method != 'rs':
-            workspace.set_validation(new_model_config.new_batch_size)
-            workspace.set_utility_estimator(operation.detection, operation.acquisition.utility_estimation, operation.ensemble.pdf)
-        else:
-            workspace.validation_loader = workspace.data_split.loader['val_shift']
-            logger.info('Keep val_shift for validation_loader') # Align with inference on the test set
+        # method = operation.acquisition.method
+        # if method != 'rs':
+        #     workspace.set_validation(new_model_config.new_batch_size)
+        #     workspace.set_utility_estimator(operation.detection, operation.acquisition.utility_estimation, operation.ensemble.pdf)
+        # else:
+        # workspace.validation_loader = workspace.data_split.loader['val_shift']
+        # logger.info('Keep val_shift for validation_loader') # Align with inference on the test set
 
         self.threshold_run(operation, new_model_config, workspace)
 
@@ -45,9 +102,9 @@ class Train():
         operation.acquisition.set_anchor_threshold(np.max(self.threshold_list))
         for threshold in self.threshold_list:
             operation.acquisition.set_threshold(threshold)
-            self.train(operation, new_model_config, workspace)
+            self.acquire(operation, new_model_config, workspace)
 
-    def train(self, operation: Config.Operation, new_model_config:Config.NewModel, workspace: WorkSpace):
+    def acquire(self, operation: Config.Operation, new_model_config:Config.NewModel, workspace: WorkSpace):
         strategy = StrategyFactory(operation.acquisition.method)
         strategy.operate(operation, new_model_config, workspace)
 
@@ -186,17 +243,18 @@ def main(epochs, acquisition_method, device, detector_name, model_dir, base_type
     acquire_instruction = Config.AcquisitionFactory(acquisition_method=acquisition_method, data_config=config['data'], utility_estimator=utility_estimator)
 
     operation = Config.Operation(acquire_instruction, ensemble_instruction, detect_instruction)
-   
-    if mode == 'train':
-        parse_args = (model_dir, device_config, base_type, pure, new_model_setter, config)
-        Train(threshold_list).run(epochs, ds_list, parse_args, operation)
+    parse_args = (model_dir, device_config, base_type, pure, new_model_setter, config)
+    
+    if mode == 'acquire':
+        DataCollector(threshold_list).run(epochs, ds_list, parse_args, operation)
+
+    elif mode == 'train':
+        ModelBuilder(dataset_name, config['data'], normalize_stat, threshold_list).run(epochs, parse_args, operation, ds_list)
 
     elif mode == 'stat':
-        parse_args = (model_dir, device_config, base_type, pure, new_model_setter, config)
         Stat(threshold_list).run(epochs, parse_args, ds_list, operation, dataset_name, normalize_stat, config['data'])
 
     elif mode == 'conf':
-        parse_args = (model_dir, device_config, base_type, pure, new_model_setter, config)
         ModelConf().run(epochs, parse_args, threshold_list, operation, ds_list, weakness=False)
 
     else:

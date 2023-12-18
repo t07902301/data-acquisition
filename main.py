@@ -7,21 +7,20 @@ def run(operation: Config.Operation, new_model_config:Config.NewModel, workspace
     strategy.operate(operation, new_model_config, workspace)
 
 def budget_run(budget_list, operation: Config.Operation, new_model_config:Config.NewModel, workspace: WorkSpace):
+    workspace.set_utility_estimator(operation.detection, operation.acquisition.utility_estimation, operation.ensemble.pdf)
     for budget in budget_list:
         operation.acquisition.set_budget(budget)
         run(operation, new_model_config, workspace)
 
 def method_run(budget_list, new_model_config:Config.NewModel, operation: Config.Operation, workspace: WorkSpace):
-    method = operation.acquisition.method
-    if method != 'rs':
-        workspace.set_utility_estimator(operation.detection, operation.acquisition.utility_estimation, operation.ensemble.pdf)
-        workspace.set_validation(new_model_config.new_batch_size)
-        # if 'pd' in method:
-        #     workspace.set_anchor_dstr(operation.stream)
     
-    else:
-        workspace.validation_loader = workspace.data_split.loader['val_shift']
-        logger.info('Keep val_shift for validation_loader') # Align with inference on the test set
+    # method = operation.acquisition.method
+    # if method != 'rs':
+    #     workspace.set_utility_estimator(operation.detection, operation.acquisition.utility_estimation, operation.ensemble.pdf)
+    #     workspace.set_validation(new_model_config.new_batch_size)
+    # else:
+    #     workspace.validation_loader = workspace.data_split.loader['val_shift']
+    #     logger.info('Keep val_shift for validation_loader') # Align with inference on the test set
 
     budget_run(budget_list, operation, new_model_config, workspace)
 
@@ -82,7 +81,7 @@ if __name__ == '__main__':
 
     parser.add_argument('-ue','--utility_estimator',type=str, default='u-ws', help="u-ws, u-wsd")
 
-    parser.add_argument('-am','--acquisition_method',type=str, default='dv', help="Acquisition Strategy; dv:one-shot, rs: random, conf: confiden-score, seq: sequential")
+    parser.add_argument('-am','--acquisition_method',type=str, default='dv', help="Acquisition Strategy; dv:one-shot, rs: random, conf: Probability-at-Ground-Truth, mix: Random Weakness, seq: sequential, pd: one-shot + u-wsd, seq_pd: seq + u-wsd")
     parser.add_argument('-bt','--base_type',type=str,default='cnn', help="Source/Base Model Type: cnn, svm; structure of cnn is indicated in the arch_type field in config.yaml")
 
     args = parser.parse_args()
