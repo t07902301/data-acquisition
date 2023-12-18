@@ -42,7 +42,7 @@ def get_cifar_resnet(arch, num_classes):
     return model
 
 def get_pretrained(arch, num_classes):
-    model = torch.hub.load("chenyaofo/pytorch-cifar-models", arch, pretrained=True)
+    model = torch.hub.load("chenyaofo/pytorch-cifar-models", arch, pretrained=True, verbose=False)
     # Freeze Feature Extractor
     for param in model.parameters():
         param.requires_grad = False
