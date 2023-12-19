@@ -23,33 +23,30 @@ def epoch_run(budget_list, operation: Config.Operation, checker: Checker.Prototy
     result_epoch = run(operation, budget_list, checker)
     return result_epoch
 
-def main(epochs, acquisition_method, device, detector_name, model_dir, ensemble_name, base_type, ensemble_criterion, utility_estimator, use_posterior):
+def main(epochs, acquisition_method, device, detector_name, model_dir, ensemble_name, ensemble_criterion, utility_estimator, use_posterior):
     fh = logging.FileHandler('log/{}/test_{}.log'.format(model_dir, acquisition_method),mode='w')
     fh.setLevel(logging.INFO)
     logger.addHandler(fh)
-    new_model_setter = 'retrain'
-    pure = True
     
     if use_posterior is False:
         assert detector_name == 'logregs'
 
     logger.info('Ensemble Name: {}, criterion:{}, use_posterior: {}, utility_estimator: {}'.format(ensemble_name, ensemble_criterion, use_posterior, utility_estimator))
 
-    config, device_config, dataset_list, normalize_stat, dataset_name, option = set_up(epochs, model_dir, device)
+    parse_args, dataset_list, normalize_stat = set_up(epochs, model_dir, device)
 
-    clip_processor = Detector.load_clip(device_config, normalize_stat['mean'], normalize_stat['std'])
+    clip_processor = Detector.load_clip(parse_args.device_config, normalize_stat['mean'], normalize_stat['std'])
     ensemble_instruction = Config.Ensemble(name=ensemble_name, criterion=ensemble_criterion)
     detect_instruction = Config.Detection(detector_name, clip_processor)
-    acquire_instruction = Config.AcquisitionFactory(acquisition_method=acquisition_method, data_config=config['data'], utility_estimator=utility_estimator)
+    acquire_instruction = Config.AcquisitionFactory(acquisition_method=acquisition_method, data_config=parse_args.general_config['data'], utility_estimator=utility_estimator)
 
     operation = Config.Operation(acquire_instruction, ensemble_instruction, detect_instruction)
-    parse_args = (model_dir, device_config, base_type, pure, new_model_setter, config)
 
     results = []
     for epo in range(epochs):
         logger.info('in epoch {}'.format(epo))
-        checker = Checker.instantiate(epo, parse_args, dataset_list[epo], operation, normalize_stat, dataset_name, use_posterior) #probab / ensemble
-        result_epoch = epoch_run(config['data']['budget'], operation, checker)
+        checker = Checker.instantiate(epo, parse_args, dataset_list[epo], operation, normalize_stat, parse_args.dataset_name, use_posterior) #probab / ensemble
+        result_epoch = epoch_run(parse_args.general_config['data']['budget'], operation, checker)
         results.append(result_epoch)
 
     results = np.array(results)
@@ -67,10 +64,9 @@ if __name__ == '__main__':
     parser.add_argument('-ec','--criterion',type=float,default=0.5, help='Criterion in WTA ensemble')
     parser.add_argument('-am','--acquisition_method',type=str, default='dv', help="Acquisition Strategy; dv:one-shot, rs: random, conf: Probability-at-Ground-Truth, mix: Random Weakness, seq: sequential, pd: one-shot + u-wsd, seq_pd: seq + u-wsd")
     parser.add_argument('-em','--ensemble',type=str, default='total', help="Ensemble Method")
-    parser.add_argument('-bt','--base_type',type=str,default='cnn', help="Source/Base Model Type: cnn, svm; structure of cnn is indicated in the arch_type field in config.yaml")
     parser.add_argument('-ue','--utility_estimator',type=str, default='u-ws', help="u-ws, u-wsd")
     parser.add_argument('-up','--use_posterior',type=str2bool, default=1, help="use posterior or not")
 
     args = parser.parse_args()
 
-    main(args.epochs, model_dir=args.model_dir, device=args.device, detector_name=args.detector_name, acquisition_method=args.acquisition_method, ensemble_name=args.ensemble, base_type=args.base_type, ensemble_criterion=args.criterion, utility_estimator=args.utility_estimator, use_posterior=args.use_posterior)
+    main(args.epochs, model_dir=args.model_dir, device=args.device, detector_name=args.detector_name, acquisition_method=args.acquisition_method, ensemble_name=args.ensemble, ensemble_criterion=args.criterion, utility_estimator=args.utility_estimator, use_posterior=args.use_posterior)

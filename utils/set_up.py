@@ -1,6 +1,7 @@
 import utils.objects.Config as Config
 import utils.dataset.wrappers as dataset_utils
 # import data_generator.stable.wrappers as dataset_utils
+from utils.parse_args import ParseArgs
 
 import torch
 import os
@@ -109,10 +110,9 @@ def parse(filename:str):
     parse_list = filename.split('_')
     if len(parse_list) == 2:
         dataset_name, task = parse_list
-        aux = None
     else:
-        dataset_name, task, aux = parse_list
-    return dataset_name, task, aux
+        dataset_name, task, _ = parse_list
+    return dataset_name, task
 
 def set_up(epochs, model_dir, device_id):
     '''
@@ -121,7 +121,7 @@ def set_up(epochs, model_dir, device_id):
 
     data_env()
 
-    dataset_name, task, aux = parse(model_dir)
+    dataset_name, task = parse(model_dir)
 
     split_dir = 'init_data/{}_{}'.format(dataset_name, task)
 
@@ -138,5 +138,6 @@ def set_up(epochs, model_dir, device_id):
 
     data = load_dataset(epochs, shift_dir, config['data'], dataset, normalize_stat)
 
-    return config, device_config, data, normalize_stat, dataset_name, task
+    # return config, device_config, data, normalize_stat, dataset_name, task
+    return ParseArgs(config=config, device_config=device_config, dataset_name=dataset_name, task=task, model_dir=model_dir), data, normalize_stat
 

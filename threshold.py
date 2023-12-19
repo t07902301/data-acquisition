@@ -14,21 +14,14 @@ class ModelBuilder():
             self.data = dataset_utils.Core().get_raw_dataset(sampled_meta, normalize_stat, data_config['labels']['map'])
         self.threshold_list = threshold_list
     
-    def get_config(self, parse_args, epoch):
-        model_dir, device_config, base_type, pure, new_model_setter, config = parse_args
-        batch_size = config['hparams']['source']['batch_size']
-        superclass_num = config['hparams']['source']['superclass']
-        new_model_config = Config.NewModel(batch_size['base'], superclass_num, model_dir, device_config, epoch, pure, new_model_setter, batch_size['new'], base_type)
-        return new_model_config, config
-    
     def set_validation(self, new_batch_size, val_shift_data):
         self.validation_loader = torch.utils.data.DataLoader(val_shift_data, batch_size=new_batch_size)
         return
     
-    def run(self, epochs, parse_args, operation:Config.Operation, dataset_list):
+    def run(self, epochs, parse_args:ParseArgs, operation:Config.Operation, dataset_list):
         for epo in range(epochs):
             logger.info('in epoch {}'.format(epo))
-            new_model_config, general_config = self.get_config(parse_args, epo)
+            _, new_model_config, general_config = Config.get_configs(epo, parse_args)
             self.set_validation(new_model_config.new_batch_size, dataset_list[epo]['val_shift'])
             self.threshold_run(operation, new_model_config, general_config)
     
@@ -51,34 +44,29 @@ class ModelBuilder():
         new_data = torch.utils.data.Subset(self.data, new_data_indices)   
         return new_data
     
-    def build_padding(self, new_model_config: Config.NewModel, train_data, val_loader, config):
+    def build_padding(self, new_model_config: Config.NewModel, train_data, val_loader, general_config):
         '''
         Update model after training set in workspace is refreshed
         '''
-        padding = Model.CNN(config)
+        padding = Model.CNN(general_config)
         generator = dataloader_env()
         train_loader = torch.utils.data.DataLoader(train_data, batch_size=new_model_config.new_batch_size, shuffle=True, drop_last=True, generator=generator)
-        padding.train(train_loader, val_loader, config)
+        padding.train(train_loader, val_loader, general_config)
         padding.save(new_model_config.path)
 
 class DataCollector():
     def __init__(self, threshold_list) -> None:
         self.threshold_list = threshold_list
 
-    def run(self, epochs, dataset_list, parse_args, operation):
+    def run(self, epochs, dataset_list, parse_args:ParseArgs, operation):
         for epo in range(epochs):
             logger.info('In epoch {}'.format(epo))
             dataset = dataset_list[epo]
             self.epoch_run(parse_args, dataset, epo, operation)
 
-    def epoch_run(self, parse_args, dataset:dict, epo, operation: Config.Operation):
-        model_dir, device_config, base_type, pure, new_model_setter, config = parse_args
-        batch_size = config['hparams']['source']['batch_size']
-        superclass_num = config['hparams']['source']['superclass']
-
-        old_model_config = Config.OldModel(batch_size['base'], superclass_num, model_dir, device_config, epo, base_type)
-        new_model_config = Config.NewModel(batch_size['base'], superclass_num, model_dir, device_config, epo, pure, new_model_setter, batch_size['new'], base_type)
-        workspace = WorkSpace(old_model_config, dataset, config)
+    def epoch_run(self, parse_args:ParseArgs, dataset:dict, epo, operation: Config.Operation):
+        old_model_config, new_model_config, general_config = Config.get_configs(epo, parse_args)
+        workspace = WorkSpace(old_model_config, dataset, general_config)
 
         logger.info('Set up WorkSpace')
         
@@ -126,11 +114,11 @@ class Test():
         acc_change = self.threshold_run(operation, checker)
         return acc_change
 
-    def run(self, epochs, parse_args, dataset_list, operation: Config.Operation, normalize_stat, dataset_name, use_posterior):
+    def run(self, epochs, parse_args:ParseArgs, dataset_list, operation: Config.Operation, normalize_stat, use_posterior):
         results = []
         for epo in range(epochs):
             logger.info('in epoch {}'.format(epo))
-            checker = Checker.instantiate(epo, parse_args, dataset_list[epo], operation, normalize_stat, dataset_name, use_posterior) #probab / ensemble
+            checker = Checker.instantiate(epo, parse_args, dataset_list[epo], operation, normalize_stat, parse_args.dataset_name, use_posterior) #probab / ensemble
             result_epoch = self.epoch_run( operation, checker)
             results.append(result_epoch)
         logger.info('avg:{}'.format(np.round(np.mean(results, axis=0), decimals=3)))
@@ -156,7 +144,6 @@ class Stat():
         log = Log(model_config, 'indices')
         new_data_indices = log.import_log(operation, checker.general_config)
         new_data = torch.utils.data.Subset(data, new_data_indices)
-        # logger.info(len(new_data))
 
         # return self.get_dataset_size(new_data)
         # return self.utility_range(new_data, model_config.new_batch_size, checker.detector)
@@ -175,9 +162,9 @@ class Stat():
         acc_change = self.threshold_run(operation, checker, data)
         return acc_change
 
-    def run(self, epochs, parse_args, dataset_list, operation: Config.Operation, dataset_name, normalize_stat, data_config):
+    def run(self, epochs, parse_args:ParseArgs, dataset_list, operation: Config.Operation, normalize_stat, data_config):
         results = []
-        if dataset_name == 'cifar':
+        if parse_args.dataset_name == 'cifar':
             data = dataset_utils.Cifar().get_raw_dataset(data_config['root'], normalize_stat, data_config['labels']['map'])['train_market']
         else:
             sampled_meta = dataset_utils.MetaData(data_config['root'])
@@ -194,28 +181,25 @@ class ModelConf():
     def __init__(self) -> None:
         pass
     
-    def threshold_run(self, threshold_list, operation: Config.Operation, new_model_config:Config.NewModel, dataset_splits, config, weakness):
+    def threshold_run(self, threshold_list, operation: Config.Operation, new_model_config:Config.NewModel, general_config, dataset_splits, weakness):
         results = []
         for threshold in threshold_list:
             operation.acquisition.set_threshold(threshold)
             new_model_config.set_path(operation)
-            model = Model.factory(new_model_config.base_type, config, source=False)
+            model = Model.factory(new_model_config.model_type, general_config, source=False)
             model.load(new_model_config.path, new_model_config.device)
             gts, preds, decision_scores = model.eval(dataset_splits.loader['val_shift'])
             targets = (gts!=preds) if weakness else (gts==preds)
             results.append(np.mean(acquistion.get_gt_probab(gts[targets], decision_scores[targets])))
         return results
 
-    def run(self, epochs, parse_args, threshold_list, operation:Config.Operation, dataset_list: List[dict], weakness):
+    def run(self, epochs, parse_args:ParseArgs, threshold_list, operation:Config.Operation, dataset_list: List[dict], weakness):
         results = []
-        model_dir, device_config, base_type, pure, new_model_setter, config = parse_args
-        batch_size = config['hparams']['source']['batch_size']
-        superclass_num = config['hparams']['source']['superclass']
         for epo in range(epochs):
-            new_model_config = Config.NewModel(batch_size['base'], superclass_num, model_dir, device_config, epo, pure, new_model_setter, batch_size['new'], base_type)
+            _, new_model_config, general_config = Config.get_configs(epo, parse_args)
             logger.info('in epoch {}'.format(epo))
             dataset_splits = Dataset.DataSplits(dataset_list[epo], new_model_config.new_batch_size)
-            threshold_result = self.threshold_run(threshold_list, operation, new_model_config, dataset_splits, config, weakness)
+            threshold_result = self.threshold_run(threshold_list, operation, new_model_config, general_config, dataset_splits, weakness)
             results.append(threshold_result)
         
         results = np.round(np.mean(results, axis=0), decimals=3)
@@ -224,7 +208,7 @@ class ModelConf():
 
         logger.info('Model Confidence stat:{}'.format(results))
 
-def main(epochs, acquisition_method, device, detector_name, model_dir, base_type, mode, ensemble_name, utility_estimator, use_posterior, ensemble_criterion):
+def main(epochs, acquisition_method, device, detector_name, model_dir, mode, ensemble_name, utility_estimator, use_posterior, ensemble_criterion):
     threshold_list = [0.5, 0.6, 0.7]
 
     fh = logging.FileHandler('log/{}/threshold_{}.log'.format(model_dir, mode),mode='w')
@@ -233,33 +217,29 @@ def main(epochs, acquisition_method, device, detector_name, model_dir, base_type
 
     logger.info('Ensemble Name: {}, criterion:{}, use_posterior: {}, utility_estimator: {}'.format(ensemble_name, ensemble_criterion, use_posterior, utility_estimator))
 
-    pure, new_model_setter = True, 'retrain'
-
-    config, device_config, ds_list, normalize_stat,dataset_name, option = set_up(epochs, model_dir, device)
+    parse_args, dataset_list, normalize_stat = set_up(epochs, model_dir, device)
     
-    clip_processor = Detector.load_clip(device_config, normalize_stat['mean'], normalize_stat['std'])
+    clip_processor = Detector.load_clip(parse_args.device_config, normalize_stat['mean'], normalize_stat['std'])
     ensemble_instruction = Config.Ensemble(name=ensemble_name, criterion=ensemble_criterion)
     detect_instruction = Config.Detection(detector_name, clip_processor)
-    acquire_instruction = Config.AcquisitionFactory(acquisition_method=acquisition_method, data_config=config['data'], utility_estimator=utility_estimator)
+    acquire_instruction = Config.AcquisitionFactory(acquisition_method=acquisition_method, data_config=parse_args.general_config['data'], utility_estimator=utility_estimator)
 
     operation = Config.Operation(acquire_instruction, ensemble_instruction, detect_instruction)
-    parse_args = (model_dir, device_config, base_type, pure, new_model_setter, config)
     
     if mode == 'acquire':
-        DataCollector(threshold_list).run(epochs, ds_list, parse_args, operation)
+        DataCollector(threshold_list).run(epochs, dataset_list, parse_args, operation)
 
     elif mode == 'train':
-        ModelBuilder(dataset_name, config['data'], normalize_stat, threshold_list).run(epochs, parse_args, operation, ds_list)
+        ModelBuilder(parse_args.dataset_name, parse_args.general_config['data'], normalize_stat, threshold_list).run(epochs, parse_args, operation, dataset_list)
 
     elif mode == 'stat':
-        Stat(threshold_list).run(epochs, parse_args, ds_list, operation, dataset_name, normalize_stat, config['data'])
+        Stat(threshold_list).run(epochs, parse_args, dataset_list, operation, normalize_stat, parse_args.general_config['data'])
 
     elif mode == 'conf':
-        ModelConf().run(epochs, parse_args, threshold_list, operation, ds_list, weakness=False)
+        ModelConf().run(epochs, parse_args, threshold_list, operation, dataset_list, weakness=False)
 
     else:
-        parse_args = (model_dir, device_config, base_type, pure, new_model_setter, config)
-        Test(threshold_list).run(epochs, parse_args, ds_list, operation, normalize_stat, dataset_name, use_posterior)
+        Test(threshold_list).run(epochs, parse_args, dataset_list, operation, normalize_stat, use_posterior)
 
 import argparse
 if __name__ == '__main__':
@@ -270,7 +250,6 @@ if __name__ == '__main__':
     parser.add_argument('-d','--device',type=int,default=0)
     parser.add_argument('-dn','--detector_name',type=str,default='svm', help="svm, regression; (regression: logistic regression)")
     parser.add_argument('-am','--acquisition_method',type=str, default='dv', help="Acquisition Strategy; dv:one-shot, rs: random, conf: Probability-at-Ground-Truth, mix: Random Weakness, seq: sequential, pd: one-shot + u-wsd, seq_pd: seq + u-wsd")
-    parser.add_argument('-bt','--base_type',type=str,default='cnn', help="Source/Base Model Type: cnn, svm; structure of cnn is indicated in the arch_type field in config.yaml")
     parser.add_argument('-mode','--mode',type=str,default='test', help="train or test models from utility thresholds")
     parser.add_argument('-ue','--utility_estimator',type=str, default='u-ws', help="u-ws, u-wsd")
     parser.add_argument('-up','--use_posterior',type=str2bool, default=1, help="use posterior or not")
@@ -278,4 +257,4 @@ if __name__ == '__main__':
     parser.add_argument('-ec','--ensemble_criterion',type=float,default=0.5, help='A threshold of the probability from Cw to assign test set and create corresponding val set for model training.')
 
     args = parser.parse_args()
-    main(args.epochs, model_dir=args.model_dir, device=args.device, detector_name=args.detector_name, acquisition_method=args.acquisition_method, base_type=args.base_type, mode=args.mode, ensemble_name=args.ensemble, utility_estimator=args.utility_estimator, use_posterior=args.use_posterior, ensemble_criterion=args.ensemble_criterion)
+    main(args.epochs, model_dir=args.model_dir, device=args.device, detector_name=args.detector_name, acquisition_method=args.acquisition_method, mode=args.mode, ensemble_name=args.ensemble, utility_estimator=args.utility_estimator, use_posterior=args.use_posterior, ensemble_criterion=args.ensemble_criterion)

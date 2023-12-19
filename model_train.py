@@ -53,18 +53,12 @@ class Builder():
         self.validation_loader = torch.utils.data.DataLoader(val_shift_data, batch_size=new_batch_size)
         return
     
-    def get_config(self, parse_args, epoch):
-        model_dir, device_config, base_type, pure, new_model_setter, config = parse_args
-        batch_size = config['hparams']['source']['batch_size']
-        superclass_num = config['hparams']['source']['superclass']
-        # old_model_config = Config.OldModel(batch_size['base'], superclass_num, model_dir, device_config, epoch, base_type)
-        new_model_config = Config.NewModel(batch_size['base'], superclass_num, model_dir, device_config, epoch, pure, new_model_setter, batch_size['new'], base_type)
-        return new_model_config, config
-
-    def run(self, epochs, parse_args, method_list, budget_list, operation:Config.Operation, dataset_list):
+    def run(self, epochs, parse_args:ParseArgs, method_list, budget_list, operation:Config.Operation, dataset_list):
         for epo in range(epochs):
             logger.info('in epoch {}'.format(epo))
-            new_model_config, general_config = self.get_config(parse_args, epo)
+
+            _, new_model_config, general_config = Config.get_configs(epo, parse_args)
+
             self.set_validation(new_model_config.new_batch_size, dataset_list[epo]['val_shift'])
             self.epoch_run(method_list, budget_list, operation, new_model_config, general_config)
     
@@ -89,7 +83,7 @@ class Builder():
         '''
         Update model after training set in workspace is refreshed
         '''
-        if config['padding_type'] == 'cnn':
+        if new_model_config.model_type == 'cnn':
             padding = Model.CNN(config)
             generator = dataloader_env()
             train_loader = torch.utils.data.DataLoader(train_data, batch_size=new_model_config.new_batch_size, shuffle=True, drop_last=True, generator=generator)
@@ -105,29 +99,26 @@ class Builder():
         train_loader = self.get_train_loader(operation, general_config, new_model_config)
         self.build_padding(new_model_config, train_loader, self.validation_loader, general_config['hparams']['padding'])
 
-def main(epochs, new_model_setter='retrain', model_dir ='', device=0, base_type='', acquisition_method= 'all', detector='svm'):
+def main(epochs,  model_dir ='', device=0, acquisition_method= 'all', detector='svm'):
     
     methold_list = ['conf', 'mix'] if acquisition_method == 'all' else [acquisition_method] 
     # methold_list = [acquisition_method]
-    pure = True
     fh = logging.FileHandler('log/{}/{}.log'.format(model_dir, acquisition_method), mode='w')
     fh.setLevel(logging.INFO)
     logger.addHandler(fh)
 
     device_config = 'cuda:{}'.format(device)
     torch.cuda.set_device(device_config)
-    config, device_config, ds_list, normalize_stat, dataset_name, option = set_up(epochs, model_dir, device)
+    parse_args, dataset_list, normalize_stat = set_up(epochs, model_dir, device)
 
     ensemble_instruction = Config.Ensemble()
     detect_instruction = Config.Detection(detector, None)
-    acquire_instruction = Config.AcquisitionFactory(acquisition_method=acquisition_method, data_config=config['data'], utility_estimator='u-ws')
+    acquire_instruction = Config.AcquisitionFactory(acquisition_method=acquisition_method, data_config=parse_args.general_config['data'], utility_estimator='u-ws')
     
     operation = Config.Operation(acquire_instruction, ensemble_instruction, detect_instruction)
     
-    parse_args = (model_dir, device_config, base_type, pure, new_model_setter, config)
-
-    builder = Builder(dataset_name, config['data'], normalize_stat)
-    builder.run(epochs, parse_args, methold_list, config['data']['budget'], operation, ds_list)
+    builder = Builder(parse_args.dataset_name, parse_args.general_config['data'], normalize_stat)
+    builder.run(epochs, parse_args, methold_list, parse_args.general_config['data']['budget'], operation, dataset_list)
 
 import argparse
 if __name__ == '__main__':
@@ -137,8 +128,7 @@ if __name__ == '__main__':
     parser.add_argument('-md','--model_dir',type=str,default='', help="(dataset name)_task_(other info)")
     parser.add_argument('-d','--device',type=int,default=0)
     parser.add_argument('-am','--acquisition_method',type=str, default='dv', help="Acquisition Strategy; dv:one-shot, rs: random, conf: Probability-at-Ground-Truth, mix: Random Weakness, seq: sequential, pd: one-shot + u-wsd, seq_pd: seq + u-wsd")
-    parser.add_argument('-bt','--base_type',type=str,default='cnn', help="Source/Base Model Type: cnn, svm; structure of cnn is indicated in the arch_type field in config.yaml")
     parser.add_argument('-dn','--detector_name',type=str,default='svm', help="svm, regression; (regression: logistic regression)")
 
     args = parser.parse_args()
-    main(args.epochs, model_dir=args.model_dir, device=args.device, base_type=args.base_type, acquisition_method=args.acquisition_method, detector=args.detector_name)
+    main(args.epochs, model_dir=args.model_dir, device=args.device,  acquisition_method=args.acquisition_method, detector=args.detector_name)
