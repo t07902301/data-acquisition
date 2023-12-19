@@ -1,5 +1,6 @@
 import os
 from abc import abstractmethod
+from utils.parse_args import ParseArgs
 
 class Ensemble():
     def __init__(self, criterion=None, name='ae', pdf='kde') -> None:
@@ -66,8 +67,7 @@ class SequentialAc(Acquisition):
         super().__init__(method, budget, threshold, seq_config, utility_estimation)
 
     def set_up(self):
-        # self.round_acquire_method = 'pd' if 'pd' in self.method else 'dv'
-        self.round_acquire_method = 'one-shot'
+        self.round_acquire_method = 'dv' #one-shot
         if self.seq_config['budget'] != None:
             self.budget_round = self.seq_config['budget']
             self.n_rounds = self.budget // self.budget_round
@@ -115,12 +115,13 @@ class Model():
         check_dir(self.root)
         self.device = device
         self.base_type = base_type
+        self.model_type = ''
         self.path = None
             
 class OptModel(Model):
     def __init__(self, batch_size, class_number, model_dir, device, model_cnt, base_type) -> None:
         super().__init__(batch_size, class_number, model_dir, device, base_type)
-        self.model_cnt = model_cnt # can be redundant if dv_stat_test not epoch-wised
+        self.model_cnt = model_cnt 
         self.root = os.path.join(self.root, 'opt')
         check_dir(self.root)
         self.path = os.path.join(self.root,'{}.pt'.format(model_cnt))
@@ -128,17 +129,18 @@ class OptModel(Model):
 class OldModel(Model):
     def __init__(self, batch_size, class_number, model_dir, device, model_cnt, base_type) -> None:
         super().__init__(batch_size, class_number, model_dir, device, base_type)
-        self.model_cnt = model_cnt # can be redundant if dv_stat_test not epoch-wised
+        self.model_cnt = model_cnt 
         self.path = os.path.join(self.root,'{}.pt'.format(model_cnt))
+        self.model_type = base_type
 
 class NewModel(Model):
-    def __init__(self, batch_size, class_number, model_dir, device, model_cnt, pure:bool, setter, new_batch_size, base_type) -> None:
+    def __init__(self, batch_size, class_number, model_dir, device, model_cnt, pure:bool, setter, new_batch_size, base_type, padding_type) -> None:
         super().__init__(batch_size, class_number, model_dir, device, base_type)
         self.pure = pure
         self.setter = setter
         self.new_batch_size = new_batch_size
         self.set_root(model_cnt)
-        # root_detector = None
+        self.model_type = padding_type
 
     def detector2root(self, acquisition_method, detector_name):
         # Make Conf and sampling-based method Root agnostic to detector
@@ -180,3 +182,10 @@ def str2bool(value):
     
 def str2float(value):
     return float(value)
+
+def get_configs(epoch, parse_args: ParseArgs):
+    batch_size = parse_args.general_config['hparams']['source']['batch_size']
+    superclass_num = parse_args.general_config['hparams']['source']['superclass']
+    old_model_config = OldModel(batch_size['base'], superclass_num, parse_args.model_dir, parse_args.device_config, epoch, base_type=parse_args.general_config['base_type'])
+    new_model_config = NewModel(batch_size['base'], superclass_num, parse_args.model_dir, parse_args.device_config, epoch, parse_args.pure, parse_args.new_model_setter, batch_size['new'], base_type=parse_args.general_config['base_type'], padding_type=parse_args.general_config['padding_type'])
+    return old_model_config, new_model_config, parse_args.general_config

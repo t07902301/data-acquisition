@@ -16,6 +16,7 @@ from typing import Dict
 from utils.logging import *
 import utils.dataset.wrappers as dataset_utils
 import utils.objects.utility_estimator as ue
+from utils.parse_args import ParseArgs
 
 class Prototype():
     '''
@@ -51,7 +52,7 @@ class Prototype():
         self.detector.fit(self.base_model, datasplits.loader['val_shift'])
 
     def load_model(self, model_config: Config.Model, source=True):
-        model = Model.factory(model_config.base_type, self.general_config, self.vit, source=source)
+        model = Model.factory(model_config.model_type, self.general_config, self.vit, source=source)
         model.load(model_config.path, model_config.device)
         return model
     
@@ -339,7 +340,7 @@ class Ensemble(Prototype):
      
         weights = self.get_weight(dataloader)
 
-        decision_maker = Decision.factory(self.new_model_config.base_type, self.new_model_config.class_number)
+        decision_maker = Decision.factory(self.new_model_config.model_type, self.new_model_config.class_number)
         new_decision = decision_maker.get(new_model, dataloader)
         old_decision = decision_maker.get(self.base_model, dataloader)
 
@@ -479,16 +480,8 @@ def factory(name, new_model_config, general_config, use_posterior=True):
         exit()
     return checker
 
-def get_configs(epoch, parse_args, dataset):
-    model_dir, device_config, base_type, pure, new_model_setter, general_config = parse_args
-
-    batch_size = general_config['hparams']['source']['batch_size']
-    superclass_num = general_config['hparams']['source']['superclass']
-
-    old_model_config = Config.OldModel(batch_size['base'], superclass_num, model_dir, device_config, epoch, base_type=base_type)
-    # new_model_dir = model_dir[:2] if dev_name == 'sm' else model_dir
-    new_model_dir = model_dir # For imbalanced test and market filtering
-    new_model_config = Config.NewModel(batch_size['base'], superclass_num, new_model_dir, device_config, epoch, pure, new_model_setter, batch_size['new'], base_type=base_type)
+def get_configs(epoch, parse_args:ParseArgs, dataset):
+    old_model_config, new_model_config, general_config = Config.get_configs(epoch, parse_args)
     dataset_splits = dataset_utils.DataSplits(dataset, new_model_config.new_batch_size)
     return old_model_config, new_model_config, dataset_splits, general_config
 
