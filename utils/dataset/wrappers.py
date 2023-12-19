@@ -411,11 +411,11 @@ class Cifar(Dataset):
         data_config = config['data']
         label_config = data_config['labels']
         select_fine_labels = label_config['select_fine_labels']
-        max_subclass_num = config['hparams']['subclass']
+        max_subclass_num = config['hparams']['source']['subclass']
 
         ratio = data_config['ratio']
         train_size = ratio["train"]
-        test_size = ratio["test"]
+        test_size = ratio["test_from_all"]
         val_from_test = ratio['val_from_test']
 
         label_summary = [i for i in range(max_subclass_num)] if len(select_fine_labels)==0 else select_fine_labels
