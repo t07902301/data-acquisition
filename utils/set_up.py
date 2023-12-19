@@ -17,11 +17,11 @@ def save_dataset_split(epochs, model_dir, config):
     '''
     data_env()
 
-    dataset_name, task, aux = parse(model_dir)
+    dataset_name, task = parse(model_dir)
     dataset = dataset_utils.factory(dataset_name)
 
     indices_list, normalize_stat = dataset.create_4_splits(epochs, config)
-    dataset_name, task, aux = parse(model_dir)
+    dataset_name, task = parse(model_dir)
 
     split_dir = 'init_data/{}_{}'.format(dataset_name, task)
     Config.check_dir(split_dir)
@@ -59,7 +59,7 @@ def save_dataset_shift(epochs, model_dir, config):
     data = []
     data_config = config['data']
     remove_rate = data_config['ratio']['remove']
-    dataset_name, task, aux = parse(model_dir)
+    dataset_name, task = parse(model_dir)
     dataset = dataset_utils.factory(dataset_name)
 
     split_dir = 'init_data/{}_{}'.format(dataset_name, task)
