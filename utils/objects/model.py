@@ -96,7 +96,6 @@ class CNN(Prototype):
         best_model_chkpnt = None
 
         training_args=hparam_config['training']
-        # add args
         training_args['optimizer'] = hparam_config['optimizer']
         training_args['iters_per_epoch'] = len(train_loader)
         # logger.info(training_args)
@@ -137,11 +136,11 @@ class CNN(Prototype):
         }, path)
         logger.info('model saved to {}'.format(path))
     
-    def update(self, new_model_setter, train_loader, val_loader, hparam_config):
-        if new_model_setter == 'refine':
-            self.tune(train_loader,val_loader, hparam_config) # tune
-        else:
-            self.train(train_loader,val_loader, hparam_config) # retrain 
+    # def update(self, new_model_setter, train_loader, val_loader, hparam_config):
+    #     if new_model_setter == 'refine':
+    #         self.tune(train_loader,val_loader, hparam_config) # tune
+    #     else:
+    #         self.train(train_loader,val_loader, hparam_config) # retrain 
 
 
 class svm(Prototype):
@@ -204,11 +203,13 @@ class LogReg(Prototype):
     def update(self, train_loader):
         self.train(train_loader)
 
-def factory(base_type, config, clip_processor=None):
-    if base_type == 'svm':
+def factory(model_type, config, clip_processor=None, source=True):
+    if model_type == 'svm':
         return svm(config['detector_args'], clip_processor)
-    else:
+    elif source:
         return CNN(config['hparams']['source'])
+    else:
+        return CNN(config['hparams']['padding'])
     
 import numpy as np
 class ensembler(Prototype):

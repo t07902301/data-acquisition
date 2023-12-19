@@ -36,7 +36,7 @@ class WorkSpace():
 
     def set_model(self, clip_processor):
         del self.base_model
-        self.base_model = Model.factory(self.base_model_config.base_type, self.general_config, clip_processor=clip_processor)
+        self.base_model = Model.factory(self.base_model_config.model_type, self.general_config, clip_processor=clip_processor)
         self.base_model.load(self.base_model_config.path, self.base_model_config.device)
     
     def set_data(self, new_batch_size):
