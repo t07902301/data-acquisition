@@ -31,7 +31,10 @@ def get_optimizer_and_lr_scheduler(training_params, model):
         lr_peak_epoch = lr_scheduler_args['lr_peak_epoch']
         lr_schedule = np.interp(np.arange((epochs+1) * iters_per_epoch),
                         [0, lr_peak_epoch * iters_per_epoch, epochs * iters_per_epoch],
-                        [0, 1, 0])
+                        [0, 1, 0]) 
+        # 1. This wastes the first and last batch, and it should be smth like [0.1, 1, 0.1]. Or 
+        # 2. simply cyclicLR: what's the minimal lr? 
+        # 3. the interpolation range can be np.arange(epochs * iters_per_epoch)
         scheduler = lr_scheduler.LambdaLR(opt, LRPolicy(lr_schedule))
             
     elif scheduler_type == 'step':
