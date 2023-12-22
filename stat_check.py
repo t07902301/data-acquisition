@@ -60,30 +60,32 @@ class TestData():
         '''
         plot: visualize weakness score distribution of validation set?\n
         '''
-        results = []
+        weakness_list, non_weakness_list = [], []
         for epo in range(epochs):
             logger.info('in epoch {}'.format(epo))
             checker = Checker.instantiate(epo, parse_args, dataset_list[epo], operation, normalize_stat, dataset_name, use_posterior) #probab / ensemble
-            stat = self.method_run(budget_list, operation, checker)
-            results.append(stat)
+            weakness, non_weakness = self.method_run(budget_list, operation, checker)
+            weakness_list.append(weakness)
+            non_weakness_list.append(non_weakness)
 
         if plot:
             self.plot(checker, dataset_list[epo], operation.ensemble.pdf)
-        return results
+        return weakness_list, non_weakness_list
     
     def method_run(self, budget_list, operation:Config.Operation, checker: Checker.Partition):
-        stat_list = []
+        weakness_list, non_weakness_list = [], []
         if operation.acquisition.method != 'seq' and operation.ensemble.name!='ae-c-dv':
             budget_list = [600]
         for budget in budget_list:
             operation.acquisition.set_budget(budget)
-            acc_change = self.budget_run(operation, checker)
-            stat_list.append(acc_change)
-        return stat_list
+            weakness, non_weakness = self.budget_run(operation, checker)
+            weakness_list.append(weakness)
+            non_weakness_list.append(non_weakness)
+        return weakness_list, non_weakness_list
 
     def budget_run(self, operation:Config.Operation, checker: Checker.Partition):
-        check_result = checker.stat_run(operation)
-        return check_result
+        weakness, non_weakness = checker.stat_run(operation)
+        return weakness, non_weakness
     
     def plot(self, checker: Checker.Partition, dataset, pdf):
         datasplits = dataset_utils.DataSplits(dataset, checker.new_model_config.new_batch_size)
@@ -222,8 +224,8 @@ class TrainData():
 
     def budget_run(self, operation:Config.Operation, checker: Checker.Prototype, data_split:dataset_utils.DataSplits):
         # check_result = self.check_indices(operation, data_split, checker, None)
-        # check_result = self.check_clf(operation, data_split, checker)
-        check_result = self.check_overfit(operation, checker)
+        check_result = self.check_clf(operation, data_split, checker)
+        # check_result = self.check_overfit(operation, checker)
         return check_result
    
 def main(epochs,  model_dir ='', device=0, detector_name = '', mode='train', acquisition_method= 'weakness_score', ensemble_name=None, ensemble_criterion=None, weakness=0, use_posterior=1, utility_estimator='u-ws'):
@@ -261,9 +263,11 @@ def main(epochs,  model_dir ='', device=0, detector_name = '', mode='train', acq
     #     # logger.info('all: {}'.format(np.round(results, decimals=3).tolist()))
     else:
         stat_checker = TestData()
-        results = stat_checker.run(epochs, parse_args, parse_args.general_config['data']['budget'], operation, dataset_list, normalize_stat, parse_args.dataset_name, use_posterior, plot=False)
-        logger.info('Test Data error stat:{}'.format(np.round(np.mean(results, axis=0), decimals=3).tolist()))
-        # logger.info('all: {}'.format(results))
+        weakness_list, non_weakness_list = stat_checker.run(epochs, parse_args, parse_args.general_config['data']['budget'], operation, dataset_list, normalize_stat, parse_args.dataset_name, use_posterior, plot=False)
+        logger.info('Test Data weakness stat:{}'.format(np.round(np.mean(weakness_list, axis=0), decimals=3).tolist()))
+        logger.info('Test Data non-weakness stat:{}'.format(np.round(np.mean(non_weakness_list, axis=0), decimals=3).tolist()))
+
+        # logger.info('all: {}'.format(weakness_list))
 
 import argparse
 if __name__ == '__main__':

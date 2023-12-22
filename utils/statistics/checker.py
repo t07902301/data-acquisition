@@ -48,8 +48,6 @@ class Prototype():
         self.vit = operation.detection.vit
         self.base_model = self.load_model(old_model_config)
         self.base_acc = self.base_model.acc(datasplits.loader['test_shift'])
-        self.detector = Detector.factory(operation.detection.name, self.general_config, clip_processor = self.vit)
-        self.detector.fit(self.base_model, datasplits.loader['val_shift'])
 
     def load_model(self, model_config: Config.Model, source=True):
         model = Model.factory(model_config.model_type, self.general_config, self.vit, source=source)
@@ -95,6 +93,8 @@ class Partition(Prototype):
 
     def set_up(self, old_model_config:Config.OldModel, datasplits:dataset_utils.DataSplits, operation:Config.Operation):
         super().set_up(old_model_config, datasplits, operation)
+        self.detector = Detector.factory(operation.detection.name, self.general_config, clip_processor = self.vit)
+        self.detector.fit(self.base_model, datasplits.loader['val_shift'])
         self.test_info = DataStat.Info(datasplits, 'test_shift', self.new_model_config.new_batch_size)
 
     def seq_set_up(self, operation:Config.Operation):
@@ -113,17 +113,31 @@ class Partition(Prototype):
     def stat_run(self, operation:Config.Operation):
         pass
 
-    def error_stat(self, dataloader):
+    def error_stat(self, dataloader: dict):
         '''
-        How many errors of the old model in the new model test set?
+        How many errors of the old model in the new model test set? -> what's the distribution of (non)weaknesses?
         '''
         if len(dataloader['new_model']) == 0:
-            new_error_stat = 0
             logger.info('No data to test the new model')
+            return 0, 0
+        elif len(dataloader['old_model']) == 0:
+            return 100, 100
         else:
-            new_error_stat = 100 - self.base_model.acc(dataloader['new_model'])
-        return new_error_stat
+            test_loader_size = dataloader_utils.get_size(dataloader['new_model']) + dataloader_utils.get_size(dataloader['old_model']) 
+            base_error = self.get_base_error(dataloader['new_model']) + self.get_base_error(dataloader['old_model'])
+            base_non_error =  test_loader_size - base_error            
+            base_error_for_new = self.get_base_error(dataloader['new_model'])
+            base_non_error_for_new = dataloader_utils.get_size(dataloader['new_model']) - base_error_for_new
+            return base_error_for_new / base_error * 100, base_non_error_for_new / base_non_error * 100
     
+    def get_base_error(self, dataloader):
+        gt, pred, _ = self.base_model.eval(dataloader)
+        return (gt!=pred).sum()
+
+    @abstractmethod
+    def get_subset_loader(self):
+        pass
+
     def _target_test(self, loader, new_model:Model.Prototype):
         '''
         loader: new_model + old_model
@@ -151,6 +165,30 @@ class Partition(Prototype):
         # DataStat.evaluation_metric(loader['new_model'], self.base_model, new_model=new_model)
 
         return total_correct.mean()*100 - self.base_acc 
+
+class Benchmark(Partition):
+    def __init__(self, model_config: Config.NewModel, general_config) -> None:
+        super().__init__(model_config, general_config)
+
+    def set_up(self, old_model_config: Config.OldModel, datasplits: dataset_utils.DataSplits, operation: Config.Operation):
+        super().set_up(old_model_config, datasplits, operation)  
+        self.test_loader = self.get_subset_loader()
+    
+    def get_subset_loader(self):
+        gt, pred, _ = self.base_model.eval(self.test_info.loader)
+        weakness_mask = (gt!=pred)
+        weakness_indices = np.arange(len(self.test_info.dataset))[weakness_mask]
+        non_weakness_indices = np.arange(len(self.test_info.dataset))[~weakness_mask]
+        weakness_subset = torch.utils.data.Subset(self.test_info.dataset, weakness_indices)
+        non_weakness_subset = torch.utils.data.Subset(self.test_info.dataset, non_weakness_indices)
+        return {
+            'new_model': torch.utils.data.DataLoader(weakness_subset, batch_size=self.test_info.batch_size),
+            'old_model': torch.utils.data.DataLoader(non_weakness_subset, batch_size=self.test_info.batch_size)
+        }
+
+    def run(self, operation:Config.Operation):
+        new_model = self.get_new_model(operation)
+        return self._target_test(self.test_loader, new_model)
     
 class DataValuation(Partition):
     def __init__(self, model_config: Config.NewModel, general_config) -> None:
@@ -363,6 +401,8 @@ class WeaknessScoreEnsemble(Ensemble):
     
     def set_up(self, old_model_config:Config.OldModel, datasplits:dataset_utils.DataSplits, operation:Config.Operation):
         super().set_up(old_model_config, datasplits, operation)
+        self.detector = Detector.factory(operation.detection.name, self.general_config, clip_processor = self.vit)
+        self.detector.fit(self.base_model, datasplits.loader['val_shift'])
 
     def get_weight(self, dataloader):
         new_weight, _ = self.detector.predict(dataloader) 
@@ -385,6 +425,8 @@ class PosteriorEnsemble(Ensemble):
     
     def set_up(self, old_model_config:Config.OldModel, datasplits:dataset_utils.DataSplits, operation:Config.Operation):
         super().set_up(old_model_config, datasplits, operation)
+        self.detector = Detector.factory(operation.detection.name, self.general_config, clip_processor = self.vit)
+        self.detector.fit(self.base_model, datasplits.loader['val_shift'])
         self.probab_partitioner = Partitioner.Posterior()
         self.anchor_loader = datasplits.loader['val_shift'] # keep for Seq
         self.weakness_score_dstr = self.set_up_dstr(self.anchor_loader, operation.ensemble.pdf)
@@ -417,7 +459,7 @@ class PosteriorEnsemble(Ensemble):
             'new': new_weight,
             'old': old_weight
         }
-    
+
 class AverageEnsemble(Ensemble):
     '''
     New and old model have the same credibility
@@ -475,6 +517,8 @@ def factory(name, new_model_config, general_config, use_posterior=True):
     #     checker = AdaBoostEnsemble(new_model_config, general_config)
     elif name == 'ae-c-dv':
         checker = DataValuation(new_model_config, general_config)
+    elif name == 'benchmark':
+        checker = Benchmark(new_model_config, general_config)
     else:
         logger.info('Checker is not Implemented.')
         exit()
