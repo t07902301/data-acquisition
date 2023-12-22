@@ -135,13 +135,6 @@ class CNN(Prototype):
             'state_dict': self.model.state_dict(),
         }, path)
         logger.info('model saved to {}'.format(path))
-    
-    # def update(self, new_model_setter, train_loader, val_loader, hparam_config):
-    #     if new_model_setter == 'refine':
-    #         self.tune(train_loader,val_loader, hparam_config) # tune
-    #     else:
-    #         self.train(train_loader,val_loader, hparam_config) # retrain 
-
 
 class svm(Prototype):
     def __init__(self, hyparams_config, clip_processor:wrappers.CLIPProcessor, split_and_search=True, transform='clip') -> None:
