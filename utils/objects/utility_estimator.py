@@ -107,10 +107,8 @@ class Entropy(Base):
         return super().set_up()
     
     def get_entropy(self, probabs):
-        entropy = []
-        for sample in probabs:
-            entropy.append(- np.sum(sample * np.log2(sample)))
-        return np.array(entropy)
+        entropy = -np.sum(probabs * np.log2(probabs), axis=1)
+        return entropy
 
     def run(self, base_model:Model.Prototype, dataloader):
 
