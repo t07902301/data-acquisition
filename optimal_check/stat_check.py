@@ -82,10 +82,10 @@ def main(epochs, model_dir ='', device=0,acquisition_method= 'dv', detector_name
 
     device_config = 'cuda:{}'.format(device)
     torch.cuda.set_device(device_config)
-    parse_args, dataset_list, normalize_stat = set_up(epochs, model_dir, device)
+    parse_args, _, normalize_stat = set_up(epochs, model_dir, device)
 
     ensemble_instruction = Config.Ensemble()
-    detect_instruction = Config.Detection(None, None, None)
+    detect_instruction = Config.Detection(detector_name, None, None)
     acquire_instruction = Config.AcquisitionFactory(acquisition_method=acquisition_method, data_config=parse_args.general_config['data'], utility_estimator=None)   
     operation = Config.Operation(acquire_instruction, ensemble_instruction, detect_instruction)
     
