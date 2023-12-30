@@ -112,7 +112,7 @@ def main(epochs,  model_dir ='', device=0, acquisition_method= 'all', detector='
     parse_args, dataset_list, normalize_stat = set_up(epochs, model_dir, device)
 
     ensemble_instruction = Config.Ensemble()
-    detect_instruction = Config.Detection(detector, None)
+    detect_instruction = Config.Detection(detector, vit_mounted=None, weaness_label_generator=None)
     acquire_instruction = Config.AcquisitionFactory(acquisition_method=acquisition_method, data_config=parse_args.general_config['data'], utility_estimator='u-ws')
     
     operation = Config.Operation(acquire_instruction, ensemble_instruction, detect_instruction)
