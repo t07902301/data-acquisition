@@ -94,7 +94,7 @@ class Partition(Prototype):
     def set_up(self, old_model_config:Config.OldModel, datasplits:dataset_utils.DataSplits, operation:Config.Operation):
         super().set_up(old_model_config, datasplits, operation)
         self.detector = Detector.factory(operation.detection.name, self.general_config, clip_processor = self.vit)
-        self.detector.fit(self.base_model, datasplits.loader['val_shift'])
+        self.detector.fit(self.base_model, datasplits.loader['val_shift'], operation.detection.weaness_label_generator)
         self.test_info = DataStat.Info(datasplits, 'test_shift', self.new_model_config.new_batch_size)
 
     def seq_set_up(self, operation:Config.Operation):
@@ -402,7 +402,7 @@ class WeaknessScoreEnsemble(Ensemble):
     def set_up(self, old_model_config:Config.OldModel, datasplits:dataset_utils.DataSplits, operation:Config.Operation):
         super().set_up(old_model_config, datasplits, operation)
         self.detector = Detector.factory(operation.detection.name, self.general_config, clip_processor = self.vit)
-        self.detector.fit(self.base_model, datasplits.loader['val_shift'])
+        self.detector.fit(self.base_model, datasplits.loader['val_shift'], operation.detection.weaness_label_generator)
 
     def get_weight(self, dataloader):
         new_weight, _ = self.detector.predict(dataloader) 
@@ -426,7 +426,7 @@ class PosteriorEnsemble(Ensemble):
     def set_up(self, old_model_config:Config.OldModel, datasplits:dataset_utils.DataSplits, operation:Config.Operation):
         super().set_up(old_model_config, datasplits, operation)
         self.detector = Detector.factory(operation.detection.name, self.general_config, clip_processor = self.vit)
-        self.detector.fit(self.base_model, datasplits.loader['val_shift'])
+        self.detector.fit(self.base_model, datasplits.loader['val_shift'], operation.detection.weaness_label_generator)
         self.probab_partitioner = Partitioner.Posterior()
         self.anchor_loader = datasplits.loader['val_shift'] # keep for Seq
         self.weakness_score_dstr = self.set_up_dstr(self.anchor_loader, operation.ensemble.pdf)

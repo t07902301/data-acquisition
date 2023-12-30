@@ -3,20 +3,25 @@ import utils.detector.wrappers as wrappers
 import utils.objects.model as Model
 import utils.objects.dataloader as dataloader_utils
 from utils.logging import *
+import utils.detector.weakness as weakness_utils
 
 class Prototype():
     def __init__(self, data_transform:str) -> None:
         self.transform = data_transform
         self.model = wrappers.Prototype(None, None)
     
-    def fit(self, base_model:Model.Prototype, data_loader, data=None, batch_size = None):
+    def fit(self, base_model:Model.Prototype, data_loader, weaness_label_generator):
         '''
         Train Detector and Log out the Best Cross Validation Performance for Reguarization Penalty
         '''
         latent, latent_gts = dataloader_utils.get_latent(data_loader, self.clip_processor, self.transform)
-        correctness = get_correctness(data_loader, base_model, latent_gts)
+        # correctness = get_correctness(data_loader, base_model, latent_gts)
+        self.weaness_label_generator = weakness_utils.factory(weaness_label_generator, base_model, data_loader)
+        non_weakness = self.weaness_label_generator.run(data_loader, base_model, latent_gts)
+        logger.info('val shift acc told by Detector:{}'.format(non_weakness.mean()))
+
         self.model.set_preprocess(latent) 
-        score = self.model.fit(latent, correctness)
+        score = self.model.fit(latent, non_weakness)
         logger.info('Best CV Score: {}'.format(score))
         
     def predict(self, data_loader, base_model:Model.Prototype=None, metrics=None):
@@ -25,8 +30,9 @@ class Prototype():
         '''
         latent, latent_gts = dataloader_utils.get_latent(data_loader, self.clip_processor, self.transform)
         if metrics != None:
-            correctness = get_correctness(data_loader, base_model, latent_gts)
-            weakness_score, metric = self.model.predict(latent, correctness, metrics)
+            # correctness = get_correctness(data_loader, base_model, latent_gts)
+            non_weakness = self.weaness_label_generator.run(data_loader, base_model, latent_gts)
+            weakness_score, metric = self.model.predict(latent, non_weakness, metrics)
         else:
             weakness_score, _ = self.model.predict(latent)
             metric = None
@@ -60,6 +66,9 @@ def factory(detector_type, config, clip_processor:wrappers.CLIPProcessor, split_
         return SVM(config, clip_processor, split_and_search, data_transform)
     elif detector_type == 'logregs':
         return LogRegressor(config, clip_processor, split_and_search, data_transform)
+    else:
+        logger.info('Weakness Detector is not Implemented.')
+        exit()
     # elif detector_type == 'resnet':
     #     return resnet()
     # else:

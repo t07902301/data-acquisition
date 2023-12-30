@@ -18,9 +18,10 @@ class Ensemble():
 #         super().__init__(criterion, name)
 
 class Detection():
-    def __init__(self, name, vit_mounted) -> None:
+    def __init__(self, name, vit_mounted, weaness_label_generator) -> None:
         self.name = name
         self.vit = vit_mounted
+        self.weaness_label_generator = weaness_label_generator
 
 class Acquisition():
     def __init__(self, method='', budget=0, threshold=-1, seq_config=None, utility_estimation='') -> None:

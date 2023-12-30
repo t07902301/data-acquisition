@@ -56,7 +56,7 @@ class WorkSpace():
 
     def set_utility_estimator(self, detector_instruction: Config.Detection, estimator_name, pdf):
         detector = Detector.factory(detector_instruction.name, self.general_config, detector_instruction.vit)
-        detector.fit(self.base_model, self.data_split.loader['val_shift'])
+        detector.fit(self.base_model, self.data_split.loader['val_shift'], detector_instruction.weaness_label_generator)
         self.utility_estimator = ue.factory(estimator_name, detector, self.data_split.loader['val_shift'], pdf, self.base_model)
         logger.info('Set up utility estimator.')
 
@@ -361,7 +361,7 @@ class Seq_Stat():
         self.wede_train_error.append(round_stat['wede_train_error'])
 
 def StrategyFactory(strategy):
-    if strategy=='dv' or strategy=='pd':
+    if strategy in ['dv', 'pd', 'gmm']:
         return Greedy()
     elif strategy =='rs':
         return Sample()
@@ -369,7 +369,7 @@ def StrategyFactory(strategy):
         return Confidence()
     elif strategy == 'mix': 
         return Mix()
-    elif strategy == 'seq' or strategy=='seq_pd':
+    elif strategy in ['seq', 'seq_pd', 'seq_gmm']:
         return Seq()
     elif strategy == 'etp':
         return Entropy()
