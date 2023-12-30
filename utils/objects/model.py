@@ -81,10 +81,9 @@ class CNN(Prototype):
                         gts.append(y.cpu())
                         logits = self.model(x)
                         softmax_logits = nn.Softmax(dim=-1)(logits) # logits: unnormalized output before the last layer
-                        # loss.append(ce(softmax_logits,y.cuda()))
-                        # probab.append(softmax_logits[torch.arange(logits.shape[0]), y].cpu())
                         probabs.append(softmax_logits.cpu())
                         preds.append(softmax_logits.argmax(-1).cpu())
+                        # loss.append(nn.functional.cross_entropy(logits, y.cuda(), reduction='none').cpu())
                     gts = torch.cat(gts).numpy()
                     preds = torch.cat(preds).numpy()
                     probabs = torch.cat(probabs).numpy()
