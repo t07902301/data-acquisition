@@ -45,7 +45,7 @@ def epoch_run(parse_args:ParseArgs, budget_list, dataset:dict, epo, operation: C
     stat = method_run(budget_list, new_model_config, operation, workspace)
     return stat
 
-def main(epochs, device, detector_name, model_dir, base_type, utility_estimator, filter_market=False):
+def main(epochs, device, detector_name, model_dir, utility_estimator, filter_market=False):
     fh = logging.FileHandler('log/{}/seq_stat.log'.format(model_dir),mode='w')
     fh.setLevel(logging.DEBUG)
     logger.addHandler(fh)
@@ -58,7 +58,7 @@ def main(epochs, device, detector_name, model_dir, base_type, utility_estimator,
     
     clip_processor = Detector.load_clip(parse_args.device_config, normalize_stat['mean'], normalize_stat['std'])
     ensemble_instruction = Config.Ensemble()
-    detect_instruction = Config.Detection(detector_name, clip_processor)
+    detect_instruction = Config.Detection(detector_name, clip_processor, 'correctness')
     acquire_instruction = Config.AcquisitionFactory(acquisition_method=acquisition_method, data_config=parse_args.general_config['data'], utility_estimator=utility_estimator)
 
     operation = Config.Operation(acquire_instruction, ensemble_instruction, detect_instruction)
@@ -104,6 +104,5 @@ if __name__ == '__main__':
     parser.add_argument('-d','--device',type=int,default=0)
     parser.add_argument('-dn','--detector_name',type=str,default='svm', help="svm, regression; (regression: logistic regression)")
     parser.add_argument('-ue','--utility_estimator',type=str, default='u-ws', help="u-ws, u-wsd")
-    parser.add_argument('-bt','--base_type',type=str,default='cnn', help="Source/Base Model Type: cnn, svm; structure of cnn is indicated in the arch_type field in general_config.yaml")
     args = parser.parse_args()
-    main(args.epochs, model_dir=args.model_dir, device=args.device, detector_name=args.detector_name, base_type=args.base_type, utility_estimator=args.utility_estimator)
+    main(args.epochs, model_dir=args.model_dir, device=args.device, detector_name=args.detector_name, utility_estimator=args.utility_estimator)
