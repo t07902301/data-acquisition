@@ -24,9 +24,9 @@ def run(dataset, model_config:Config.OldModel, train_flag:bool, detect_instructi
     logger.info('Test Shift Acc: {}'.format (acc_shift))
 
     detector = Detector.factory(detect_instruction.name, parse_args.general_config, clip_processor = detect_instruction.vit, split_and_search=True, data_transform='clip')
-    detector.fit(base_model, ds.loader['val_shift'], ds.dataset['val_shift'], model_config.batch_size)
+    detector.fit(base_model, ds.loader['val_shift'], detect_instruction.weaness_label_generator)
     
-    _, detect_prec = detector.predict(ds.loader['test_shift'], metrics='prec', base_model=base_model)
+    _, detect_prec = detector.predict(ds.loader['test_shift'], metrics='precision', base_model=base_model)
     logger.info('In testing Detector: {}'.format(detect_prec))
 
     if train_flag:
@@ -36,7 +36,7 @@ def run(dataset, model_config:Config.OldModel, train_flag:bool, detect_instructi
 
     return acc, acc_shift, detect_prec, shift_score, val_acc_shift
 
-def main(epochs,  model_dir, train_flag, device, detector_name):
+def main(epochs,  model_dir, train_flag, device, detector_name, weaness_label_generator):
     fh = logging.FileHandler('log/{}/base.log'.format(model_dir),mode='w')
     fh.setLevel(logging.INFO)
     logger.addHandler(fh)
@@ -45,7 +45,7 @@ def main(epochs,  model_dir, train_flag, device, detector_name):
     parse_args, dataset_list, normalize_stat = set_up(epochs, model_dir, device)
     acc_list, acc_shift_list, detect_prec_list, shift_list, val_acc_shift_list = [], [], [], [], []
     clip_processor = Detector.load_clip(parse_args.device_config, normalize_stat['mean'], normalize_stat['std'])
-    detect_instrution = Config.Detection(detector_name, clip_processor)
+    detect_instrution = Config.Detection(detector_name, clip_processor, weaness_label_generator)
     for epo in range(epochs):
         logger.info('in epoch {}'.format(epo))
         old_model_config, _, _ = Config.get_configs(epo, parse_args)
@@ -73,7 +73,8 @@ if __name__ == '__main__':
     parser.add_argument('-d','--device',type=int,default=0)
     parser.add_argument('-dn','--detector_name',type=str,default='svm', help="svm, logistic regression")
     parser.add_argument('-tf','--train_flag',type=bool,default=False, help='train or test source model')
+    parser.add_argument('-wlg','--weaness_label_generator',type=str,default='correctness', help="correctness, entropy+gmm")
 
     args = parser.parse_args()
-    main(args.epochs,args.model_dir,args.train_flag, args.device, args.detector_name)
+    main(args.epochs,args.model_dir,args.train_flag, args.device, args.detector_name, args.weaness_label_generator)
 

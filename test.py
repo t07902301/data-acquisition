@@ -23,7 +23,7 @@ def epoch_run(budget_list, operation: Config.Operation, checker: Checker.Prototy
     result_epoch = run(operation, budget_list, checker)
     return result_epoch
 
-def main(epochs, acquisition_method, device, detector_name, model_dir, ensemble_name, ensemble_criterion, utility_estimator, use_posterior):
+def main(epochs, acquisition_method, device, detector_name, model_dir, ensemble_name, ensemble_criterion, utility_estimator, use_posterior, weaness_label_generator):
     fh = logging.FileHandler('log/{}/test_{}.log'.format(model_dir, acquisition_method),mode='w')
     fh.setLevel(logging.INFO)
     logger.addHandler(fh)
@@ -37,7 +37,7 @@ def main(epochs, acquisition_method, device, detector_name, model_dir, ensemble_
 
     clip_processor = Detector.load_clip(parse_args.device_config, normalize_stat['mean'], normalize_stat['std'])
     ensemble_instruction = Config.Ensemble(name=ensemble_name, criterion=ensemble_criterion)
-    detect_instruction = Config.Detection(detector_name, clip_processor)
+    detect_instruction = Config.Detection(detector_name, clip_processor, weaness_label_generator)
     acquire_instruction = Config.AcquisitionFactory(acquisition_method=acquisition_method, data_config=parse_args.general_config['data'], utility_estimator=utility_estimator)
 
     operation = Config.Operation(acquire_instruction, ensemble_instruction, detect_instruction)
@@ -66,7 +66,8 @@ if __name__ == '__main__':
     parser.add_argument('-em','--ensemble',type=str, default='total', help="Ensemble Method")
     parser.add_argument('-ue','--utility_estimator',type=str, default='u-ws', help="u-ws, u-wsd")
     parser.add_argument('-up','--use_posterior',type=str2bool, default=1, help="use posterior or not")
+    parser.add_argument('-wc','--weaness_label_generator',type=str,default='correctness', help="correctness, entropy+gmm")
 
     args = parser.parse_args()
 
-    main(args.epochs, model_dir=args.model_dir, device=args.device, detector_name=args.detector_name, acquisition_method=args.acquisition_method, ensemble_name=args.ensemble, ensemble_criterion=args.criterion, utility_estimator=args.utility_estimator, use_posterior=args.use_posterior)
+    main(args.epochs, model_dir=args.model_dir, device=args.device, detector_name=args.detector_name, acquisition_method=args.acquisition_method, ensemble_name=args.ensemble, ensemble_criterion=args.criterion, utility_estimator=args.utility_estimator, use_posterior=args.use_posterior, weaness_label_generator=args.weaness_label_generator)
