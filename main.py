@@ -13,14 +13,13 @@ def budget_run(budget_list, operation: Config.Operation, new_model_config:Config
 
 def method_run(budget_list, new_model_config:Config.NewModel, operation: Config.Operation, workspace: WorkSpace):
     
-    if operation.acquisition.method != 'rs': # to be integrated to utility estimator as random number generator
-        workspace.set_utility_estimator(operation.detection, operation.acquisition.utility_estimation, operation.ensemble.pdf)
+    workspace.set_utility_estimator(operation.detection, operation.acquisition.utility_estimation, operation.ensemble.pdf, operation.acquisition.method)
     
     budget_run(budget_list, operation, new_model_config, workspace)
 
 def epoch_run(parse_args:ParseArgs, budget_list, dataset:dict, epo, operation: Config.Operation):
 
-    old_model_config, new_model_config, general_config = Config.get_configs(epo, parse_args)
+    old_model_config, new_model_config, general_config = parse_args.get_model_config(epo)
     
     workspace = WorkSpace(old_model_config, dataset, general_config)
 

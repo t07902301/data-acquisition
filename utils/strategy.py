@@ -54,11 +54,15 @@ class WorkSpace():
     #     incorrect_val = torch.utils.data.Subset(self.data_split.dataset['val_shift'], incorrect_indices)
     #     self.validation_loader = torch.utils.data.DataLoader(incorrect_val, new_batch_size)
 
-    def set_utility_estimator(self, detector_instruction: Config.Detection, estimator_name, pdf):
-        detector = Detector.factory(detector_instruction.name, self.general_config, detector_instruction.vit)
-        detector.fit(self.base_model, self.data_split.loader['val_shift'], detector_instruction.weaness_label_generator)
-        self.utility_estimator = ue.factory(estimator_name, detector, self.data_split.loader['val_shift'], pdf, self.base_model)
-        logger.info('Set up utility estimator.')
+    def set_utility_estimator(self, detector_instruction: Config.Detection, estimator_name, pdf, acquisition_name=None):
+        if acquisition_name in ['mix', 'etp', 'conf', 'rs']:
+            detector = None
+            logger.info('Utility Estimator without Weakness Detector.')
+        else:
+            detector = Detector.factory(detector_instruction.name, self.general_config, detector_instruction.vit)
+            detector.fit(self.base_model, self.data_split.loader['val_shift'], detector_instruction.weaness_label_generator)
+            self.utility_estimator = ue.factory(estimator_name, detector, self.data_split.loader['val_shift'], pdf, self.base_model)
+            logger.info('Set up utility estimator.')
 
     def set_market(self, clip_processor, known_labels):
         filtered_market = OOD.run(self.data_split, clip_processor, known_labels, check_ds='market')
@@ -204,6 +208,7 @@ class Sample(NonSeqStrategy):
     
     def run(self, budget, dataset):
         dataset_indices = np.arange(len(dataset))
+        # to be integrated to utility estimator as random number generator
         sample_indices = acquistion.sample(dataset_indices, budget)
         return sample_indices
 
@@ -296,14 +301,16 @@ class Seq(Strategy):
                 round_stat = self.stat(workspace, new_data_round_info, new_model_config)
                 stat_results.update(round_stat)
         
-        if self.seq_stat_mode:
-            return stat_results
-        
         new_model_config.set_path(operation)
 
         self.export_detector(new_model_config, operation.acquisition, workspace.utility_estimator.detector)
 
         self.export_indices(new_model_config, operation.acquisition, new_data_total_set)
+
+        if self.seq_stat_mode:
+            return stat_results
+        else:
+            return None
 
         # self.import_indices(new_model_config, new_data_total_set, operation, workspace.general_config)
 
