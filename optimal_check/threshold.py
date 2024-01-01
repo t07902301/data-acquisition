@@ -36,7 +36,7 @@ class Stat():
         acc_change = self.threshold_run(operation, data, new_model_config, general_config, opt_model, old_model)
         return acc_change
 
-    def run(self, epochs, parse_args, operation: Config.Operation, dataset_name, normalize_stat, data_config):
+    def run(self, epochs, parse_args:ParseArgs, operation: Config.Operation, dataset_name, normalize_stat, data_config):
         results = []
         if dataset_name == 'cifar':
             data = dataset_utils.Cifar().get_raw_dataset(data_config['root'], normalize_stat, data_config['labels']['map'])['train_market']
@@ -46,17 +46,13 @@ class Stat():
 
         for epo in range(epochs):
             logger.info('in epoch {}'.format(epo))
-            model_dir, device_config, base_type, pure, new_model_setter, config = parse_args
-            batch_size = config['hparams']['source']['batch_size']
-            superclass_num = config['hparams']['source']['superclass']
-
-            opt_model_config = Config.OptModel(batch_size['base'], superclass_num, model_dir, device_config, epo, base_type)
-            opt_model = Model.CNN(config['hparams']['optimal'])
+            source_model_config, new_model_config, config = parse_args.get_model_config(epo)
+            
+            optimal_config = parse_args.general_config['hparams']['optimal']
+            opt_model_config = Config.OptModel(optimal_config['batch_size']['base'], optimal_config['superclass'], parse_args.model_dir, parse_args.device_config, epo, parse_args.general_config['base_type'])
+            opt_model = Model.CNN(optimal_config)
             opt_model.load(opt_model_config.path, opt_model_config.device)
 
-            new_model_config = Config.NewModel(batch_size['base'], superclass_num, model_dir, device_config, epo, pure, new_model_setter, batch_size['new'], base_type)
-            
-            source_model_config = Config.OldModel(batch_size['base'], superclass_num, model_dir, device_config, epo, base_type)
             source_model = Model.factory(source_model_config.model_type, config)
             source_model.load(source_model_config.path, source_model_config.device)
 
@@ -64,26 +60,23 @@ class Stat():
             results.append(result_epoch)
         logger.info('avg:{}'.format(np.round(np.mean(results, axis=0), decimals=3)))
 
-def main(epochs, acquisition_method, device, detector_name, model_dir, base_type):
+def main(epochs, acquisition_method, device, detector_name, model_dir):
     threshold_list = [0.5, 0.6, 0.7]
 
     fh = logging.FileHandler('log/{}/threshold_invalid.log'.format(model_dir),mode='w')
     fh.setLevel(logging.DEBUG)
     logger.addHandler(fh)
 
-    pure, new_model_setter = True, 'retrain'
+    parse_args, _, normalize_stat = set_up(epochs, model_dir, device)
 
-    config, device_config, ds_list, normalize_stat,dataset_name, option = set_up(epochs, model_dir, device)
-    
-    clip_processor = Detector.load_clip(device_config, normalize_stat['mean'], normalize_stat['std'])
+    clip_processor = Detector.load_clip(parse_args.device_config, normalize_stat['mean'], normalize_stat['std'])
     ensemble_instruction = Config.Ensemble()
     detect_instruction = Config.Detection(detector_name, clip_processor)
-    acquire_instruction = Config.AcquisitionFactory(acquisition_method=acquisition_method, data_config=config['data'], utility_estimator=None)
+    acquire_instruction = Config.AcquisitionFactory(acquisition_method=acquisition_method, data_config=parse_args.general_config['data'], utility_estimator=None)
 
     operation = Config.Operation(acquire_instruction, ensemble_instruction, detect_instruction)
    
-    parse_args = (model_dir, device_config, base_type, pure, new_model_setter, config)
-    Stat(threshold_list).run(epochs, parse_args, operation, dataset_name, normalize_stat, config['data'])
+    Stat(threshold_list).run(epochs, parse_args, operation, parse_args.dataset_name, normalize_stat, parse_args.general_config['data'])
 
 import argparse
 if __name__ == '__main__':
@@ -94,7 +87,6 @@ if __name__ == '__main__':
     parser.add_argument('-d','--device',type=int,default=0)
     parser.add_argument('-dn','--detector_name',type=str,default='svm', help="svm, regression; (regression: logistic regression)")
     parser.add_argument('-am','--acquisition_method',type=str, default='dv', help="Acquisition Strategy; dv: u-wfs, rs: random, conf: confiden-score, seq: sequential u-wfs, pd: u-wfsd, seq_pd: sequential u-wfsd")
-    parser.add_argument('-bt','--base_type',type=str,default='cnn', help="Source/Base Model Type: cnn, svm; structure of cnn is indicated in the arch_type field in config.yaml")
 
     args = parser.parse_args()
-    main(args.epochs, model_dir=args.model_dir, device=args.device, detector_name=args.detector_name, acquisition_method=args.acquisition_method, base_type=args.base_type)
+    main(args.epochs, model_dir=args.model_dir, device=args.device, detector_name=args.detector_name, acquisition_method=args.acquisition_method)

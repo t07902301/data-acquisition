@@ -4,6 +4,8 @@ from utils.logging import *
 import utils.statistics.checker as Checker
 import utils.dataset.wrappers as Dataset
 from typing import List
+import os
+from utils.parse_args import ParseArgs
 
 class ModelBuilder():
     def __init__(self, dataset_name, data_config, normalize_stat, threshold_list) -> None:
@@ -21,7 +23,7 @@ class ModelBuilder():
     def run(self, epochs, parse_args:ParseArgs, operation:Config.Operation, dataset_list):
         for epo in range(epochs):
             logger.info('in epoch {}'.format(epo))
-            _, new_model_config, general_config = Config.get_configs(epo, parse_args)
+            _, new_model_config, general_config = parse_args.get_model_config(epo)
             self.set_validation(new_model_config.new_batch_size, dataset_list[epo]['val_shift'])
             self.threshold_run(operation, new_model_config, general_config)
     
@@ -32,16 +34,17 @@ class ModelBuilder():
             self.build(operation, general_config, new_model_config)
 
     def build(self, operation:Config.Operation, general_config, new_model_config:Config.NewModel):
-        train_loader = self.get_train_loader(operation, general_config, new_model_config)
+        train_loader = self.get_train_data(operation, general_config, new_model_config)
         self.build_padding(new_model_config, train_loader, self.validation_loader, general_config['hparams']['padding'])
 
-    def get_train_loader(self, operation:Config.Operation, general_config, new_model_config:Config.NewModel):
+    def get_train_data(self, operation:Config.Operation, general_config, new_model_config:Config.NewModel):
         model_config = new_model_config
         model_config.set_path(operation)
 
         log = Log(model_config, 'indices')
         new_data_indices = log.import_log(operation, general_config)
-        new_data = torch.utils.data.Subset(self.data, new_data_indices)   
+        new_data = torch.utils.data.Subset(self.data, new_data_indices) 
+
         return new_data
     
     def build_padding(self, new_model_config: Config.NewModel, train_data, val_loader, general_config):
@@ -51,6 +54,8 @@ class ModelBuilder():
         padding = Model.CNN(general_config)
         generator = dataloader_env()
         train_loader = torch.utils.data.DataLoader(train_data, batch_size=new_model_config.new_batch_size, shuffle=True, drop_last=True, generator=generator)
+        if len(train_loader) == 0:
+            return
         padding.train(train_loader, val_loader, general_config)
         padding.save(new_model_config.path)
 
@@ -65,7 +70,7 @@ class DataCollector():
             self.epoch_run(parse_args, dataset, epo, operation)
 
     def epoch_run(self, parse_args:ParseArgs, dataset:dict, epo, operation: Config.Operation):
-        old_model_config, new_model_config, general_config = Config.get_configs(epo, parse_args)
+        old_model_config, new_model_config, general_config = parse_args.get_model_config(epo)
         workspace = WorkSpace(old_model_config, dataset, general_config)
 
         logger.info('Set up WorkSpace')
@@ -104,6 +109,9 @@ class Test():
         acc_change_list = []
         for threshold in self.threshold_list:
             operation.acquisition.threshold = threshold
+            checker.new_model_config.set_path(operation)
+            if os.path.exists(checker.new_model_config.path) is False:
+                continue
             acc_change = checker.run(operation)
             acc_change_list.append(acc_change)
             # logger.info(acc_change)
@@ -119,7 +127,9 @@ class Test():
         for epo in range(epochs):
             logger.info('in epoch {}'.format(epo))
             checker = Checker.instantiate(epo, parse_args, dataset_list[epo], operation, normalize_stat, parse_args.dataset_name, use_posterior) #probab / ensemble
-            result_epoch = self.epoch_run( operation, checker)
+            result_epoch = self.epoch_run(operation, checker)
+            if result_epoch == []:
+                continue
             results.append(result_epoch)
         logger.info('avg:{}'.format(np.round(np.mean(results, axis=0), decimals=3)))
 
@@ -196,7 +206,7 @@ class ModelConf():
     def run(self, epochs, parse_args:ParseArgs, threshold_list, operation:Config.Operation, dataset_list: List[dict], weakness):
         results = []
         for epo in range(epochs):
-            _, new_model_config, general_config = Config.get_configs(epo, parse_args)
+            _, new_model_config, general_config = parse_args.get_model_config(epo)
             logger.info('in epoch {}'.format(epo))
             dataset_splits = Dataset.DataSplits(dataset_list[epo], new_model_config.new_batch_size)
             threshold_result = self.threshold_run(threshold_list, operation, new_model_config, general_config, dataset_splits, weakness)
