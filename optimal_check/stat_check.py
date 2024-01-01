@@ -16,18 +16,14 @@ class TrainData():
         results = []
         for epo in range(epochs):
             logger.info('in epoch {}'.format(epo))
-            _, new_model_config, general_config = Config.get_configs(epo, parse_args)
-
-            # batch_size = parse_args.general_config['hparams']['source']['batch_size']
-            # superclass_num = parse_args.general_config['hparams']['source']['superclass']
+            source_model_config, new_model_config, general_config = parse_args.get_model_config(epo)
 
             optimal_config = parse_args.general_config['hparams']['optimal']
             opt_model_config = Config.OptModel(optimal_config['batch_size']['base'], optimal_config['superclass'], parse_args.model_dir, parse_args.device_config, epo, parse_args.general_config['base_type'])
             opt_model = Model.CNN(optimal_config)
             opt_model.load(opt_model_config.path, opt_model_config.device)
 
-            # source_model_config = Config.OldModel(batch_size['base'], superclass_num, model_dir, device_config, epo, base_type)
-            # source_model = Model.factory(source_model_config.base_type, config)
+            # source_model = Model.factory(source_model_config.base_type, parse_args.general_config, source=True)
             # source_model.load(source_model_config.path, source_model_config.device)
 
             result_epoch = self.epoch_run(operation, budget_list, new_model_config, general_config, opt_model, source_model=None)
@@ -49,16 +45,17 @@ class TrainData():
     
     def get_invalid_size(self, opt_model: Model.Prototype, batch_size, data):
         data_loader = torch.utils.data.DataLoader(data, batch_size=batch_size)
-        gts, preds, _ = opt_model.eval(data_loader)
-        return (gts!=preds).sum()
+        return 100 - opt_model.acc(data_loader)
+    
+        # return (gts!=preds).sum()
         # invalid_indices = np.arange(len(data))[gts!=preds]
         # invalid = torch.utils.data.Subset(data, invalid_indices)
         # return invalid
     
     def get_source_mistakes(self, source_model:Model.Prototype, batch_size, data):
+        # PGT and random weakess always return 100% weaknesses
         data_loader = torch.utils.data.DataLoader(data, batch_size=batch_size)
-        gts, preds, _ = source_model.eval(data_loader)
-        return (gts!=preds).sum()
+        return 100 - source_model.acc(data_loader)
     
     def check_indices(self, operation:Config.Operation, new_model_config:Config.NewModel, general_config, opt_model:Model.Prototype, source_model: Model.Prototype):
         new_model_config.set_path(operation)
@@ -66,9 +63,7 @@ class TrainData():
         new_data_indices = log.import_log(operation, general_config)
         new_data = torch.utils.data.Subset(self.data, new_data_indices)
         return self.get_invalid_size(opt_model, new_model_config.new_batch_size, new_data)
-        # invalids = self.get_invalid(opt_model, new_model_config.new_batch_size, new_data)
-        # return len(invalids)
-
+        # return self.get_source_mistakes(source_model, new_model_config.new_batch_size, new_data)
         # return self.get_valid_mistakes(opt_model, new_model_config.new_batch_size, mistakes)
 
     def budget_run(self, operation:Config.Operation, new_model_config, general_config, opt_model:Model.Prototype, source_model: Model.Prototype):
