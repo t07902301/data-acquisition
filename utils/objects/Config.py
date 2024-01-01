@@ -1,6 +1,5 @@
 import os
 from abc import abstractmethod
-from utils.parse_args import ParseArgs
 
 class Ensemble():
     def __init__(self, criterion=None, name='ae', pdf='kde') -> None:
@@ -18,7 +17,7 @@ class Ensemble():
 #         super().__init__(criterion, name)
 
 class Detection():
-    def __init__(self, name, vit_mounted, weaness_label_generator) -> None:
+    def __init__(self, name, vit_mounted, weaness_label_generator='correctness') -> None:
         self.name = name
         self.vit = vit_mounted
         self.weaness_label_generator = weaness_label_generator
@@ -183,10 +182,3 @@ def str2bool(value):
     
 def str2float(value):
     return float(value)
-
-def get_configs(epoch, parse_args: ParseArgs):
-    batch_size = parse_args.general_config['hparams']['padding']['batch_size']
-    superclass_num = parse_args.general_config['hparams']['padding']['superclass']
-    old_model_config = OldModel(batch_size['base'], superclass_num, parse_args.model_dir, parse_args.device_config, epoch, base_type=parse_args.general_config['base_type'])
-    new_model_config = NewModel(batch_size['base'], superclass_num, parse_args.model_dir, parse_args.device_config, epoch, parse_args.pure, parse_args.new_model_setter, batch_size['new'], base_type=parse_args.general_config['base_type'], padding_type=parse_args.general_config['padding_type'])
-    return old_model_config, new_model_config, parse_args.general_config

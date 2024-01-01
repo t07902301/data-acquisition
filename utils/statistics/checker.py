@@ -525,7 +525,7 @@ def factory(name, new_model_config, general_config, use_posterior=True):
     return checker
 
 def get_configs(epoch, parse_args:ParseArgs, dataset):
-    old_model_config, new_model_config, general_config = Config.get_configs(epoch, parse_args)
+    old_model_config, new_model_config, general_config = parse_args.get_model_config(epoch)
     dataset_splits = dataset_utils.DataSplits(dataset, new_model_config.new_batch_size)
     return old_model_config, new_model_config, dataset_splits, general_config
 

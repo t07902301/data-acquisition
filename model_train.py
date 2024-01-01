@@ -3,6 +3,7 @@ from utils.logging import *
 from utils.env import *
 import utils.objects.model as Model
 from utils.objects.log import Log
+from utils.parse_args import ParseArgs
 
 # class WorkSpace():
 #     '''
@@ -57,7 +58,7 @@ class Builder():
         for epo in range(epochs):
             logger.info('in epoch {}'.format(epo))
 
-            _, new_model_config, general_config = Config.get_configs(epo, parse_args)
+            _, new_model_config, general_config = parse_args.get_model_config(epo)
 
             self.set_validation(new_model_config.new_batch_size, dataset_list[epo]['val_shift'])
             self.epoch_run(method_list, budget_list, operation, new_model_config, general_config)

@@ -39,7 +39,7 @@ class TestData():
         # logger.info(fig_name)
         # plt.clf()
 
-    def run(self, epoch, parse_args, operation:Config.Operation, dataset_list: List[dict]):
+    def run(self, epoch, parse_args:ParseArgs, operation:Config.Operation, dataset_list: List[dict]):
         '''
         Visualize data valuation results of a dataset from a given epoch 
         '''
@@ -50,16 +50,13 @@ class TestData():
         weakness_score, _ = checker.detector.predict(datasplits.loader['market'])
         new_weight = self.probab2weight({'target': anchor_dstr['incorrect'], 'other': anchor_dstr['correct']}, weakness_score)
         
-        model_dir, device_config, base_type, pure, new_model_setter, config = parse_args
-        
-        data_valuation, file_name = weakness_score, 'log/{}/top_score.pkl'.format(model_dir)
+        data_valuation, file_name = weakness_score, 'log/{}/top_score.pkl'.format(parse_args.model_dir)
         self.plot(data_valuation, weakness_score, new_weight, 100, file_name=file_name)
 
         # data_valuation, fig_name = new_weight, 'log/{}/top_probab.png'.format(model_dir)
         # self.plot(data_valuation, weakness_score, new_weight, 100, color='blue', fig_name=fig_name)
 
-def main(epochs, new_model_setter='retrain', model_dir ='', device=0, probab_bound = 0.5, base_type='', detector_name = ''):
-    pure = True
+def main(epochs, model_dir ='', device=0, probab_bound = 0.5, detector_name = ''):
     fh = logging.FileHandler('log/{}/data_valuation.log'.format(model_dir),mode='w')
     fh.setLevel(logging.INFO)
     logger.addHandler(fh)
@@ -67,15 +64,13 @@ def main(epochs, new_model_setter='retrain', model_dir ='', device=0, probab_bou
     
     device_config = 'cuda:{}'.format(device)
     torch.cuda.set_device(device_config)
-    config, device_config, ds_list, normalize_stat, dataset_name, option = set_up(epochs, model_dir, device)
+    parse_args, ds_list, normalize_stat = set_up(epochs, model_dir, device)
 
     clip_processor = Detector.load_clip(device_config, normalize_stat['mean'], normalize_stat['std'])
     ensemble_instruction = Config.Ensemble(name='ae-w')
     detect_instruction = Config.Detection(detector_name, clip_processor)
-    acquire_instruction = Config.AcquisitionFactory(acquisition_method='', data_config=config['data'], utility_estimator='u-ws')
+    acquire_instruction = Config.AcquisitionFactory(acquisition_method='', data_config=parse_args.general_config['data'], utility_estimator='u-ws')
     operation = Config.Operation(acquire_instruction, ensemble_instruction, detect_instruction)
-    
-    parse_args = (model_dir, device_config, base_type, pure, new_model_setter, config)
     
     stat_checker = TestData()
     stat_checker.run(0, parse_args, operation, ds_list)
@@ -88,7 +83,6 @@ if __name__ == '__main__':
     parser.add_argument('-md','--model_dir',type=str,default='', help="(dataset name) _ task _ (other info)")
     parser.add_argument('-d','--device',type=int,default=0)
     parser.add_argument('-dn','--detector_name',type=str,default='svm', help="svm, logistic regression")
-    parser.add_argument('-bt','--base_type',type=str,default='cnn', help="Source/Base Model Type: cnn, svm; structure of cnn is indicated in the arch_type field in config.yaml")
 
     args = parser.parse_args()
-    main(args.epochs, model_dir=args.model_dir, device=args.device, base_type=args.base_type, detector_name=args.detector_name)
+    main(args.epochs, model_dir=args.model_dir, device=args.device, detector_name=args.detector_name)

@@ -1,6 +1,7 @@
 from utils.strategy import *
 from utils.set_up import *
 from utils.logging import *
+from utils.parse_args import ParseArgs
 
 def run(operation: Config.Operation, new_model_config:Config.NewModel, workspace: WorkSpace):
     strategy = StrategyFactory(operation.acquisition.method)
@@ -30,7 +31,7 @@ def method_run(budget_list, new_model_config:Config.NewModel, operation: Config.
     return budget_stat
 
 def epoch_run(parse_args:ParseArgs, budget_list, dataset:dict, epo, operation: Config.Operation):
-    old_model_config, new_model_config, general_config = Config.get_configs(epo, parse_args)
+    old_model_config, new_model_config, general_config = parse_args.get_model_config(epo)
 
     workspace = WorkSpace(old_model_config, dataset, general_config)
 
@@ -58,7 +59,7 @@ def main(epochs, device, detector_name, model_dir, utility_estimator, filter_mar
     
     clip_processor = Detector.load_clip(parse_args.device_config, normalize_stat['mean'], normalize_stat['std'])
     ensemble_instruction = Config.Ensemble()
-    detect_instruction = Config.Detection(detector_name, clip_processor, 'correctness')
+    detect_instruction = Config.Detection(detector_name, clip_processor)
     acquire_instruction = Config.AcquisitionFactory(acquisition_method=acquisition_method, data_config=parse_args.general_config['data'], utility_estimator=utility_estimator)
 
     operation = Config.Operation(acquire_instruction, ensemble_instruction, detect_instruction)
@@ -83,17 +84,17 @@ def main(epochs, device, detector_name, model_dir, utility_estimator, filter_mar
     logger.info('wede acc')
     for idx, n_data in enumerate(budget_list):
         wede_acc = np.mean(wede_acc_list[:, idx, :], axis=0)
-        logger.info('{}: [{}, {}],'.format(n_data, wede_acc[0], wede_acc[1]))
+        logger.info('{}: {},'.format(n_data, wede_acc.tolist()))
     
     logger.info('acquired error')
     for idx, n_data in enumerate(budget_list):
         acquired_error = np.mean(acquired_error_list[:, idx, :], axis=0)
-        logger.info('{}: [{}, {}],'.format(n_data, acquired_error[0], acquired_error[1]))
+        logger.info('{}: {},'.format(n_data,  acquired_error.tolist()))
 
     logger.info('wede train error')
     for idx, n_data in enumerate(budget_list):
         wede_train_error = np.mean(wede_train_error_list[:, idx, :], axis=0)
-        logger.info('{}: [{}, {}],'.format(n_data, wede_train_error[0], wede_train_error[1]))
+        logger.info('{}: {},'.format(n_data,  wede_train_error.tolist()))
 
 import argparse
 if __name__ == '__main__':

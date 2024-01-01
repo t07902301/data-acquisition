@@ -3,6 +3,7 @@ from utils.set_up import *
 import utils.statistics.data as DataStat
 from utils.logging import *
 
+
 def run(dataset, model_config:Config.OldModel, train_flag:bool, detect_instruction:Config.Detection, parse_args:ParseArgs):
     if train_flag:
         ds = dataset_utils.DataSplits(dataset, model_config.batch_size, parse_args.dataset_name)
@@ -48,7 +49,7 @@ def main(epochs,  model_dir, train_flag, device, detector_name, weaness_label_ge
     detect_instrution = Config.Detection(detector_name, clip_processor, weaness_label_generator)
     for epo in range(epochs):
         logger.info('in epoch {}'.format(epo))
-        old_model_config, _, _ = Config.get_configs(epo, parse_args)
+        old_model_config, _, _ = parse_args.get_model_config(epo)
         ds = dataset_list[epo]
         acc, acc_shift, detect_prec, shift_score, val_shift = run(ds, old_model_config, train_flag, detect_instrution, parse_args)
         acc_list.append(acc)
