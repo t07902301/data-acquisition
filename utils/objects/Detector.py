@@ -10,13 +10,16 @@ class Prototype():
         self.transform = data_transform
         self.model = wrappers.Prototype(None, None)
     
+    def set_weaness_label_generator(self, weaness_label_generator, base_model=None, data_loader=None):
+        self.weaness_label_generator = weakness_utils.factory(weaness_label_generator, base_model, data_loader)
+
     def fit(self, base_model:Model.Prototype, data_loader, weaness_label_generator):
         '''
         Train Detector and Log out the Best Cross Validation Performance for Reguarization Penalty
         '''
         latent, latent_gts = dataloader_utils.get_latent(data_loader, self.clip_processor, self.transform)
         # correctness = get_correctness(data_loader, base_model, latent_gts)
-        self.weaness_label_generator = weakness_utils.factory(weaness_label_generator, base_model, data_loader)
+        self.set_weaness_label_generator(weaness_label_generator, base_model, data_loader)
         non_weakness = self.weaness_label_generator.run(data_loader, base_model, latent_gts)
         logger.info('val shift acc told by Detector:{}'.format(non_weakness.mean()))
 

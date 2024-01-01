@@ -138,17 +138,9 @@ class TrainData():
    
     def set_utility_estimator(self, detector_instruction: Config.Detection, estimator_name, pdf, general_config, data_split, base_model):
         detector = Detector.factory(detector_instruction.name, general_config, detector_instruction.vit)
-        detector.fit(base_model,data_split.loader['val_shift'])
+        detector.fit(base_model,data_split.loader['val_shift'], detector_instruction.weaness_label_generator)
         self.utility_estimator = ue.factory(estimator_name, detector,data_split.loader['val_shift'], pdf, base_model)
         logger.info('Set up utility estimator.')
-
-    def dv_dstr_plot(self, cor_dv, incor_dv, budget, pdf_method=None, range=None):
-        pdf_name = '' if pdf_method == None else '_{}'.format(pdf_method)
-        Distribution.base_plot(cor_dv, 'correct', 'orange', pdf_method, range)
-        Distribution.base_plot(incor_dv, 'incorrect', 'blue', pdf_method, range)
-        Distribution.plt.savefig('figure/train/weakness_score{}_{}.png'.format(pdf_name, budget))
-        Distribution.plt.close()
-        logger.info('Save fig to figure/train/weakness_score{}_{}.png'.format(pdf_name, budget))
 
     def run(self, epochs, parse_args:ParseArgs, budget_list, operation:Config.Operation, dataset_list: List[dict]):
         results = []
@@ -191,6 +183,7 @@ class TrainData():
         model_config.set_path(operation)
         log = Log(model_config, 'detector')
         detector = log.import_log(operation, checker.general_config)
+        detector.set_weaness_label_generator(operation.detection.weaness_label_generator)
 
         log = Log(model_config, 'indices')
         new_data_indices = log.import_log(operation, checker.general_config)
@@ -219,13 +212,14 @@ class TrainData():
         model_config.set_path(operation)
         log = Log(model_config, 'detector')
         detector = log.import_log(operation, checker.general_config)
-        _, metrics = detector.predict(data_split.loader['test_shift'], checker.base_model, metrics='prec')
+        detector.set_weaness_label_generator(operation.detection.weaness_label_generator)
+        _, metrics = detector.predict(data_split.loader['test_shift'], checker.base_model, metrics='precision')
         return metrics
 
     def budget_run(self, operation:Config.Operation, checker: Checker.Prototype, data_split:dataset_utils.DataSplits):
         # check_result = self.check_indices(operation, data_split, checker, None)
-        check_result = self.check_clf(operation, data_split, checker)
-        # check_result = self.check_overfit(operation, checker)
+        # check_result = self.check_clf(operation, data_split, checker)
+        check_result = self.check_overfit(operation, checker)
         return check_result
    
 def main(epochs,  model_dir ='', device=0, detector_name = '', mode='train', acquisition_method= 'weakness_score', ensemble_name=None, ensemble_criterion=None, weakness=0, use_posterior=1, utility_estimator='u-ws'):
