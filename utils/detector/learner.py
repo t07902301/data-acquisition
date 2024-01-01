@@ -96,7 +96,7 @@ class svm(Prototype):
         kernel = args['kernel']
         cv = StratifiedKFold(shuffle=True, random_state=seed, n_splits=cv_splits) # randomness in shuffling for cross validation
         if kernel == 'linearSVC':
-            clf = LinearSVC(C=C, class_weight=class_weight, random_state=seed, dual='auto')
+            clf = LinearSVC(C=C, class_weight=class_weight, random_state=seed, dual='auto', max_iter=args['max_iter'])
         else:
             clf = SVC(C=C, kernel=kernel, class_weight=class_weight, gamma='auto', random_state=seed) # randomness in shuffling for svm training
         scorer = sklearn_metrics.make_scorer(sklearn_metrics.balanced_accuracy_score)
