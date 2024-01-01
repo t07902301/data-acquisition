@@ -56,7 +56,6 @@ def load_stat(root):
     return normalize_stat
 
 def save_dataset_shift(epochs, model_dir, config):
-    data = []
     data_config = config['data']
     remove_rate = data_config['ratio']['remove']
     dataset_name, task = parse(model_dir)
@@ -74,15 +73,12 @@ def save_dataset_shift(epochs, model_dir, config):
         logger.info('data split loaded from {}'.format(split_path))
         split_dict = dataset.load_dataset_raw_indices(dataset_raw_indices, data_config, normalized_stat)
         _, shift_raw_indices = dataset.create_shift(split_dict, remove_rate, data_config['labels'], task)    
-        data.append(shift_raw_indices)
 
         shift_path = os.path.join(shift_dir, '{}.pt'.format(idx))
         with open(shift_path, 'wb') as f:
             pkl.dump(shift_raw_indices, f)
             f.close()
         logger.info('save data shift indices to {}'.format(shift_path))
-
-    return data
 
 def load_dataset(epochs, root, data_config, dataset:dataset_utils.Dataset, normalized_stat):
     data = []
