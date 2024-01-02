@@ -69,7 +69,7 @@ class MetaData():
     def balanced_split(self, ratio, categories, sessions, range_indices):
         '''
         Split Dataset fairly all the way from category, session to object. Ratio for sampling under object levels.\n
-        Return relative indices to the input range
+        Return indices relative to the input range
         '''
         category_labels = self.category_labels[range_indices]
         session_labels = self.session_labels[range_indices]
