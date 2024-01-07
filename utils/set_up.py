@@ -7,7 +7,6 @@ import torch
 import os
 import pickle as pkl
 from utils.env import data_env
-import numpy as np
 from utils.logging import *
 def str2bool(input):
     return True if input=='1' else False

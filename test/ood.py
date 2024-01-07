@@ -75,18 +75,18 @@ def svd(ds:dataset_utils.DataSplits, known_labels, batch_size):
 
     return (sklearn_metrics.balanced_accuracy_score(gt, pred)*100)
 
-def main(epochs,  model_dir ='', option='', dataset_name='', device=1):
+def main(epochs,  model_dir ='', device=1):
 
-    fh = logging.FileHandler('dev/{}/ood.log'.format(model_dir),mode='w')
+    fh = logging.FileHandler('log/{}/ood.log'.format(model_dir),mode='w')
     fh.setLevel(logging.INFO)
     logger.addHandler(fh)
 
-    config, device_config, ds_list, normalize_stat = set_up(epochs, model_dir, device, option, dataset_name)
+    parse_args, ds_list, normalize_stat = set_up(epochs, model_dir, device)
 
-    clip_processor = Detector.load_clip(device_config, normalize_stat['mean'], normalize_stat['std'])
+    clip_processor = Detector.load_clip(parse_args.device_config, normalize_stat['mean'], normalize_stat['std'])
     odd_acc_list = []
 
-    known_labels = config['data']['labels']['cover']['target']
+    known_labels = parse_args.general_config['data']['labels']['cover']['target']
 
     for epo in range(epochs):
         logger.info('in epoch {}'.format(epo))
@@ -113,4 +113,4 @@ if __name__ == '__main__':
     parser.add_argument('-ds','--dataset',type=str, default='core')
 
     args = parser.parse_args()
-    main(args.epochs,args.model_dir, dataset_name=args.dataset, option=args.option)
+    main(args.epochs,args.model_dir)
