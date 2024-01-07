@@ -4,43 +4,7 @@ from utils.env import *
 import utils.objects.model as Model
 from utils.objects.log import Log
 from utils.parse_args import ParseArgs
-
-# class WorkSpace():
-#     '''
-#     Data + Base Model: reset before each strategy operation
-#     '''
-#     def __init__(self, model_config:Config.OldModel, config) -> None:
-#         self.base_model_config = model_config
-#         self.general_config = config
-#         self.validation_loader = None
-#         self.base_model = None
-
-#     def set_up(self, new_batch_size,val_shift_data):
-#         '''
-#         set up base model + datasplits
-#         '''
-#         self.set_model()
-#         self.set_validation(new_batch_size,val_shift_data)
-
-#     def set_model(self):
-#         del self.base_model
-#         self.base_model = Model.factory(self.base_model_config.base_type, self.general_config)
-#         self.base_model.load(self.base_model_config.path, self.base_model_config.device)
-   
-#     def set_validation(self, new_batch_size, val_shift_data):
-#         '''
-#         Select Incorrect Predictions from the Original Validation Set for Model Training
-#         '''
-#         val_shift_loader = torch.utils.data.DataLoader(val_shift_data, batch_size=new_batch_size)
-#         self.validation_loader = val_shift_loader
-#         return
-#         # val_shift_loader = torch.utils.data.DataLoader(val_shift_data, batch_size=new_batch_size)
-#         # gt, pred, _ = self.base_model.eval(val_shift_loader)
-#         # incorrect_mask = (gt != pred)
-#         # incorrect_indices = np.arange(len(val_shift_data))[incorrect_mask]
-#         # incorrect_val = torch.utils.data.Subset(val_shift_data, incorrect_indices)
-#         # self.validation_loader = torch.utils.data.DataLoader(incorrect_val, new_batch_size)
-#         # return
+import utils.objects.Detector as Detector
 
 class Builder():
     def __init__(self, dataset_name, data_config, normalize_stat) -> None:
@@ -98,7 +62,7 @@ class Builder():
     
     def budget_run(self, operation:Config.Operation, new_model_config:Config.NewModel, general_config):
         train_loader = self.get_train_loader(operation, general_config, new_model_config)
-        self.build_padding(new_model_config, train_loader, self.validation_loader, general_config['hparams']['padding'])
+        self.build_padding(new_model_config, train_loader, self.validation_loader, general_config['hparams']['padding'], operation.detection.vit)
 
 def main(epochs,  model_dir ='', device=0, acquisition_method= 'all', detector='svm'):
     
@@ -113,7 +77,8 @@ def main(epochs,  model_dir ='', device=0, acquisition_method= 'all', detector='
     parse_args, dataset_list, normalize_stat = set_up(epochs, model_dir, device)
 
     ensemble_instruction = Config.Ensemble()
-    detect_instruction = Config.Detection(detector, vit_mounted=None, weaness_label_generator=None)
+    clip_processor = Detector.load_clip(parse_args.device_config, normalize_stat['mean'], normalize_stat['std'])
+    detect_instruction = Config.Detection(detector, vit_mounted=clip_processor, weaness_label_generator=None)
     acquire_instruction = Config.AcquisitionFactory(acquisition_method=acquisition_method, data_config=parse_args.general_config['data'], utility_estimator='u-ws')
     
     operation = Config.Operation(acquire_instruction, ensemble_instruction, detect_instruction)
