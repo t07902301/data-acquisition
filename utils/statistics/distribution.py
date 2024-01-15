@@ -73,8 +73,8 @@ def get_pdf(value, method):
     else:
         return get_kde(value)
     
-def base_plot(value, label, color, pdf_method=None, range=None, n_bins = 10, hatch_style = '/', line_style='-', alpha=1):
-    plt.hist(value, bins= n_bins , alpha=alpha, density=True, color=color, label=label, range=range, fill=True, hatch=hatch_style, edgecolor='k', histtype='step')
+def base_plot(value, label, color, pdf_method=None, range=None, n_bins = 10, hatch_style = '/', line_style='-', alpha=1, density=True):
+    plt.hist(value, bins= n_bins , alpha=alpha, density=density, color=color, label=label, range=range, fill=True, hatch=hatch_style, edgecolor='k', histtype='step')
     if pdf_method != None:
         dstr = get_pdf(value, pdf_method)
         pdf_x = get_intervals(value)
