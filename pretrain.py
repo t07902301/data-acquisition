@@ -2,9 +2,9 @@ from utils.strategy import *
 from utils.set_up import *
 import utils.statistics.data as DataStat
 from utils.logging import *
+import matplotlib.pyplot as plt
 
-
-def run(dataset, model_config:Config.OldModel, train_flag:bool, detect_instruction:Config.Detection, parse_args:ParseArgs):
+def run(dataset, model_config:Config.OldModel, train_flag:bool, detect_instruction:Config.Detection, parse_args:ParseArgs, epoch):
     if train_flag:
         ds = dataset_utils.DataSplits(dataset, model_config.batch_size, parse_args.dataset_name)
         if model_config.model_type == 'cnn':
@@ -23,6 +23,15 @@ def run(dataset, model_config:Config.OldModel, train_flag:bool, detect_instructi
     acc_shift = base_model.acc(ds.loader['test_shift'])
     val_acc_shift = base_model.acc(ds.loader['val_shift'])
     logger.info('Test Shift Acc: {}'.format (acc_shift))
+
+    # _, _, probabs = base_model.eval(ds.loader['val_shift'])
+    # entropy = -np.sum(probabs * np.log2(probabs), axis=1)
+    # # entropy = entropy.reshape((len(entropy), 1))
+    # plt.hist(entropy, 20)
+    # plt.savefig('figure/etp/{}.png'.format(epoch))
+    # plt.cla()
+    # return 0,0,0,0,0
+
 
     detector = Detector.factory(detect_instruction.name, parse_args.general_config, clip_processor = detect_instruction.vit, split_and_search=True, data_transform='clip')
     detector.fit(base_model, ds.loader['val_shift'], detect_instruction.weaness_label_generator)
@@ -51,7 +60,7 @@ def main(epochs,  model_dir, train_flag, device, detector_name, weaness_label_ge
         logger.info('in epoch {}'.format(epo))
         old_model_config, _, _ = parse_args.get_model_config(epo)
         ds = dataset_list[epo]
-        acc, acc_shift, detect_prec, shift_score, val_shift = run(ds, old_model_config, train_flag, detect_instrution, parse_args)
+        acc, acc_shift, detect_prec, shift_score, val_shift = run(ds, old_model_config, train_flag, detect_instrution, parse_args, epo)
         acc_list.append(acc)
         acc_shift_list.append(acc_shift)
         detect_prec_list.append(detect_prec)
