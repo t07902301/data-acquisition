@@ -2,6 +2,7 @@ import utils.objects.Config as Config
 import utils.objects.Config as Config
 import utils.objects.model as Model
 import utils.objects.Detector as Detector
+from utils.objects.model import Prototype
 import utils.statistics.distribution as distribution_utils
 from utils.objects.log import Log
 import utils.objects.Config as Config
@@ -459,8 +460,54 @@ class PosteriorEnsemble(Ensemble):
             'new': new_weight,
             'old': old_weight
         }
+class EntropyEnsemble(Ensemble):
+    def __init__(self, model_config: Config.NewModel, general_config) -> None:
+        super().__init__(model_config, general_config)
 
-class AverageEnsemble(Ensemble):
+    def run(self, operation:Config.Operation):
+        new_model = self.get_new_model(operation)
+        return self._target_test(self.test_loader, new_model)
+    
+    def get_entropy(self, probabs):
+        entropy = -np.sum(probabs * np.log2(probabs), axis=1)
+        return entropy
+    
+    def get_weight(self, dataloader, new_model: Model.Prototype):
+        _, _, new_probab = new_model.eval(dataloader)
+        new_entropy = self.get_entropy(new_probab)
+
+        _, _, old_probab = self.base_model.eval(dataloader)
+        old_entropy = self.get_entropy(old_probab)
+
+        weight4new_mask = (new_entropy<old_entropy)
+
+        weight4new = weight4new_mask.astype(int).reshape((len(weight4new_mask),1))
+        weight4old = (~weight4new_mask).astype(int).reshape((len(weight4new_mask),1))
+        
+        return {
+            'new': weight4new,
+            'old': weight4old
+        }
+    
+    def _target_test(self, dataloader, new_model: Prototype):
+     
+        weights = self.get_weight(dataloader, new_model)
+
+        decision_maker = Decision.factory(self.new_model_config.model_type, self.new_model_config.class_number)
+        new_decision = decision_maker.get(new_model, dataloader)
+        old_decision = decision_maker.get(self.base_model, dataloader)
+
+        probab = self.ensemble_decision(new_decision, weights['new'], old_decision, weights['old'])
+        decision = decision_maker.apply(probab)
+
+        gts = dataloader_utils.get_labels(dataloader)
+        final_acc = (gts==decision).mean() * 100 
+
+        # DataStat.evaluation_metric(dataloader, self.base_model, ensemble_decision=decision)
+        
+        return final_acc - self.base_acc 
+    
+class EqualEnsemble(Ensemble):
     '''
     New and old model have the same credibility
     '''
@@ -511,14 +558,16 @@ def factory(name, new_model_config, general_config, use_posterior=True):
             checker = PosteriorEnsemble(new_model_config, general_config)
         else:
             checker = WeaknessScoreEnsemble(new_model_config, general_config)
-    elif name == 'avg-em':
-        checker = AverageEnsemble(new_model_config, general_config)
+    elif name == 'eql':
+        checker = EqualEnsemble(new_model_config, general_config)
     # elif name == 'ada':
     #     checker = AdaBoostEnsemble(new_model_config, general_config)
     elif name == 'ae-c-dv':
         checker = DataValuation(new_model_config, general_config)
     elif name == 'benchmark':
         checker = Benchmark(new_model_config, general_config)
+    elif name == 'exe':
+        checker = EntropyEnsemble(new_model_config, general_config)
     else:
         logger.info('Checker is not Implemented.')
         exit()
