@@ -106,7 +106,7 @@ def parse(filename:str):
     if len(parse_list) == 2:
         dataset_name, task = parse_list
     else:
-        dataset_name, task, _ = parse_list
+        dataset_name, task, _ = parse_list # the last info controls data shifts
     return dataset_name, task
 
 def set_up(epochs, model_dir, device_id):
