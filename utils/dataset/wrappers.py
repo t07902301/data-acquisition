@@ -79,33 +79,33 @@ class MetaData():
         
         relative_indices = np.arange(dataset_size)
 
-        sampled_cat_indices = []
+        sampled_category_indices = []
 
         for cat in categories:
 
-            cat_indices = relative_indices[category_labels==cat]
-            cat_session_labels = session_labels[cat_indices]
+            category_indices = relative_indices[category_labels==cat]
+            category_session_labels = session_labels[category_indices]
 
             objects = [i + cat * 5 for i in range(5)]
 
             sampled_session_indices = []
-            for session in sessions: # session labels given a cat
+            for session in sessions: # session labels given a category
 
-                cat_session_indices = cat_indices[cat_session_labels==session]
-                cat_session_obj_labels = object_labels[cat_session_indices]
+                category_session_indices = category_indices[category_session_labels==session]
+                category_session_obj_labels = object_labels[category_session_indices]
 
-                subset_indices = self.get_subset(cat_session_obj_labels, objects, cat_session_indices, ratio) # obj labels given a session, frames sampled
+                subset_indices = self.get_subset(category_session_obj_labels, objects, category_session_indices, ratio) # obj labels given a session, frames sampled
                 sampled_session_indices.append(subset_indices)
             
             sampled_session_indices = np.concatenate(sampled_session_indices, axis = 0)
 
-            sampled_cat_indices.append(sampled_session_indices)
+            sampled_category_indices.append(sampled_session_indices)
 
-        sampled_cat_indices = np.concatenate(sampled_cat_indices, axis = 0)
+        sampled_category_indices = np.concatenate(sampled_category_indices, axis = 0)
 
         return {
-            'sampled': sampled_cat_indices,
-            'others': relative_indices[complimentary_mask(dataset_size, sampled_cat_indices)]
+            'sampled': sampled_category_indices,
+            'others': relative_indices[complimentary_mask(dataset_size, sampled_category_indices)]
         }
 
     def subset2dict(self, subset_indices, range_indices):
