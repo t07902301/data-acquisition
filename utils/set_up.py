@@ -55,6 +55,8 @@ def load_stat(root):
     return normalize_stat
 
 def save_dataset_shift(epochs, model_dir, config):
+    data_env()
+
     data_config = config['data']
     remove_rate = data_config['ratio']['remove']
     dataset_name, task = parse(model_dir)
