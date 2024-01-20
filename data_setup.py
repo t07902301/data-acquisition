@@ -8,6 +8,7 @@ def main(epochs,  model_dir, save_mode):
     logger.addHandler(fh)
 
     config = load_config(model_dir)
+    data_env()
 
     if save_mode == 'shift':
         save_dataset_shift(epochs, model_dir, config)
