@@ -1,102 +1,94 @@
+import sys
+sys.path.append('/home/yiwei/data-acquisition')
 from utils.set_up import *
-from utils.logging import *
 import utils.dataset.wrappers as dataset_utils
 import matplotlib.pyplot as plt
 def main():
-    model_dir = 'c5'
-    fh = logging.FileHandler('log/draw.log'.format(model_dir),mode='w')
-    fh.setLevel(logging.INFO)
-    logger.addHandler(fh)
-    config, device_config, ds_list, normalize_stat = set_up(1, model_dir, 0, '', 'cifar')
-    test_ds = ds_list[0]['test_shift']
-    train_ds = ds_list[0]['train']
-
-    target = [13, 85, 90, 81]
-    target_names = ['class 0: bus', 'class 1: tank', 'class 0: train', 'class 1: streetcar']
-    src = [13, 85]
-    src_names = ['class 0: bus', 'class 1 : tank']
-
-    new = [90, 81]
-    new_names = ['train', 'streetcar']
-
-    cifar_utils = dataset_utils.Cifar()
+    model_dir = 'cifar_4class'
     n_sample = 3
+    _, ds_list, normalize_stat = set_up(1, model_dir, 0)
+    test_ds = ds_list[0]['test_shift']
+    val_ds = ds_list[0]['val_shift']
+    target = [3, 43, 97, 66, 75, 34]
+    target_names = ['Large Mammals: Bear + Lion + Wolf', 'Medium-sized Mammals: Raccoon + Skunk + Fox']
+    src = [3, 43, 66, 75]
+    src_names = ['Large Mammals: Bear + Lion', 'Medium-sized Mammals: Raccoon + skunk']
     transform = dataset_utils.get_vis_transform(normalize_stat['mean'], normalize_stat['std'])
-    
-    fig, ax = plt.subplots(len(new), n_sample, figsize=(3,3))
-    ax = ax.flatten()
-    for row, label in enumerate(new):
-        subset, _ = cifar_utils.get_subset_by_labels(test_ds, [label])
-        for col in range(n_sample):
-            idx = col + row * n_sample
-            ax[idx].imshow(transform(subset[col][0]))
-            ax[idx].axis(False)
-        title_idx = 0 + row * n_sample
-        ax[title_idx].set_title(new_names[row])
-    plt.suptitle('Class C_w')
-    plt.tight_layout()
-    # plt.show()
-    plt.savefig('figure/new.png')
-    logger.info('save')
-    plt.cla()
 
-    old = [13, 85]
-    old_names = ['bus', 'tank']
-
-    # cifar_utils = dataset_utils.Cifar()
-    # n_sample = 3
-    # transform = dataset_utils.get_vis_transform(normalize_stat['mean'], normalize_stat['std'])
-    
-    fig, ax = plt.subplots(len(old), n_sample, figsize=(3,3))
-    ax = ax.flatten()
-    for row, label in enumerate(old):
-        subset, _ = cifar_utils.get_subset_by_labels(test_ds, [label])
-        for col in range(n_sample):
-            idx = col + row * n_sample
-            ax[idx].imshow(transform(subset[col][0]))
-            ax[idx].axis(False)
-        title_idx = 0 + row * n_sample
-        ax[title_idx].set_title(old_names[row])
-    plt.suptitle('Class C_w \'')
-    plt.tight_layout()
-    # plt.show()
-    plt.savefig('figure/old.png')
-    logger.info('save')
-    plt.cla()
-
-    # fig, ax = plt.subplots(len(target), n_sample, figsize=(n_sample,4))
+    # fig, ax = plt.subplots(len(target), n_sample, figsize=(3,6))
     # ax = ax.flatten()
+    # title_idx = 0
     # for row, label in enumerate(target):
-    #     subset, _ = cifar_utils.get_subset_by_labels(test_ds, [label])
+    #     subset, _ = dataset_utils.Cifar().get_subset_by_labels(test_ds, [label])
+    #     if row % 3 == 0:
+    #         ax[row * n_sample + 1].set_title(target_names[title_idx], fontsize=10)
+    #         title_idx += 1
+
     #     for col in range(n_sample):
     #         idx = col + row * n_sample
     #         ax[idx].imshow(transform(subset[col][0]))
     #         ax[idx].axis(False)
-    #     title_idx = 1 + row * n_sample
-    #     ax[title_idx].set_title(target_names[row])
-    # # plt.suptitle('')
-    # plt.tight_layout()
-    # # plt.show()
-    # plt.savefig('figure/target.png')
-    # logger.info('save')
+    # fig.tight_layout()
+    # fig.savefig('figure/target.png')
+    # print('save')
     # plt.cla()
 
-    # n_sample = 3
-    # fig, ax = plt.subplots(len(src), n_sample, figsize=(3, 3))
+    fig, ax = plt.subplots(len(src), n_sample, figsize=(4,5))
+    ax = ax.flatten()
+    title_idx = 0
+    for row, label in enumerate(src):
+        subset, _ = dataset_utils.Cifar().get_subset_by_labels(val_ds, [label])
+        if row % 2 == 0:
+            ax[row * n_sample + 1].set_title(src_names[title_idx], fontsize=13)
+            title_idx += 1
+        for col in range(n_sample):
+            idx = col + row * n_sample
+            ax[idx].imshow(transform(subset[col][0]))
+            ax[idx].axis(False)
+    fig.tight_layout()
+    fig.savefig('figure/src.png')
+    print('save')
+    plt.cla()
+
+    # new = [97,34]
+    # new_names = ['Wolf', 'Fox']
+
+    # fig, ax = plt.subplots(len(new), n_sample, figsize=(3,3))
     # ax = ax.flatten()
-    # for row, label in enumerate(src):
-    #     subset, _ = cifar_utils.get_subset_by_labels(train_ds, [label])
+    # for row, label in enumerate(new):
+    #     subset, _ = dataset_utils.Cifar().get_subset_by_labels(test_ds, [label])
     #     for col in range(n_sample):
     #         idx = col + row * n_sample
     #         ax[idx].imshow(transform(subset[col][0]))
     #         ax[idx].axis(False)
-    #     title_idx = 1 + row * n_sample
-    #     ax[title_idx].set_title(src_names[row])
-    # # plt.suptitle('')
-    # plt.tight_layout()
-    # # plt.show()
-    # plt.savefig('figure/src.png')
-    # logger.info('save')
+    #     title_idx = 0 + row * n_sample
+    #     ax[title_idx].set_title(new_names[row])
+    # fig.tight_layout()
+    # fig.savefig('figure/new.png')
+    # print('save')
+    # plt.cla()
+
+    # old = [3, 66]
+    # old_names = ['Bear', 'Raccoon']
+
+    # # cifar_utils = dataset_utils.Cifar()
+    # # n_sample = 3
+    # # transform = dataset_utils.get_vis_transform(normalize_stat['mean'], normalize_stat['std'])
+    
+    # fig, ax = plt.subplots(len(old), n_sample, figsize=(3,3))
+    # ax = ax.flatten()
+    # for row, label in enumerate(old):
+    #     subset, _ = dataset_utils.Cifar().get_subset_by_labels(test_ds, [label])
+    #     for col in range(n_sample):
+    #         idx = col + row * n_sample
+    #         ax[idx].imshow(transform(subset[col][0]))
+    #         ax[idx].axis(False)
+    #     title_idx = 0 + row * n_sample
+    #     ax[title_idx].set_title(old_names[row])
+    # fig.tight_layout()
+    # fig.savefig('figure/old.png')
+    # print('save')
+    # plt.cla()
 
 main()
         
