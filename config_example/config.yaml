@@ -5,7 +5,8 @@ detector_args:
   k-fold: 2
   kernel: 'linear'
 num_workers: 1
-
+padding_type: 'svm' # the type of padding models
+base_type: 'svm' # the type of source models
 hparams: #hyper-paramter settings for source/base models and padding models 
     superclass: 1
     subclass: 100
