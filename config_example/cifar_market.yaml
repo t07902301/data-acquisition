@@ -27,7 +27,7 @@ hparams:
           # patience: 5
 
 data: 
-  root: ''
+  root: '/home/yiwei/data/'
   ratio: 
     train : 0.4
     market : 0.6

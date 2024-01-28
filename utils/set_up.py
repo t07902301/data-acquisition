@@ -1,12 +1,12 @@
 import utils.objects.Config as Config
 import utils.dataset.wrappers as dataset_utils
 # import data_generator.stable.wrappers as dataset_utils
+from utils.parse_args import ParseArgs
 
 import torch
 import os
 import pickle as pkl
 from utils.env import data_env
-import numpy as np
 from utils.logging import *
 def str2bool(input):
     return True if input=='1' else False
@@ -14,13 +14,11 @@ def save_dataset_split(epochs, model_dir, config):
     '''
     Generate indices of train, test. validation, and data pool
     '''
-    data_env()
-
-    dataset_name, task, aux = parse(model_dir)
+    dataset_name, task = parse(model_dir)
     dataset = dataset_utils.factory(dataset_name)
 
     indices_list, normalize_stat = dataset.create_4_splits(epochs, config)
-    dataset_name, task, aux = parse(model_dir)
+    dataset_name, task = parse(model_dir)
 
     split_dir = 'init_data/{}_{}'.format(dataset_name, task)
     Config.check_dir(split_dir)
@@ -55,10 +53,9 @@ def load_stat(root):
     return normalize_stat
 
 def save_dataset_shift(epochs, model_dir, config):
-    data = []
     data_config = config['data']
     remove_rate = data_config['ratio']['remove']
-    dataset_name, task, aux = parse(model_dir)
+    dataset_name, task = parse(model_dir)
     dataset = dataset_utils.factory(dataset_name)
 
     split_dir = 'init_data/{}_{}'.format(dataset_name, task)
@@ -73,15 +70,12 @@ def save_dataset_shift(epochs, model_dir, config):
         logger.info('data split loaded from {}'.format(split_path))
         split_dict = dataset.load_dataset_raw_indices(dataset_raw_indices, data_config, normalized_stat)
         _, shift_raw_indices = dataset.create_shift(split_dict, remove_rate, data_config['labels'], task)    
-        data.append(shift_raw_indices)
 
         shift_path = os.path.join(shift_dir, '{}.pt'.format(idx))
         with open(shift_path, 'wb') as f:
             pkl.dump(shift_raw_indices, f)
             f.close()
         logger.info('save data shift indices to {}'.format(shift_path))
-
-    return data
 
 def load_dataset(epochs, root, data_config, dataset:dataset_utils.Dataset, normalized_stat):
     data = []
@@ -109,10 +103,9 @@ def parse(filename:str):
     parse_list = filename.split('_')
     if len(parse_list) == 2:
         dataset_name, task = parse_list
-        aux = None
     else:
-        dataset_name, task, aux = parse_list
-    return dataset_name, task, aux
+        dataset_name, task, _ = parse_list # the last info controls data shifts
+    return dataset_name, task
 
 def set_up(epochs, model_dir, device_id):
     '''
@@ -121,7 +114,7 @@ def set_up(epochs, model_dir, device_id):
 
     data_env()
 
-    dataset_name, task, aux = parse(model_dir)
+    dataset_name, task = parse(model_dir)
 
     split_dir = 'init_data/{}_{}'.format(dataset_name, task)
 
@@ -138,5 +131,6 @@ def set_up(epochs, model_dir, device_id):
 
     data = load_dataset(epochs, shift_dir, config['data'], dataset, normalize_stat)
 
-    return config, device_config, data, normalize_stat, dataset_name, task
+    # return config, device_config, data, normalize_stat, dataset_name, task
+    return ParseArgs(config=config, device_config=device_config, dataset_name=dataset_name, task=task, model_dir=model_dir), data, normalize_stat
 

@@ -1,0 +1,60 @@
+detector : 'SVM'
+detector_args:
+  hidden_layer_size: [200,100,50]
+  max_iter: 500
+  k-fold: 2
+  kernel: 'linear'
+num_workers: 1
+padding_type: 'cnn'
+base_type: 'svm'
+hparams: 
+  padding:
+    superclass: 1
+    subclass: 2
+    batch_size: 
+      base: 64
+      new: 32
+    arch: 'squeezenet'
+    arch_type: 'raw'
+    optimizer: 
+      type: 'sgd'
+      momentum: 0.9
+      weight_decay: 5.0E-4
+    training: 
+      epochs: 20
+      lr: 0.1
+      lr_scheduler: 
+          # type: 'exp'
+          type: 'cyclic'
+          lr_peak_epoch: 10   
+  source:
+    superclass: 1
+    subclass: 2
+    detector_args:
+      hidden_layer_size: [200,100,50]
+      max_iter: 500
+      k-fold: 2
+      kernel: 'linear' 
+
+data: 
+  root: '/home/yiwei/data/'
+  ratio: 
+    train : 0.4
+    market : 0.6
+    test_from_all: 0.2
+    val_from_test: 0.5
+    remove: 
+      new_labels: 1.0
+      old_labels: null
+  budget: [125, 225, 325, 425, 525, 625]
+  seq: 
+    n_new_data: null # seq_1
+    n_rounds: 2 #seq
+  labels:
+    map:
+      18: 0
+      19: 1
+    select_fine_labels: [8, 13, 48, 58, 90, 41, 69, 81, 85, 89]
+    remove: [81, 90]
+
+base_root: 'model/'

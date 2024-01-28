@@ -1,12 +1,15 @@
 __pycache__/
 .vscode/settings.json
-deprecated/
 model/
-log/
-data/
 figure/
-cifar/labels.py
 labels.py
 core_data.pkl
 novelty/
+init_model/
 dev/
+*log/
+process.py
+# plot.ipynb
+download/
+data/
+init_data/

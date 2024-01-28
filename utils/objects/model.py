@@ -81,10 +81,9 @@ class CNN(Prototype):
                         gts.append(y.cpu())
                         logits = self.model(x)
                         softmax_logits = nn.Softmax(dim=-1)(logits) # logits: unnormalized output before the last layer
-                        # loss.append(ce(softmax_logits,y.cuda()))
-                        # probab.append(softmax_logits[torch.arange(logits.shape[0]), y].cpu())
                         probabs.append(softmax_logits.cpu())
                         preds.append(softmax_logits.argmax(-1).cpu())
+                        # loss.append(nn.functional.cross_entropy(logits, y.cuda(), reduction='none').cpu())
                     gts = torch.cat(gts).numpy()
                     preds = torch.cat(preds).numpy()
                     probabs = torch.cat(probabs).numpy()
@@ -96,7 +95,6 @@ class CNN(Prototype):
         best_model_chkpnt = None
 
         training_args=hparam_config['training']
-        # add args
         training_args['optimizer'] = hparam_config['optimizer']
         training_args['iters_per_epoch'] = len(train_loader)
         # logger.info(training_args)
@@ -136,13 +134,6 @@ class CNN(Prototype):
             'state_dict': self.model.state_dict(),
         }, path)
         logger.info('model saved to {}'.format(path))
-    
-    def update(self, new_model_setter, train_loader, val_loader, hparam_config):
-        if new_model_setter == 'refine':
-            self.tune(train_loader,val_loader, hparam_config) # tune
-        else:
-            self.train(train_loader,val_loader, hparam_config) # retrain 
-
 
 class svm(Prototype):
     def __init__(self, hyparams_config, clip_processor:wrappers.CLIPProcessor, split_and_search=True, transform='clip') -> None:
@@ -154,7 +145,7 @@ class svm(Prototype):
     def eval(self, dataloader):
         latent, gts = dataloader_utils.get_latent(dataloader, self.clip_processor, self.transform)
         preds = self.model.raw_predict(latent)
-        _, distance, _ = self.model.predict(latent)
+        distance, _ = self.model.predict(latent)
         return gts, preds, distance
 
     def train(self, train_loader):
@@ -185,7 +176,7 @@ class LogReg(Prototype):
     def eval(self, dataloader):
         latent, gts = dataloader_utils.get_latent(dataloader, self.clip_processor, self.transform)
         preds = self.model.raw_predict(latent)
-        _, distance, _ = self.model.predict(latent)
+        distance, _ = self.model.predict(latent)
         return gts, preds, distance
 
     def train(self, train_loader):
@@ -204,11 +195,13 @@ class LogReg(Prototype):
     def update(self, train_loader):
         self.train(train_loader)
 
-def factory(base_type, config, clip_processor=None):
-    if base_type == 'svm':
+def factory(model_type, config, clip_processor=None, source=True):
+    if model_type == 'svm':
         return svm(config['detector_args'], clip_processor)
-    else:
+    elif source:
         return CNN(config['hparams']['source'])
+    else:
+        return CNN(config['hparams']['padding'])
     
 import numpy as np
 class ensembler(Prototype):

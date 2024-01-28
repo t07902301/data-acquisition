@@ -5,14 +5,25 @@ detector_args:
   k-fold: 2
   kernel: 'linear'
 num_workers: 1
+padding_type: 'cnn'
+base_type: 'svm'
 hparams: 
+  source:
     superclass: 1
-    subclass: 100
+    subclass: 2
+    detector_args:
+      hidden_layer_size: [200,100,50]
+      max_iter: 500
+      k-fold: 2
+      kernel: 'linear' 
+  padding:
+    superclass: 1
+    subclass: 2
     batch_size: 
       base: 64
       new: 32
     arch: 'resnet18'
-    arch_type: 'cifar_resnet'
+    arch_type: 'raw'
     optimizer: 
       type: 'sgd'
       momentum: 0.9
@@ -23,8 +34,7 @@ hparams:
       lr_scheduler: 
           # type: 'exp'
           type: 'cyclic'
-          lr_peak_epoch: 10   
-
+          lr_peak_epoch: 10 
 data: 
   root: '/home/yiwei/data/'
   ratio: 
@@ -35,9 +45,9 @@ data:
     remove_rate: 
       new_labels: 1.0
       old_labels: null
-  n_new_data: [125, 225, 325, 425, 525, 625]
+  budget: [125, 225, 325, 425, 525, 625]
   seq: 
-    n_new_data: null # seq_1
+    budget: null # seq_1
     n_rounds: 2 #seq
   labels:
     map:

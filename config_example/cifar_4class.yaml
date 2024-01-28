@@ -5,14 +5,64 @@ detector_args:
   k-fold: 2
   kernel: 'linear'
 num_workers: 1
+base_type: 'cnn'
+padding_type: 'cnn'
 hparams: 
+  optimal:
+    dir: 'opt'
     superclass: 4
     subclass: 100
-    arch: 'squeezenet'
-    arch_type: 'other'
+    arch: 'cifar100_mobilenetv2_x1_4'
+    arch_type: 'pretrained'
     batch_size: 
       base: 128
       new: 128
+    optimizer: 
+      type: 'sgd'
+      momentum: 0.9
+      weight_decay: 5.0E-4
+    training: 
+      epochs: 300
+      lr: 0.1
+      lr_scheduler: 
+          type: 'step'
+          # gamma: 0.2
+          # milestones: [60, 120, 160]
+          gamma: 0.1
+          milestones: [150, 225]     
+  source: 
+    dir: 'model'
+    superclass: 4
+    subclass: 100
+    arch: 'cifar100_resnet20'
+    arch_type: 'pretrained'
+    batch_size: 
+      base: 128
+      new: 64
+    optimizer: 
+      type: 'sgd'
+      momentum: 0.9
+      weight_decay: 5.0E-4
+    training: 
+      epochs: 20
+      lr: 0.1
+      lr_scheduler: 
+          # type: 'step'
+          # # gamma: 0.2
+          # # milestones: [60, 120, 160]
+          # gamma: 0.1
+          # milestones: [150, 225]     
+
+          type: 'cyclic'
+          lr_peak_epoch: 10      
+  padding: 
+    superclass: 4
+    subclass: 100
+    arch: 'cifar100_resnet20'
+    arch_type: 'pretrained'
+    batch_size: 
+      base: 128
+      new: 64
     optimizer: 
       type: 'sgd'
       momentum: 0.9
@@ -23,23 +73,23 @@ hparams:
       lr_scheduler: 
           # type: 'step'
           type: 'cyclic'
-          lr_peak_epoch: 10    
+          lr_peak_epoch: 10
           # type: 'ReduceLROnPlateau'
           # patience: 5
 
 data: 
-  root: ''
+  root: '/home/yiwei/data/'
   ratio: 
     train : 0.4
-    market : 0.6
-    test: 0.5
+    market : 0.6 
+    test_from_all: 0.5
     val_from_test: 0.5
     remove: 
       new_labels: 1.0
       old_labels: null
-  n_new_data: [600, 900, 1200, 1500, 1800, 2100]
+  budget: [600, 900, 1200, 1500, 1800, 2100] # 2400 shifted data in the market
   seq: 
-    n_new_data: null 
+    budget: null 
     n_rounds: 2 #seq
   labels:
     map:

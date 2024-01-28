@@ -5,12 +5,61 @@ detector_args:
   k-fold: 2
   kernel: 'linear'
 num_workers: 1
+base_type: 'cnn'
+padding_type: 'cnn'
 hparams: 
+  optimal:
     sessions: 11
     superclass: 10
     subclass: 50
     arch: 'squeezenet'
-    arch_type: 'other'
+    arch_type: 'raw'
+    batch_size: 
+      base: 128
+      new: 64
+    optimizer: 
+      type: 'sgd'
+      momentum: 0.9
+      weight_decay: 5.0E-4
+    training: 
+      epochs: 40
+      lr: 0.1
+      lr_scheduler: 
+        # type: 'exp'
+        # type: 'step'
+        type: 'cyclic'
+        lr_peak_epoch: 10   
+        # type: 'ReduceLROnPlateau'
+        # patience: 5
+  source: 
+    sessions: 11
+    superclass: 10
+    subclass: 50
+    arch: 'squeezenet'
+    arch_type: 'raw'
+    batch_size: 
+      base: 128
+      new: 64
+    optimizer: 
+      type: 'sgd'
+      momentum: 0.9
+      weight_decay: 5.0E-4
+    training: 
+      epochs: 20
+      lr: 0.1
+      lr_scheduler: 
+        # type: 'exp'
+        # type: 'step'
+        type: 'cyclic'
+        lr_peak_epoch: 10   
+        # type: 'ReduceLROnPlateau'
+        # patience: 5
+  padding: 
+    sessions: 11
+    superclass: 10
+    subclass: 50
+    arch: 'squeezenet'
+    arch_type: 'raw'
     batch_size: 
       base: 128
       new: 64
@@ -30,14 +79,19 @@ hparams:
         # patience: 5
 
 data: 
-  root: 'meta.pkl'
+  root: 'data/core.pkl'
   ratio: 
     remove: 
       new_labels: 1.0
       old_labels: null
-  n_new_data: [600, 900, 1200, 1500, 1800, 2100]
+  budget: [1500, 1800, 2100, 2500, 3000, 3500]
+  #[600, 900, 1200]
+  #[600, 900, 1200, 1500, 1800, 2100, 2500, 3000, 3500]
+  #[2500, 3000, 3500]
+  #[600, 900, 1200, 1500, 1800, 2100]
+  #[1500, 1800, 2100, 2500, 3000, 3500]
   seq: 
-    n_new_data: null 
+    budget: null 
     n_rounds: 2 #seq
   labels:
     remove:

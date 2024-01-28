@@ -13,8 +13,10 @@ def model_env():
     torch.backends.cudnn.benchmark = False
     os.environ["CUBLAS_WORKSPACE_CONFIG"]=":16:8"
 
-generator = torch.Generator()
-
 def data_env():
     np.random.seed(seed)
     random.seed(seed)    
+
+def dataloader_env():
+    generator = torch.Generator().manual_seed(seed)
+    return generator

@@ -1,0 +1,94 @@
+detector : 'SVM'
+detector_args:
+  hidden_layer_size: [200,100,50]
+  max_iter: 500
+  k-fold: 2
+  kernel: 'linearSVC'
+num_workers: 1
+base_type: 'cnn'
+padding_type: 'cnn'
+hparams: 
+  optimal:
+    dir: 'opt'
+    superclass: 20
+    subclass: 100
+    arch: 'cifar100_mobilenetv2_x1_4'
+    arch_type: 'pretrained'
+    batch_size: 
+      base: 512
+      new: 256
+    optimizer: 
+      type: 'sgd'
+      momentum: 0.9
+      weight_decay: 5.0E-4
+    training: 
+      epochs: 20
+      lr: 0.1
+      lr_scheduler: 
+          # type: 'step'
+          type: 'cyclic'
+          lr_peak_epoch: 10
+          # type: 'ReduceLROnPlateau'
+          # patience: 5
+  source: 
+    dir: 'model'
+    superclass: 20
+    subclass: 100
+    arch: 'cifar100_resnet20'
+    arch_type: 'pretrained'
+    batch_size: 
+      base: 512
+      new: 256
+    optimizer: 
+      type: 'sgd'
+      momentum: 0.9
+      weight_decay: 5.0E-4
+    training: 
+      epochs: 20
+      lr: 0.1
+      lr_scheduler: 
+          type: 'cyclic'
+          lr_peak_epoch: 10      
+  padding: 
+    superclass: 20
+    subclass: 100
+    arch: 'cifar100_resnet20'
+    arch_type: 'pretrained'
+    batch_size: 
+      base: 512
+      new: 256 #32 for utility threshold
+    optimizer: 
+      type: 'sgd'
+      momentum: 0.9
+      weight_decay: 5.0E-4
+    training: 
+      epochs: 20
+      lr: 0.1
+      lr_scheduler: 
+          # type: 'step'
+          type: 'cyclic'
+          lr_peak_epoch: 10
+          # type: 'ReduceLROnPlateau'
+          # patience: 5
+data: 
+  root: '/home/yiwei/data/'
+  ratio: 
+    train : 0.4
+    market : 0.6
+    test_from_all: 1
+    val_from_test: 0.2
+    remove: 
+      new_labels: 1.0
+      old_labels: null
+  budget: [3000, 4000, 5000, 6000, 7000, 8000]
+  #[9000, 10000]
+  # [3000, 4000, 5000, 6000, 7000, 8000]
+  # 6000 shifted data in the market
+  seq: 
+    budget: null 
+    n_rounds: 3
+  labels:
+    map: null
+    select_fine_labels: [] 
+    remove: [4, 73, 54, 10, 51, 40, 84, 18, 3, 12, 33, 38, 64, 45, 2, 44, 80, 96, 13, 81]
+base_root: 'model/'

@@ -75,22 +75,3 @@ def get_threshold_indices_budget(values, budget, threshold, order='descend'):
     threshold_value_indicies = value_indices[threshold_mask]
     top_indicies = get_top_values_indices(threshold_value, budget, order)
     return threshold_value_indicies[top_indicies]
-
-def get_gt_probab(gts, probab):
-    '''
-    Return Prediction Probability of True Labels \n
-    probab: (n_samples, n_class)
-    '''
-    return probab[np.arange(len(gts)), gts]
-
-def get_gt_distance(gts, decision_values):
-    '''
-    Return Distance to HyperPlane of True Labels \n
-    decision_values: (n_samples)
-    '''
-    cls_0_mask = (gts==0)
-    cls_1_mask = ~cls_0_mask
-    distance = np.zeros(len(gts))
-    distance[cls_0_mask] = (0 - decision_values[cls_0_mask])
-    distance[cls_1_mask] = (decision_values[cls_1_mask])
-    return distance[gts]

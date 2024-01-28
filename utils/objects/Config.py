@@ -17,9 +17,10 @@ class Ensemble():
 #         super().__init__(criterion, name)
 
 class Detection():
-    def __init__(self, name, vit_mounted) -> None:
+    def __init__(self, name, vit_mounted, weaness_label_generator='correctness') -> None:
         self.name = name
         self.vit = vit_mounted
+        self.weaness_label_generator = weaness_label_generator
 
 class Acquisition():
     def __init__(self, method='', budget=0, threshold=-1, seq_config=None, utility_estimation='') -> None:
@@ -66,8 +67,7 @@ class SequentialAc(Acquisition):
         super().__init__(method, budget, threshold, seq_config, utility_estimation)
 
     def set_up(self):
-        # self.round_acquire_method = 'pd' if 'pd' in self.method else 'dv'
-        self.round_acquire_method = 'one-shot'
+        self.round_acquire_method = 'dv' #one-shot
         if self.seq_config['budget'] != None:
             self.budget_round = self.seq_config['budget']
             self.n_rounds = self.budget // self.budget_round
@@ -115,12 +115,13 @@ class Model():
         check_dir(self.root)
         self.device = device
         self.base_type = base_type
+        self.model_type = ''
         self.path = None
             
 class OptModel(Model):
     def __init__(self, batch_size, class_number, model_dir, device, model_cnt, base_type) -> None:
         super().__init__(batch_size, class_number, model_dir, device, base_type)
-        self.model_cnt = model_cnt # can be redundant if dv_stat_test not epoch-wised
+        self.model_cnt = model_cnt 
         self.root = os.path.join(self.root, 'opt')
         check_dir(self.root)
         self.path = os.path.join(self.root,'{}.pt'.format(model_cnt))
@@ -128,21 +129,22 @@ class OptModel(Model):
 class OldModel(Model):
     def __init__(self, batch_size, class_number, model_dir, device, model_cnt, base_type) -> None:
         super().__init__(batch_size, class_number, model_dir, device, base_type)
-        self.model_cnt = model_cnt # can be redundant if dv_stat_test not epoch-wised
+        self.model_cnt = model_cnt 
         self.path = os.path.join(self.root,'{}.pt'.format(model_cnt))
+        self.model_type = base_type
 
 class NewModel(Model):
-    def __init__(self, batch_size, class_number, model_dir, device, model_cnt, pure:bool, setter, new_batch_size, base_type) -> None:
+    def __init__(self, batch_size, class_number, model_dir, device, model_cnt, pure:bool, setter, new_batch_size, base_type, padding_type) -> None:
         super().__init__(batch_size, class_number, model_dir, device, base_type)
         self.pure = pure
         self.setter = setter
         self.new_batch_size = new_batch_size
         self.set_root(model_cnt)
-        # root_detector = None
+        self.model_type = padding_type
 
     def detector2root(self, acquisition_method, detector_name):
         # Make Conf and sampling-based method Root agnostic to detector
-        if acquisition_method in ['conf', 'rs']:
+        if acquisition_method in ['conf', 'rs', 'mix', 'etp']:
             temp_root = os.path.join(self.root, 'no-detector')
         else:
             temp_root = os.path.join(self.root, detector_name)

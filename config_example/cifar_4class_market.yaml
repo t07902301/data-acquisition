@@ -1,0 +1,115 @@
+detector : 'SVM'
+detector_args:
+  hidden_layer_size: [200,100,50]
+  max_iter: 500
+  k-fold: 2
+  kernel: 'linear'
+num_workers: 1
+base_type: 'cnn'
+padding_type: 'cnn'
+hparams: 
+  optimal:
+    dir: 'opt'
+    superclass: 4
+    subclass: 100
+    arch: 'cifar100_resnet20'
+    arch_type: 'pretrained'
+    batch_size: 
+      base: 128
+    optimizer: 
+      type: 'sgd'
+      momentum: 0.9
+      weight_decay: 5.0E-4
+    training: 
+      epochs: 300
+      lr: 0.1
+      lr_scheduler: 
+          type: 'step'
+          # gamma: 0.2
+          # milestones: [60, 120, 160]
+          gamma: 0.1
+          milestones: [150, 225]     
+
+          # type: 'cyclic'
+          # lr_peak_epoch: 10        
+  source: 
+    dir: 'model'
+    superclass: 4
+    subclass: 100
+    arch: 'cifar100_resnet20'
+    arch_type: 'pretrained'
+    batch_size: 
+      base: 128
+      new: 128
+    optimizer: 
+      type: 'sgd'
+      momentum: 0.9
+      weight_decay: 5.0E-4
+    training: 
+      epochs: 20
+      lr: 0.1
+      lr_scheduler: 
+          # type: 'step'
+          # # gamma: 0.2
+          # # milestones: [60, 120, 160]
+          # gamma: 0.1
+          # milestones: [150, 225]     
+
+          type: 'cyclic'
+          lr_peak_epoch: 10      
+  padding: 
+    superclass: 4
+    subclass: 100
+    arch: 'cifar100_resnet20'
+    arch_type: 'pretrained'
+    batch_size: 
+      base: 128
+      new: 64
+    optimizer: 
+      type: 'sgd'
+      momentum: 0.9
+      weight_decay: 5.0E-4
+    training: 
+      epochs: 20
+      lr: 0.1
+      lr_scheduler: 
+          # type: 'step'
+          type: 'cyclic'
+          lr_peak_epoch: 10
+          # type: 'ReduceLROnPlateau'
+          # patience: 5
+
+data: 
+  root: '/home/yiwei/data/'
+  ratio: 
+    train : 0.4
+    market : 0.6
+    test_from_all: 0.5
+    val_from_test: 0.5
+    remove: 
+      new_labels: 1.0
+      old_labels: null
+  budget: [400, 900, 1400, 1900, 2500]
+  # [400, 600, 800, 1000, 1200, 1400]
+  # budget: [900, 1900, 2500]
+
+
+  seq: 
+    budget: null 
+    n_rounds: 2 #seq
+  labels:
+    map:
+      8: 0
+      12: 1
+      11: 2
+      16: 3
+    select_fine_labels: [3, 42, 43, 88, 97, 34, 63, 64, 66, 75, 15, 19, 21, 31, 38, 36, 50, 65, 74, 80] 
+    remove: [97, 34, 80, 38]
+    cover: 
+      src: [66, 36, 42, 50, 19, 88, 63, 31]
+      target: [66, 36, 42, 50, 19, 88, 63, 31, 97, 34, 80, 38]
+# [65, 66, 36, 42, 43, 75, 15, 50, 19, 88, 63, 31]
+
+      
+
+base_root: 'model/'

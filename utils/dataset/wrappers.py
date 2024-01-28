@@ -1,6 +1,6 @@
 import torchvision.transforms as transforms
 import torch
-from utils.env import generator, seed
+from utils.env import dataloader_env
 import utils.objects.Config as Config
 from abc import abstractmethod
 import utils.dataset.cifar as cifar
@@ -69,7 +69,7 @@ class MetaData():
     def balanced_split(self, ratio, categories, sessions, range_indices):
         '''
         Split Dataset fairly all the way from category, session to object. Ratio for sampling under object levels.\n
-        Return relative indices to the input range
+        Return indices relative to the input range
         '''
         category_labels = self.category_labels[range_indices]
         session_labels = self.session_labels[range_indices]
@@ -79,33 +79,33 @@ class MetaData():
         
         relative_indices = np.arange(dataset_size)
 
-        sampled_cat_indices = []
+        sampled_category_indices = []
 
         for cat in categories:
 
-            cat_indices = relative_indices[category_labels==cat]
-            cat_session_labels = session_labels[cat_indices]
+            category_indices = relative_indices[category_labels==cat]
+            category_session_labels = session_labels[category_indices]
 
             objects = [i + cat * 5 for i in range(5)]
 
             sampled_session_indices = []
-            for session in sessions: # session labels given a cat
+            for session in sessions: # session labels given a category
 
-                cat_session_indices = cat_indices[cat_session_labels==session]
-                cat_session_obj_labels = object_labels[cat_session_indices]
+                category_session_indices = category_indices[category_session_labels==session]
+                category_session_obj_labels = object_labels[category_session_indices]
 
-                subset_indices = self.get_subset(cat_session_obj_labels, objects, cat_session_indices, ratio) # obj labels given a session, frames sampled
+                subset_indices = self.get_subset(category_session_obj_labels, objects, category_session_indices, ratio) # obj labels given a session, frames sampled
                 sampled_session_indices.append(subset_indices)
             
             sampled_session_indices = np.concatenate(sampled_session_indices, axis = 0)
 
-            sampled_cat_indices.append(sampled_session_indices)
+            sampled_category_indices.append(sampled_session_indices)
 
-        sampled_cat_indices = np.concatenate(sampled_cat_indices, axis = 0)
+        sampled_category_indices = np.concatenate(sampled_category_indices, axis = 0)
 
         return {
-            'sampled': sampled_cat_indices,
-            'others': relative_indices[complimentary_mask(dataset_size, sampled_cat_indices)]
+            'sampled': sampled_category_indices,
+            'others': relative_indices[complimentary_mask(dataset_size, sampled_category_indices)]
         }
 
     def subset2dict(self, subset_indices, range_indices):
@@ -126,7 +126,7 @@ class DataSplits():
     def __init__(self, dataset, batch_size, name=None) -> None:
         self.dataset = dataset
         self.dataset_name = name
-        generator.manual_seed(seed)    
+        generator = dataloader_env()
         self.loader = {
             k: torch.utils.data.DataLoader(self.dataset[k], batch_size=batch_size, 
                                         shuffle=(k=='train'), drop_last=(k=='train'),
@@ -152,7 +152,7 @@ class DataSplits():
         self.update_dataloader(split_name) 
 
     def update_dataloader(self, split_name):
-        generator.manual_seed(seed)        
+        generator = dataloader_env()
         self.loader[split_name] = torch.utils.data.DataLoader(self.dataset[split_name], batch_size= self.batch_size, 
                                                               shuffle=(split_name=='train'), drop_last=(split_name=='train'),
                                                               num_workers=n_workers, generator=generator)
@@ -411,11 +411,11 @@ class Cifar(Dataset):
         data_config = config['data']
         label_config = data_config['labels']
         select_fine_labels = label_config['select_fine_labels']
-        max_subclass_num = config['hparams']['subclass']
+        max_subclass_num = config['hparams']['source']['subclass']
 
         ratio = data_config['ratio']
         train_size = ratio["train"]
-        test_size = ratio["test"]
+        test_size = ratio["test_from_all"]
         val_from_test = ratio['val_from_test']
 
         label_summary = [i for i in range(max_subclass_num)] if len(select_fine_labels)==0 else select_fine_labels
