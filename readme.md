@@ -34,6 +34,8 @@ Examples of model_directory: core_object_resnet, cifar-4class
 **utils/strategy.py**: acquisition strategy + workspace (source model, data splits, detector if needed.)
 
 **utils/ood.py**: filter out irrelevant data from the data pool. build novelty detector (one-class SVM) in the validation set, and return detection accuracy.   
+ 
+- The filtering precision is obtained by **test/ood.py**
 
 - If the precision is bigger than threshold,the proportion of target labels in filtered market, then market filtering should work.
 
