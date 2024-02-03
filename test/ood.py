@@ -1,5 +1,5 @@
-import sys
-sys.path.append('/home/yiwei/data-acquisition/')
+import sys, pathlib
+sys.path.append(str(pathlib.Path().resolve()))
 from sklearn.svm import OneClassSVM
 from utils.set_up import *
 import numpy as np

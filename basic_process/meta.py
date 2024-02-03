@@ -4,6 +4,8 @@ from utils.logging import *
 import numpy as np
 import os
 import pickle as pkl
+import sys, pathlib
+sys.path.append(str(pathlib.Path().resolve()))
 def run(model_dir, frame_sample_ratio):
     config = load_config(model_dir)
     meta_data = MetaData('core_data.pkl') # resized 32x32 data from core50_imgs.npz 

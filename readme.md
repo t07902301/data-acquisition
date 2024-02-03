@@ -34,6 +34,8 @@ Examples of model_directory: core_object_resnet, cifar-4class
 **utils/strategy.py**: acquisition strategy + workspace (source model, data splits, detector if needed.)
 
 **utils/ood.py**: filter out irrelevant data from the data pool. build novelty detector (one-class SVM) in the validation set, and return detection accuracy.   
+ 
+- The filtering precision is obtained by **test/ood.py**
 
 - If the precision is bigger than threshold,the proportion of target labels in filtered market, then market filtering should work.
 
@@ -66,6 +68,8 @@ Examples of model_directory: core_object_resnet, cifar-4class
 Under **optimal_check**, <ins>**pretrain.py**</ins> builds optimal models, <ins>**stat_check.py**</ins> and <ins>**threshold.py**</ins> return the stat of invalid acquired data.
 
 ## Dataset Generation
+
+* For a full experiment result reproduction, it's recommended to use the current data splits in **data**, as the random seed of generating this folder is fixed only lately.
 
 Shifted data splits are generated first by split raw dataset into 4 splits (train, test, validation and data pool), and then make data shifts by removing some labels from train split. By far, we first save the indices of 4 data splits and statistics for data normalization into **init_data** directory. Next we save data shifts indices into **data** directoty. 
 
