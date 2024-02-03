@@ -1,10 +1,15 @@
-import sys
-sys.path.append('/home/yiwei/data-acquisition/')
+import sys, pathlib
+sys.path.append(str(pathlib.Path().resolve()))
 
 from utils.strategy import *
 from utils.set_up import *
 import utils.statistics.distribution as distribution_utils
-batch_size = 16 # the size of validation samples
+from typing import List
+import utils.dataset.wrappers as dataset_utils
+from abc import abstractclassmethod
+
+batch_size = 32 # the size of validation samples
+
 class Checker():
     def __init__(self) -> None:
         pass
@@ -61,25 +66,60 @@ class Checker():
     def run(self, new_model):
         return self._target_test(self.test_structural_loader, new_model)
 
+# class Strategy():
+#     def __init__(self) -> None:
+#         pass
+
+#     @abstractclassmethod
+#     def acquistion(self, n_samples, dataset, target_labels):
+#         pass
+
+#     def get_new_model(self, model_config:Config.OldModel, detect_instruction:Config.Detection, config, train_data, val_loader):
+#         train_loader = torch.utils.data.DataLoader(train_data, batch_size)
+#         new_model = Model.factory(model_config.base_type, config, detect_instruction.vit)
+#         if model_config.base_type == 'cnn':
+#             new_model.train(train_loader, val_loader)
+#         else:
+#             new_model.train(train_loader)
+#         return new_model
+
+#     @abstractclassmethod
+#     def get_sample_performance(self, samples_indices, model_config, data_split: dataset_utils.DataSplits, detect_instruction, config, base_acc):
+#         pass
+
 class Random_Sample():
     def __init__(self) -> None:
         pass
 
-    def acquistion(self, n_samples, val_size):
-        val_indices = np.arange(val_size)
+    # def acquistion(self, n_samples, val_size):
+    #     val_indices = np.arange(val_size)
 
+    #     samples_indices = {}
+    #     for size in n_samples:
+    #         np.random.seed(0)
+    #         samples_indices[size] = np.random.choice(val_indices, size, replace=False)
+    #     return samples_indices
+
+    def acquistion(self, n_samples, dataset, target_labels):
         samples_indices = {}
-        for size in n_samples:
+        tool = dataset_utils.Cifar()
+        dataset_labels = tool.get_labels(dataset['val_shift'], use_fine_label=True)
+        dataset_size = len(dataset_labels)
+        for size in n_samples:       
             np.random.seed(0)
-            samples_indices[size] = np.random.choice(val_indices, size, replace=False)
+            samples_indices[size], _ = tool.get_split_indices(dataset_labels, target_labels, size/dataset_size)
         return samples_indices
 
-    def get_model_performance(self, model_config:Config.OldModel, detect_instruction:Config.Detection, config, train_data, test_loader):
+    def get_model_performance(self, model_config:Config.OldModel, detect_instruction:Config.Detection, config, train_data, test_loader, val_loader):
 
         train_loader = torch.utils.data.DataLoader(train_data, batch_size)
 
         new_model = Model.factory(model_config.base_type, config, detect_instruction.vit)
-        new_model.train(train_loader)
+
+        if model_config.base_type == 'cnn':
+            new_model.train(train_loader, val_loader)
+        else:
+            new_model.train(train_loader)
 
         new_acc = new_model.acc(test_loader)
 
@@ -93,13 +133,13 @@ class Random_Sample():
 
             val_sample = torch.utils.data.Subset(data_split.dataset['val_shift'], indices)
 
-            new_acc = self.get_model_performance(model_config, detect_instruction, config, val_sample, data_split.loader['test_shift'])
+            new_acc = self.get_model_performance(model_config, detect_instruction, config, val_sample, data_split.loader['test_shift'], data_split.loader['val_reg'])
 
             pairs.append((n_sample, new_acc - base_acc))
 
         return pairs
 
-    def run(self, n_samples, epochs, ds_list, config, device_config, base_type, model_dir, detect_instrution):
+    def run(self, n_samples, epochs, ds_list:List[dataset_utils.Dataset], config, device_config, base_type, model_dir, detect_instrution):
 
         sample_src_size = len(ds_list[0]['val_shift'])
 
@@ -107,11 +147,14 @@ class Random_Sample():
 
         for epo in range(epochs):
 
-            sample_indices = self.acquistion(n_samples, sample_src_size)
+            # sample_indices = self.acquistion(n_samples, sample_src_size)
 
             logger.info('in epoch {}'.format(epo))
             model_config = Config.OldModel(config['hparams']['batch_size']['base'], config['hparams']['superclass'], model_dir, device_config, epo, base_type)        
             ds = ds_list[epo]
+
+            sample_indices = self.acquistion(n_samples, ds, [i for i in range(100)])
+
             ds = dataset_utils.DataSplits(ds, model_config.batch_size)
 
             base_model = Model.factory(model_config.base_type, config, detect_instrution.vit)
@@ -139,16 +182,16 @@ class Greedy():
 
         return samples_indices
 
-    def get_model_performance_dev(self, model_config:Config.OldModel, detect_instruction:Config.Detection, config, train_data, test_loader):
+    # def get_model_performance_dev(self, model_config:Config.OldModel, detect_instruction:Config.Detection, config, train_data, test_loader):
 
-        train_loader = torch.utils.data.DataLoader(train_data, batch_size)
+    #     train_loader = torch.utils.data.DataLoader(train_data, batch_size)
 
-        new_model = Model.factory(model_config.base_type, config, detect_instruction.vit)
-        new_model.train(train_loader)
+    #     new_model = Model.factory(model_config.base_type, config, detect_instruction.vit)
+    #     new_model.train(train_loader)
 
-        new_acc = new_model.acc(test_loader)
+    #     new_acc = new_model.acc(test_loader)
 
-        return new_acc
+    #     return new_acc
 
     def get_model_performance(self, model_type, detect_instruction:Config.Detection, config, train_data, checker:Checker, val_loader):
         train_loader = torch.utils.data.DataLoader(train_data, batch_size)
@@ -250,9 +293,12 @@ def main(epochs,  model_dir ='', device_id=0, base_type='', detector_name='', de
 
     # logger.info(sorted(sample_size))
 
-    sample_size = [i for i in range(15, len(ds_list[0]['val_shift'])+1, 5)]
+    # sample_size = [i for i in range(15, len(ds_list[0]['val_shift'])+1, 5)]
+
+    sample_size = [i for i in range(400, len(ds_list[0]['val_shift'])+1, 400)]
 
     logger.info('samples: {}'.format(sample_size))
+    # return
 
     if dev == 'rs':
         rs = Random_Sample()

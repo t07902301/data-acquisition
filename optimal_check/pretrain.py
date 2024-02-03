@@ -1,5 +1,5 @@
-import sys
-sys.path.append('/home/yiwei/data-acquisition')
+import sys, pathlib
+sys.path.append(str(pathlib.Path().resolve()))
 from set_up import *
 from utils.strategy import *
 from utils.logging import *

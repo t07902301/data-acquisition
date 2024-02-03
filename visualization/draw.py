@@ -1,5 +1,5 @@
-import sys
-sys.path.append('/home/yiwei/data-acquisition')
+import sys, pathlib
+sys.path.append(str(pathlib.Path().resolve()))
 from utils.set_up import *
 import utils.dataset.wrappers as dataset_utils
 import matplotlib.pyplot as plt
