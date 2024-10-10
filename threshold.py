@@ -1,3 +1,7 @@
+'''
+This script is used to train models with different utility thresholds and test the performance of the models on the validation set.
+Usage: python threshold.py -e 1 -md 'core_object' -d 0 -dn 'svm' -am 'dv' -mode 'train'
+'''
 from utils.strategy import *
 from utils.set_up import *
 from utils.logging import *

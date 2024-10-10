@@ -1,0 +1,1 @@
+This folder contains indices of dataset (training, test and validation) splits before domain shifting.

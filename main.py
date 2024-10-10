@@ -1,3 +1,7 @@
+'''
+This is the main file to run the experiment.
+usage: python main.py -e 1 -md 'core_object' -d 0 -dn 'svm' -am 'dv' -ue 'u-ws' -wc 'correctness'
+'''
 from utils.strategy import *
 from utils.set_up import *
 from utils.logging import *

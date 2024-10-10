@@ -4,7 +4,7 @@ All code to reproduce experiment results are marked with <ins>underline</ins>, a
 
 ## Set up
 
-Under the currect directory, three folder need to be set to keep outputs from experiments.
+Under the currect directory, three folders need to be set to keep outputs from experiments.
 
 1. **log**: keep all output from logger.
     - config.yaml: model training, detector training, data split and shift. **config.yaml** under *config* folder is a template. Configs for all tasks are also in *config* folder.

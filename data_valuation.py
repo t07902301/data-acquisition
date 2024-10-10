@@ -1,3 +1,7 @@
+'''
+This script is used to visualize the data valuation results of a dataset from a given epoch.
+usage: python data_valuation.py -e 1 -md 'mnist_task_1' -d 0 -dn 'svm'
+'''
 from utils.strategy import *
 from utils.set_up import *
 import utils.statistics.checker as Checker

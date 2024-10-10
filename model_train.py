@@ -1,3 +1,7 @@
+'''
+This script is the main script for training the padding model. It is designed to be run in the terminal.
+usage: python main.py -e 1 -md 'core_object' -d 0 -am 'dv' -dn 'svm'
+'''
 from utils.set_up import *
 from utils.logging import *
 from utils.env import *

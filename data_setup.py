@@ -1,3 +1,10 @@
+'''
+This script is used to save the indices of data shifts or splits for each epoch.
+Usage: 
+    python data_setup.py -e 1 -md "model_dir" -sm "shift"
+    python data_setup.py -e 1 -md "model_dir" -sm "split"
+'''
+
 from utils.set_up import *
 
 from utils.logging import *

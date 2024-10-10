@@ -1,3 +1,7 @@
+'''
+This file is used to get statistics after running the sequential strategy on the dataset.
+Usage: python seq_stat.py -e 1 -md 'core_object' -d 0 -dn 'svm' -ue 'u-ws'
+'''
 from utils.strategy import *
 from utils.set_up import *
 from utils.logging import *

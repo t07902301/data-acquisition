@@ -1,3 +1,7 @@
+'''
+This script is used to train the source model and evaluate the performance of the source model on the test set and the shifted test set.
+Usage: python pretrain.py -e 1 -md 'core_object' -d 0 -dn 'svm' -tf True
+'''
 from utils.strategy import *
 from utils.set_up import *
 import utils.statistics.data as DataStat

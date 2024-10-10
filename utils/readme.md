@@ -1,0 +1,1 @@
+This folder has scripts for data acquisition and model training. 

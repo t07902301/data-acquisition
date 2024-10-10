@@ -1,3 +1,7 @@
+'''
+This file is used to test the acquisition strategies on the dataset.
+Usage: python test.py -e 1 -md 'core_object' -d 0 -dn 'svm' -am 'dv' -ue 'u-ws' -wc 'correctness'
+'''
 from utils.strategy import *
 import utils.statistics.checker as Checker
 from utils.set_up import *

@@ -11,5 +11,5 @@ dev/
 process.py
 # plot.ipynb
 download/
-data/
-init_data/
+# data/
+# init_data/

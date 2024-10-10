@@ -1,3 +1,7 @@
+'''
+This script is used to check the statistics of the model and the data.
+Usage: python stat_check.py -e 1 -md 'core_object' -d 0 -dn 'svm' -am 'dv' -mode 'train'
+'''
 from utils.strategy import *
 from utils.set_up import *
 import utils.statistics.checker as Checker
