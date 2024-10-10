@@ -69,7 +69,7 @@ Under **optimal_check**, <ins>**pretrain.py**</ins> builds optimal models, <ins>
 
 ## Dataset Generation
 
-* For a full experiment result reproduction, it's recommended to use the current data splits in **data**, as the random seed of generating this folder is fixed only lately.
+* For a full experiment result reproduction, it's recommended to use the current data splits in **data**, as the random seed of generating this folder is just fixed explicitly.
 
 Shifted data splits are generated first by split raw dataset into 4 splits (train, test, validation and data pool), and then make data shifts by removing some labels from train split. By far, we first save the indices of 4 data splits and statistics for data normalization into **init_data** directory. Next we save data shifts indices into **data** directoty. 
 
