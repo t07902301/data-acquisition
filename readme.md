@@ -1,4 +1,6 @@
-# Data Acquisition for Generalizing Black-Box Models
+# Data Acquisition for Generalizing Closed-Box Models
+
+Thesis Link: https://hdl.handle.net/10315/41870 
 
 All code to reproduce experiment results are marked with <ins>underline</ins>, and the help of parameters for code execution can be found in the *main* entry of each code. 
 
